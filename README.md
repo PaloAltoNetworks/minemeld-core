@@ -1,1 +1,4 @@
-Nothing in the master branch yet, check the develop branch
+# MineMeld
+
+Low-latency threat indicators processor
+

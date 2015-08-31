@@ -1,0 +1,217 @@
+fabric:
+  class: mixerwagon.fabric.AMQP
+  args: {}
+
+FTs:
+  inboundaggregator:
+    args:
+      infilters:
+        - name: accept inbound IPv4
+          conditions:
+            - direction == 'inbound'
+            - type == 'IPv4'
+          actions:
+            - accept
+        - name: drop all
+          actions:
+            - drop
+    class: mixerwagon.ft.op.AggregateFT
+    inputs:
+      - blocklist_de_pop3
+      - dshield_blocklist
+      - blocklist_de_mail
+      - virbl_dnsbl
+      - spamhaus_DROP
+      - spamhaus_EDROP
+      - malwaredomainlist
+      - openbl_base90
+      - ET_compromisediplist
+      - bruteforceblocker
+    output: true
+  inhcaggregator:
+    args:
+      infilters:
+        - name: accept inbound IPv4
+          conditions:
+            - direction == 'inbound'
+          actions:
+            - accept
+        - name: drop all
+          actions:
+            - drop
+    class: mixerwagon.ft.ipop.AggregateIPv4FT
+    output: true
+    inputs:
+      - spamhaus_DROP
+      - dshield_blocklist
+      - ET_compromisediplist
+  inhcfeed:
+    args: {}
+    class: mixerwagon.ft.redis.RedisSet
+    inputs:
+      - inhcaggregator
+  inboundfeed:
+    args:
+      infilters:
+        - name: accept multiple sources
+          conditions:
+            - length(sources) > 1
+          actions:
+            - accept
+        - name: drop all
+          actions:
+            - drop
+    class: mixerwagon.ft.redis.RedisSet
+    inputs:
+      - inboundaggregator
+    output: false
+  outboundfeed:
+    args: {}
+    class: mixerwagon.ft.redis.RedisSet
+    inputs:
+      - outboundaggregator
+    output: false
+  outboundaggregator:
+    args:
+      infilters:
+        - name: accept outbound IPv4
+          conditions:
+            - direction == 'outbound'
+            - type == 'IPv4'
+          actions:
+            - accept
+        - name: drop all
+          actions:
+            - drop
+    class: mixerwagon.ft.op.AggregateFT
+    inputs:
+      - malc0de_ipbl
+      - zeustracker_badips
+    output: true
+  blocklist_de_mail:
+    args:
+      source_name: http://www.blocklist.de/lists/mail.txt
+      attributes:
+        application: smtp
+        direction: inbound
+        type: IPv4
+      url: http://www.blocklist.de/lists/mail.txt
+    class: mixerwagon.ft.http.HttpFT
+    output: true
+  blocklist_de_pop3:
+    args:
+      source_name: http://www.blocklist.de/lists/pop3.txt
+      attributes:
+        application: pop3
+        direction: inbound
+        type: IPv4
+      url: http://www.blocklist.de/lists/pop3.txt
+    class: mixerwagon.ft.http.HttpFT
+    output: true
+  dshield_blocklist:
+    args:
+      interval: 600
+    class: mixerwagon.ft.dshield.DshieldBlockList
+    output: true
+  malc0de_ipbl:
+    args:
+      source_name: http://malc0de.com/bl/IP_Blacklist.txt
+      attributes:
+        direction: outbound
+        type: IPv4
+      cchar: "//"
+      url: http://malc0de.com/bl/IP_Blacklist.txt
+    class: mixerwagon.ft.http.HttpFT
+    output: true
+  virbl_dnsbl:
+    args:
+      source_name: http://virbl.org/download/virbl.dnsbl.bit.nl.txt
+      attributes:
+        application: smtp
+        direction: inbound
+        type: IPv4
+      cchar: E
+      url: http://virbl.org/download/virbl.dnsbl.bit.nl.txt
+    class: mixerwagon.ft.http.HttpFT
+    output: true
+  zeustracker_badips:
+    args:
+      source_name: https://zeustracker.abuse.ch/blocklist.php?download=badips
+      attributes:
+        type: IPv4
+        direction: outbound
+      cchar: "#"
+      url: https://zeustracker.abuse.ch/blocklist.php?download=badips
+    class: mixerwagon.ft.http.HttpFT
+    output: true
+  zeustracker_baddomains:
+    args:
+      source_name: https://zeustracker.abuse.ch/blocklist.php?download=baddomains
+      attributes:
+        type: domain
+        direction: outbound
+      cchar: "#"
+      url: https://zeustracker.abuse.ch/blocklist.php?download=baddomains
+    class: mixerwagon.ft.http.HttpFT
+    output: true
+  spamhaus_DROP:
+    args:
+      source_name: http://www.spamhaus.org/drop/drop.txt
+      attributes:
+        type: IPv4
+        direction: inbound
+      cchar: ;
+      split_char: ;
+      url: http://www.spamhaus.org/drop/drop.txt
+    class: mixerwagon.ft.http.HttpFT
+    output: true
+  spamhaus_EDROP:
+    args:
+      source_name: http://www.spamhaus.org/drop/edrop.txt
+      attributes:
+        type: IPv4
+        direction: inbound
+      cchar: ;
+      split_char: ;
+      url: http://www.spamhaus.org/drop/edrop.txt
+    class: mixerwagon.ft.http.HttpFT
+    output: true
+  openbl_base90:
+    args:
+      source_name: http://www.openbl.org/lists/base.txt
+      attributes:
+        type: IPv4
+        direction: inbound
+      cchar: "#"
+      url: http://www.openbl.org/lists/base.txt
+    class: mixerwagon.ft.http.HttpFT
+    output: true
+  malwaredomainlist:
+    args:
+      source_name: http://www.malwaredomainlist.com/hostslist/ip.txt
+      attributes:
+        type: IPv4
+        direction: inbound
+      url: http://www.malwaredomainlist.com/hostslist/ip.txt
+    class: mixerwagon.ft.http.HttpFT
+    output: true
+  ET_compromisediplist:
+    args:
+      source_name: http://rules.emergingthreats.net/open/suricata/rules/compromised-ips.txt
+      attributes:
+        type: IPv4
+        direction: inbound
+      url: http://rules.emergingthreats.net/open/suricata/rules/compromised-ips.txt
+    class: mixerwagon.ft.http.HttpFT
+    output: true
+  bruteforceblocker:
+    args:
+      source_name: bruteforceblocker
+      url: http://danger.rulez.sk/projects/bruteforceblocker/blist.php
+      cchar: "#"
+      split_char: "#"
+      attributes:
+        type: IPv4
+        direction: inbound
+    class: mixerwagon.ft.http.HttpFT
+    output: true
