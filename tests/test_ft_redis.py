@@ -37,8 +37,7 @@ class MineMeldFTRedisTests(unittest.TestCase):
         self.assertItemsEqual(b.inputs, [])
         self.assertEqual(b.output, None)
         self.assertEqual(b.redis_skey, FTNAME)
-        self.assertEqual(b.SR, None)
-        self.assertItemsEqual(b.active_requests, [])
+        self.assertNotEqual(b.SR, None)
         self.assertEqual(b.redis_host, 'localhost')
         self.assertEqual(b.redis_port, 6379)
         self.assertEqual(b.redis_password, None)
@@ -123,4 +122,4 @@ class MineMeldFTRedisTests(unittest.TestCase):
         self.assertEqual(len(sm), 0)
 
         b.stop()
-        self.assertEqual(b.SR, None)
+        self.assertNotEqual(b.SR, None)

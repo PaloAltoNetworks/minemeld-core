@@ -115,7 +115,7 @@ class MineMeldFTBaseTests(unittest.TestCase):
         self.assertTrue(c.eval(i))
 
         c = minemeld.ft.condition.Condition("starts_with(type, 'IP') "
-                                              "== true")
+                                            "== true")
         self.assertTrue(c.eval(i))
 
         c = minemeld.ft.condition.Condition("type == 'IPv4'")

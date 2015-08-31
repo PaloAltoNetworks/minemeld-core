@@ -73,6 +73,7 @@ def _parse_args():
     )
     return parser.parse_args()
 
+
 def _load_config(path):
     if os.path.isdir(path):
         ccpath = os.path.join(
@@ -125,6 +126,7 @@ def _load_config(path):
     config['reinit'] = True
 
     return config
+
 
 def main():
     args = _parse_args()
