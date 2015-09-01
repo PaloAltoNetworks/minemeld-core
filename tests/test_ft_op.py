@@ -107,6 +107,7 @@ class MineMeldFTOpTests(unittest.TestCase):
         output = True
 
         a.connect(inputs, output)
+        a.mgmtbus_initialize()
         a.start()
 
         a.update('s1', indicator='i', value={'s1$a': 1, 'sources': ['s1s']})
@@ -155,6 +156,7 @@ class MineMeldFTOpTests(unittest.TestCase):
         output = True
 
         a.connect(inputs, output)
+        a.mgmtbus_initialize()
         a.start()
 
         a.update('s1', indicator='i', value={'s1$a': 1, 'sources': ['s1s']})
@@ -198,6 +200,7 @@ class MineMeldFTOpTests(unittest.TestCase):
         output = True
 
         a.connect(inputs, output)
+        a.mgmtbus_initialize()
         a.start()
 
         a.update('s1', indicator='i', value={'s1$a': 1, 'sources': ['s1s']})
@@ -243,6 +246,7 @@ class MineMeldFTOpTests(unittest.TestCase):
         output = True
 
         a.connect(inputs, output)
+        a.mgmtbus_initialize()
         a.start()
 
         a.update('s1', indicator='i', value={'s1$a': 1, 'sources': ['s1s']})
@@ -300,6 +304,7 @@ class MineMeldFTOpTests(unittest.TestCase):
         output = True
 
         a.connect(inputs, output)
+        a.mgmtbus_initialize()
         a.start()
 
         a.update('s1', indicator='i', value={'s1$a': 1, 'sources': ['s1s']})
@@ -368,6 +373,7 @@ class MineMeldFTOpTests(unittest.TestCase):
         output = True
 
         a.connect(inputs, output)
+        a.mgmtbus_initialize()
         a.start()
 
         a.update('s1', indicator='i', value={'s1a': 1, 'sources': ['s1s']})
@@ -416,6 +422,7 @@ class MineMeldFTOpTests(unittest.TestCase):
         output = True
 
         a.connect(inputs, output)
+        a.mgmtbus_initialize()
         a.start()
 
         a.update('s1', indicator='i', value={'s1a': 1, 'sources': ['s1s']})
@@ -460,6 +467,7 @@ class MineMeldFTOpTests(unittest.TestCase):
         output = True
 
         a.connect(inputs, output)
+        a.mgmtbus_initialize()
         a.start()
 
         a.update('s1', indicator='10.1.0.0/16', value={
@@ -519,6 +527,7 @@ class MineMeldFTOpTests(unittest.TestCase):
         output = True
 
         a.connect(inputs, output)
+        a.mgmtbus_initialize()
         a.start()
 
         a.update('s1', indicator='10.1.0.0/16', value={
@@ -598,6 +607,7 @@ class MineMeldFTOpTests(unittest.TestCase):
         output = True
 
         a.connect(inputs, output)
+        a.mgmtbus_initialize()
         a.start()
 
         a.update('s1', indicator='10.1.0.0/16', value={

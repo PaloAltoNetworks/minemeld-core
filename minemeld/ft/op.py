@@ -11,17 +11,24 @@ LOG = logging.getLogger(__name__)
 class AggregateFT(base.BaseFT):
     _ftclass = 'AggregateFT'
 
-    def __init__(self, name, chassis, config, reinit=True):
-        self.table = table.Table(name, truncate=True)
+    def __init__(self, name, chassis, config):
+        self.table = table.Table(name)
         self.active_requests = []
 
-        super(AggregateFT, self).__init__(name, chassis, config,
-                                          reinit=reinit)
+        super(AggregateFT, self).__init__(name, chassis, config)
 
     def configure(self):
         super(AggregateFT, self).configure()
 
         self.whitelists = self.config.get('whitelists', [])
+
+    def rebuild(self):
+        self.table.close()
+        self.table = table.Table(self.name, truncate=True)
+
+    def reset(self):
+        self.table.close()
+        self.table = table.Table(self.name, truncate=True)
 
     def _indicator_key(self, indicator, source):
         return indicator+'\x00'+source
@@ -73,7 +80,7 @@ class AggregateFT(base.BaseFT):
 
         return v
 
-    def _update(self, source=None, indicator=None, value=None):
+    def filtered_update(self, source=None, indicator=None, value=None):
         ebl = False
         ewl = False
         for i in self.inputs:
@@ -99,7 +106,7 @@ class AggregateFT(base.BaseFT):
                 return
             self._emit_update_indicator(indicator)
 
-    def _withdraw(self, source=None, indicator=None, value=None):
+    def filtered_withdraw(self, source=None, indicator=None, value=None):
         ebl = 0
         ewl = 0
         for i in self.inputs:
@@ -183,10 +190,9 @@ class AggregateFT(base.BaseFT):
     def length(self, source=None):
         return self.table.num_indicators
 
-    def start(self):
-        pass
-
     def stop(self):
+        super(AggregateFT, self).stop()
+
         for g in self.active_requests:
             g.kill()
         self.active_requests = []

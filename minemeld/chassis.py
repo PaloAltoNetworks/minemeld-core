@@ -5,11 +5,13 @@ FTs communicate using the fabric.
 """
 
 import logging
-import time
 
 import gevent
 import gevent.monkey
 gevent.monkey.patch_all(thread=False, select=False)
+
+import minemeld.mgmtbus
+import minemeld.ft
 
 LOG = logging.getLogger(__name__)
 STATE_REPORT_INTERVAL = 10
@@ -17,7 +19,7 @@ STATE_REPORT_INTERVAL = 10
 
 class Chassis(object):
     def __init__(self, fabricclass, fabricconfig,
-                 report_state=True, reinit=True):
+                 mgmtbusclass, mgmtbusconfig):
         """Chassis class
 
         Args:
@@ -25,8 +27,6 @@ class Chassis(object):
             fabricconfig (dict): config dictionary for fabric,
                 class specific
         """
-        LOG.debug("reinit: %s", reinit)
-
         self.fts = {}
 
         self.fabric_class = fabricclass
@@ -36,13 +36,12 @@ class Chassis(object):
             config=self.fabric_config
         )
 
-        self.g_state_report = None
-        self.rs_flag = report_state
-        if self.rs_flag:
-            self.state_report_channel = \
-                self.fabric.request_state_report_channel()
-
-        self.reinit_flag = reinit
+        self.mgmtbus_class = mgmtbusclass
+        self.mgmtbus_config = mgmtbusconfig
+        self.mgmtbus = minemeld.mgmtbus.slave_factory(
+            self.mgmtbus_class,
+            self.mgmtbus_config
+        )
 
     def _diff(self, A, B):
         setA = set(A.keys())
@@ -62,29 +61,6 @@ class Chassis(object):
         cls = getattr(t, classname)
         return cls
 
-    def _state_report(self):
-        while True:
-            try:
-                state = {
-                    'FTs': {}
-                }
-                for ft in self.fts:
-                    state['FTs'][ft] = self.fts[ft].state()
-
-                params = {
-                    'timestamp': time.time(),
-                    'state': state
-                }
-                self.state_report_channel.publish('state', params=params)
-
-                LOG.debug("Reported state")
-            except gevent.GreenletExit:
-                return
-            except:
-                LOG.exception("Exception in report_state greenlet")
-
-            gevent.sleep(STATE_REPORT_INTERVAL)
-
     def get_ft(self, ftname):
         return self.fts.get(ftname, None)
 
@@ -98,39 +74,22 @@ class Chassis(object):
         for ft in config:
             ftconfig = config[ft]
             LOG.debug(ftconfig)
-            if ft not in self.fts:
-                # new FT
-                newfts[ft] = self._dynamic_load(ftconfig['class'])(
-                    name=ft,
-                    chassis=self,
-                    config=ftconfig['args'],
-                    reinit=self.reinit_flag
-                )
-                newfts[ft].connect(
-                    ftconfig.get('inputs', []),
-                    ftconfig.get('output', False)
-                )
-            else:
-                # FT already exists
-                cft = self.fts[ft]
-                if self._diff(cft.config, ftconfig['args']):
-                    # configuration changed
-                    if cft.hasattr('reconfigure'):
-                        cft.reconfigure(ftconfig['args'])
-                        newfts[ft] = cft
-                    else:
-                        cft.destroy()
-                        newfts[ft] = self._dynamic_load(ftconfig['class'])(
-                            name=ft,
-                            chassis=self,
-                            config=ftconfig['args']
-                        )
 
-        removed = set(self.fts.keys())-set(newfts.keys())
-        for ft in removed:
-            self.fts[ft].destroy()
+            # new FT
+            newfts[ft] = self._dynamic_load(ftconfig['class'])(
+                name=ft,
+                chassis=self,
+                config=ftconfig['args']
+            )
+            newfts[ft].connect(
+                ftconfig.get('inputs', []),
+                ftconfig.get('output', False)
+            )
 
         self.fts = newfts
+
+    def request_mgmtbus_channel(self, ft):
+        return self.mgmtbus.request_channel(ft)
 
     def request_rpc_channel(self, ftname, ft, allowed_methods=[]):
         self.fabric.request_rpc_channel(ftname, ft, allowed_methods)
@@ -148,6 +107,12 @@ class Chassis(object):
     def fabric_failed(self):
         self.stop()
 
+    def fts_init(self):
+        for ft in self.fts.values():
+            if ft.get_state() < minemeld.ft.ft_states.INIT:
+                return False
+        return True
+
     def stop(self):
         LOG.info("chassis stop called")
 
@@ -156,10 +121,6 @@ class Chassis(object):
 
         for ftname, ft in self.fts.iteritems():
             ft.stop()
-
-        if self.g_state_report is not None:
-            self.g_state_report.kill()
-            self.g_state_report = None
 
         self.fabric.stop()
 
@@ -170,9 +131,6 @@ class Chassis(object):
             return
 
         self.fabric.start()
-
-        if self.rs_flag:
-            self.g_state_report = gevent.spawn(self._state_report)
 
         for ftname, ft in self.fts.iteritems():
             ft.start()

@@ -7,6 +7,7 @@ import unittest
 import mock
 
 import minemeld.ft.base
+import minemeld.ft
 
 
 class MineMeldFTBaseTests(unittest.TestCase):
@@ -26,6 +27,7 @@ class MineMeldFTBaseTests(unittest.TestCase):
         self.assertItemsEqual(b.inputs, [])
         self.assertEqual(b.output, None)
         self.assertEqual(b.configure.call_count, 1)
+        self.assertEqual(b.state, minemeld.ft.ft_states.READY)
 
     def test_connect_io(self):
         ftname = 'test'
@@ -52,8 +54,9 @@ class MineMeldFTBaseTests(unittest.TestCase):
         for i in inputs:
             icalls.append(
                 mock.call(ftname, b, i,
-                          allowed_methods=['update', 'withdraw'])
+                          allowed_methods=['update', 'withdraw', 'checkpoint'])
             )
+
         chassis.request_sub_channel.assert_has_calls(
             icalls,
             any_order=True
@@ -65,6 +68,7 @@ class MineMeldFTBaseTests(unittest.TestCase):
             allowed_methods=[
                 'update',
                 'withdraw',
+                'checkpoint',
                 'get',
                 'get_all',
                 'get_range',
@@ -100,6 +104,7 @@ class MineMeldFTBaseTests(unittest.TestCase):
             allowed_methods=[
                 'update',
                 'withdraw',
+                'checkpoint',
                 'get',
                 'get_all',
                 'get_range',
@@ -144,6 +149,7 @@ class MineMeldFTBaseTests(unittest.TestCase):
             allowed_methods=[
                 'update',
                 'withdraw',
+                'checkpoint',
                 'get',
                 'get_all',
                 'get_range',
@@ -212,6 +218,7 @@ class MineMeldFTBaseTests(unittest.TestCase):
             allowed_methods=[
                 'update',
                 'withdraw',
+                'checkpoint',
                 'get',
                 'get_all',
                 'get_range',

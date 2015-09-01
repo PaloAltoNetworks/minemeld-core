@@ -115,6 +115,7 @@ class MineMeldFTOpTests(unittest.TestCase):
         output = True
 
         a.connect(inputs, output)
+        a.mgmtbus_initialize()
         a.start()
 
         a.update('s1', indicator='192.168.0.1', value={
@@ -255,6 +256,7 @@ class MineMeldFTOpTests(unittest.TestCase):
         output = True
 
         a.connect(inputs, output)
+        a.mgmtbus_initialize()
         a.start()
 
         a.update('s1', indicator='192.168.0.0/16', value={
@@ -326,6 +328,7 @@ class MineMeldFTOpTests(unittest.TestCase):
         output = True
 
         a.connect(inputs, output)
+        a.mgmtbus_initialize()
         a.start()
 
         a.update('s1', indicator='192.168.0.1-192.168.0.3', value={
@@ -399,6 +402,7 @@ class MineMeldFTOpTests(unittest.TestCase):
         output = True
 
         a.connect(inputs, output)
+        a.mgmtbus_initialize()
         a.start()
 
         a.update('s1', indicator='8.8.0.0/16', value={
@@ -468,6 +472,7 @@ class MineMeldFTOpTests(unittest.TestCase):
         output = True
 
         a.connect(inputs, output)
+        a.mgmtbus_initialize()
         a.start()
 
         a.update('s1', indicator='10.1.0.0/16', value={
@@ -571,6 +576,7 @@ class MineMeldFTOpTests(unittest.TestCase):
         output = True
 
         a.connect(inputs, output)
+        a.mgmtbus_initialize()
         a.start()
 
         a.update('s1', indicator='10.1.0.0/16', value={

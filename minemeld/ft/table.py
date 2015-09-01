@@ -148,6 +148,9 @@ class Table(object):
 
         return result
 
+    def close(self):
+        self.db.close()
+
     def exists(self, key):
         if type(key) == unicode:
             key = key.encode('utf8')

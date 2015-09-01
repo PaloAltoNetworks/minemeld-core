@@ -1,7 +1,9 @@
 import logging
 import copy
+import os
 
 from . import condition
+from . import ft_states
 
 
 LOG = logging.getLogger(__name__)
@@ -64,9 +66,7 @@ class _Filters(object):
 
 
 class BaseFT(object):
-    _ftclass = 'BaseFT'
-
-    def __init__(self, name, chassis, config, reinit=True):
+    def __init__(self, name, chassis, config):
         self.name = name
 
         self.chassis = chassis
@@ -77,46 +77,48 @@ class BaseFT(object):
         self.inputs = []
         self.output = None
 
-        self._state = {
-            'class': self.ftclass,
-            'name': self.name,
-            'updates_emitted': 0,
-            'withdraws_emitted': 0,
-            'inputs': self.inputs,
-            'output': self.output,
-            'num_indicators': 0
-        }
+        self.read_checkpoint()
 
-        self.reinit_flag = reinit
+        self.chassis.request_mgmtbus_channel(self)
 
-    @property
-    def ftclass(self):
-        return self._ftclass
+        self.state = ft_states.READY
 
-    @ftclass.setter
-    def ftclass(self, newv):
-        self._ftclass = newv
-        self._state['class'] = newv
+    def read_checkpoint(self):
+        self.last_checkpoint = None
+
+        try:
+            with open(self.name+'.chkp', 'r') as f:
+                self.last_checkpoint = f.read().strip()
+            os.remove(self.name+'.chkp')
+        except IOError:
+            pass
+
+    def create_checkpoint(self, value):
+        with open(self.name+'.chkp', 'w') as f:
+            f.write(value)
 
     def configure(self):
         self.infilters = _Filters(self.config.get('infilters', []))
         self.outfilters = _Filters(self.config.get('outfilters', []))
 
     def connect(self, inputs, output):
+        if self.state != ft_states.READY:
+            LOG.error('connect called in non ready FT')
+            raise AssertionError('connect called in non ready FT')
+
         for i in inputs:
             LOG.info("%s - requesting fabric sub channel for %s", self.name, i)
             self.chassis.request_sub_channel(
                 self.name,
                 self,
                 i,
-                allowed_methods=['update', 'withdraw']
+                allowed_methods=['update', 'withdraw', 'checkpoint']
             )
         self.inputs = inputs
-        self._state['inputs'] = inputs
+        self.inputs_checkpoint = {}
 
         if output:
             self.output = self.chassis.request_pub_channel(self.name)
-            self._state['output'] = output
 
         self.chassis.request_rpc_channel(
             self.name,
@@ -124,12 +126,15 @@ class BaseFT(object):
             allowed_methods=[
                 'update',
                 'withdraw',
+                'checkpoint',
                 'get',
                 'get_all',
                 'get_range',
                 'length'
             ]
         )
+
+        self.state = ft_states.CONNECTED
 
     def apply_infilters(self, indicator, value):
         return self.infilters.apply(indicator, value)
@@ -153,7 +158,6 @@ class BaseFT(object):
             'indicator': indicator,
             'value': value
         })
-        self._state['updates_emitted'] += 1
 
     def emit_withdraw(self, indicator, value=None):
         if self.output is None:
@@ -167,14 +171,23 @@ class BaseFT(object):
             'indicator': indicator,
             'value': value
         })
-        self._state['withdraws_emitted'] += 1
 
-    def state(self):
-        self._state['num_indicators'] = self.length()
+    def emit_checkpoint(self, value):
+        if self.output is None:
+            return
 
-        return self._state
+        self.output.publish('checkpoint', {
+            'value': value
+        })
 
     def update(self, source=None, indicator=None, value=None):
+        if self.state not in [ft_states.STARTED, ft_states.CHECKPOINT]:
+            return
+
+        if source in self.inputs_checkpoint:
+            LOG.error("update recevied from checkpointed source")
+            raise AssertionError("update recevied from checkpointed source")
+
         if value is not None:
             for k in value.keys():
                 if k.startswith("_"):
@@ -182,15 +195,30 @@ class BaseFT(object):
 
         fltindicator, fltvalue = self.apply_infilters(indicator, value)
         if fltindicator is None:
-            self._withdraw(source=source, indicator=indicator, value=value)
+            self.filtered_withdraw(
+                source=source,
+                indicator=indicator,
+                value=value
+            )
             return
 
-        self._update(source=source, indicator=fltindicator, value=fltvalue)
+        self.filtered_update(
+            source=source,
+            indicator=fltindicator,
+            value=fltvalue
+        )
 
-    def _update(self, source=None, indicator=None, value=None):
+    def filtered_update(self, source=None, indicator=None, value=None):
         raise NotImplementedError('%s: update' % self.name)
 
     def withdraw(self, source=None, indicator=None, value=None):
+        if self.state not in [ft_states.STARTED, ft_states.CHECKPOINT]:
+            return
+
+        if source in self.inputs_checkpoint:
+            LOG.error("withdraw recevied from checkpointed source")
+            raise AssertionError("withdraw recevied from checkpointed source")
+
         if value is not None:
             for k in value.keys():
                 if k.startswith("_"):
@@ -200,10 +228,80 @@ class BaseFT(object):
         if fltindicator is None:
             return
 
-        self._withdraw(source=source, indicator=fltindicator, value=fltvalue)
+        self.filtered_withdraw(
+            source=source,
+            indicator=fltindicator,
+            value=fltvalue
+        )
 
-    def _withdraw(self, source=None, indicator=None, value=None):
+    def filtered_withdraw(self, source=None, indicator=None, value=None):
         raise NotImplementedError('%s: withdraw' % self.name)
+
+    def checkpoint(self, source=None, value=None):
+        LOG.debug('checkpoint from %s value %s', source, value)
+
+        if self.state != ft_states.STARTED:
+            LOG.error("checkpoint received with state not STARTED")
+            raise AssertionError("checkpoint received with state not STARTED")
+
+        for v in self.inputs_checkpoint.values():
+            if v != value:
+                LOG.error("different checkpoint value received")
+                raise AssertionError("different checkpoint value received")
+
+        self.inputs_checkpoint[source] = value
+
+        if len(self.inputs_checkpoint) != len(self.inputs):
+            self.state = ft_states.CHECKPOINT
+            return
+
+        self.state = ft_states.IDLE
+        self.create_checkpoint(value)
+        self.last_checkpoint = value
+        self.emit_checkpoint(value)
+
+    def mgmtbus_state_info(self):
+        return {
+            'checkpoint': self.last_checkpoint,
+            'state': self.state,
+            'is_source': len(self.inputs) == 0
+        }
+
+    def mgmtbus_initialize(self):
+        self.state = ft_states.INIT
+        return 'OK'
+
+    def mgmtbus_rebuild(self):
+        self.state = ft_states.REBUILDING
+        self.rebuild()
+        self.state = ft_states.INIT
+        return 'OK'
+
+    def mgmtbus_reset(self):
+        self.state = ft_states.RESET
+        self.reset()
+        self.state = ft_states.INIT
+        return 'OK'
+
+    def mgmtbus_checkpoint(self, value=None):
+        if len(self.inputs) != 0:
+            return 'ignored'
+
+        self.state = ft_states.IDLE
+        self.create_checkpoint(value)
+        self.last_checkpoint = value
+        self.emit_checkpoint(value)
+
+        return 'OK'
+
+    def rebuild(self):
+        pass
+
+    def reset(self):
+        pass
+
+    def get_state(self):
+        return self.state
 
     def get(self, source=None, indicator=None):
         raise NotImplementedError('%s: get - not implemented' % self.name)
@@ -219,10 +317,15 @@ class BaseFT(object):
         raise NotImplementedError('%s: length - not implemented' % self.name)
 
     def start(self):
-        pass
+        if self.state != ft_states.INIT:
+            LOG.error("start on not INIT FT")
+            raise AssertionError("start on not INIT FT")
+
+        self.state = ft_states.STARTED
 
     def stop(self):
-        pass
+        if self.state not in [ft_states.IDLE, ft_states.STARTED]:
+            LOG.error("stop on not IDLE or STARTED FT")
+            raise AssertionError("stop on not IDLE or STARTED FT")
 
-    def destroy(self):
-        pass
+        self.state = ft_states.STOPPED

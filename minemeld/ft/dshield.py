@@ -9,7 +9,7 @@ LOG = logging.getLogger(__name__)
 class DshieldBlockList(http.HttpFT):
     _ftclass = 'DshieldBlockList'
 
-    def __init__(self, name, chassis, config, reinit=True):
+    def __init__(self, name, chassis, config):
         config['cchar'] = '#'
         config['url'] = 'https://www.dshield.org/block.txt'
         config['source_name'] = 'https://www.dshield.org/block.txt'
@@ -17,8 +17,7 @@ class DshieldBlockList(http.HttpFT):
         super(DshieldBlockList, self).__init__(
             name,
             chassis,
-            config,
-            reinit=reinit
+            config
         )
 
     def _values_compare(self, d1, d2):
