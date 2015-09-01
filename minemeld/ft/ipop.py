@@ -38,21 +38,34 @@ class MWUpdate(object):
 
 
 class AggregateIPv4FT(base.BaseFT):
-    _ftclass = 'AggregateIPv4FT'
-
-    def __init__(self, name, chassis, config, reinit=True):
-        self.table = table.Table(name, truncate=True)
+    def __init__(self, name, chassis, config):
+        self.table = table.Table(name)
         self.table.create_index('_id')
-        self.st = st.ST(name+'_st', 32, truncate=True)
+        self.st = st.ST(name+'_st', 32)
         self.active_requests = []
 
-        super(AggregateIPv4FT, self).__init__(name, chassis, config,
-                                              reinit=reinit)
+        super(AggregateIPv4FT, self).__init__(name, chassis, config)
 
     def configure(self):
         super(AggregateIPv4FT, self).configure()
 
         self.whitelists = self.config.get('whitelists', [])
+
+    def rebuild(self):
+        self.table.close()
+        self.st.close()
+
+        self.table = table.Table(self.name, truncate=True)
+        self.table.create_index('_id')
+        self.st = st.ST(self.name+'_st', 32, truncate=True)
+
+    def reset(self):
+        self.table.close()
+        self.st.close()
+
+        self.table = table.Table(self.name, truncate=True)
+        self.table.create_index('_id')
+        self.st = st.ST(self.name+'_st', 32, truncate=True)
 
     def _calc_indicator_value(self, uuids):
         mv = {'sources': []}
@@ -164,7 +177,7 @@ class AggregateIPv4FT(base.BaseFT):
 
         return result
 
-    def _update(self, source=None, indicator=None, value=None):
+    def filtered_update(self, source=None, indicator=None, value=None):
         vtype = value.get('type', None)
         if vtype != 'IPv4':
             return
@@ -242,7 +255,7 @@ class AggregateIPv4FT(base.BaseFT):
         for u in removed:
             self.emit_withdraw(u.indicator())
 
-    def _withdraw(self, source=None, indicator=None, value=None):
+    def filtered_withdraw(self, source=None, indicator=None, value=None):
         vtype = value.get('type', None)
         if vtype != 'IPv4':
             return
@@ -368,10 +381,9 @@ class AggregateIPv4FT(base.BaseFT):
     def length(self, source=None):
         return self.table.num_indicators
 
-    def start(self):
-        pass
-
     def stop(self):
+        super(AggregateIPv4FT, self).stop()
+
         for g in self.active_requests:
             g.kill()
         self.active_requests = []

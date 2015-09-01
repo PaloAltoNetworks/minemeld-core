@@ -1,5 +1,9 @@
 fabric:
-  class: mixerwagon.fabric.AMQP
+  class: minemeld.fabric.AMQP
+  args: {}
+
+mgmtbus:
+  class: AMQP
   args: {}
 
 FTs:
@@ -15,7 +19,7 @@ FTs:
         - name: drop all
           actions:
             - drop
-    class: mixerwagon.ft.op.AggregateFT
+    class: minemeld.ft.op.AggregateFT
     inputs:
       - blocklist_de_pop3
       - dshield_blocklist
@@ -39,7 +43,7 @@ FTs:
         - name: drop all
           actions:
             - drop
-    class: mixerwagon.ft.ipop.AggregateIPv4FT
+    class: minemeld.ft.ipop.AggregateIPv4FT
     output: true
     inputs:
       - spamhaus_DROP
@@ -47,7 +51,7 @@ FTs:
       - ET_compromisediplist
   inhcfeed:
     args: {}
-    class: mixerwagon.ft.redis.RedisSet
+    class: minemeld.ft.redis.RedisSet
     inputs:
       - inhcaggregator
   inboundfeed:
@@ -61,13 +65,13 @@ FTs:
         - name: drop all
           actions:
             - drop
-    class: mixerwagon.ft.redis.RedisSet
+    class: minemeld.ft.redis.RedisSet
     inputs:
       - inboundaggregator
     output: false
   outboundfeed:
     args: {}
-    class: mixerwagon.ft.redis.RedisSet
+    class: minemeld.ft.redis.RedisSet
     inputs:
       - outboundaggregator
     output: false
@@ -83,7 +87,7 @@ FTs:
         - name: drop all
           actions:
             - drop
-    class: mixerwagon.ft.op.AggregateFT
+    class: minemeld.ft.op.AggregateFT
     inputs:
       - malc0de_ipbl
       - zeustracker_badips
@@ -96,7 +100,7 @@ FTs:
         direction: inbound
         type: IPv4
       url: http://www.blocklist.de/lists/mail.txt
-    class: mixerwagon.ft.http.HttpFT
+    class: minemeld.ft.http.HttpFT
     output: true
   blocklist_de_pop3:
     args:
@@ -106,12 +110,12 @@ FTs:
         direction: inbound
         type: IPv4
       url: http://www.blocklist.de/lists/pop3.txt
-    class: mixerwagon.ft.http.HttpFT
+    class: minemeld.ft.http.HttpFT
     output: true
   dshield_blocklist:
     args:
       interval: 600
-    class: mixerwagon.ft.dshield.DshieldBlockList
+    class: minemeld.ft.dshield.DshieldBlockList
     output: true
   malc0de_ipbl:
     args:
@@ -121,7 +125,7 @@ FTs:
         type: IPv4
       cchar: "//"
       url: http://malc0de.com/bl/IP_Blacklist.txt
-    class: mixerwagon.ft.http.HttpFT
+    class: minemeld.ft.http.HttpFT
     output: true
   virbl_dnsbl:
     args:
@@ -132,7 +136,7 @@ FTs:
         type: IPv4
       cchar: E
       url: http://virbl.org/download/virbl.dnsbl.bit.nl.txt
-    class: mixerwagon.ft.http.HttpFT
+    class: minemeld.ft.http.HttpFT
     output: true
   zeustracker_badips:
     args:
@@ -142,7 +146,7 @@ FTs:
         direction: outbound
       cchar: "#"
       url: https://zeustracker.abuse.ch/blocklist.php?download=badips
-    class: mixerwagon.ft.http.HttpFT
+    class: minemeld.ft.http.HttpFT
     output: true
   zeustracker_baddomains:
     args:
@@ -152,7 +156,7 @@ FTs:
         direction: outbound
       cchar: "#"
       url: https://zeustracker.abuse.ch/blocklist.php?download=baddomains
-    class: mixerwagon.ft.http.HttpFT
+    class: minemeld.ft.http.HttpFT
     output: true
   spamhaus_DROP:
     args:
@@ -163,7 +167,7 @@ FTs:
       cchar: ;
       split_char: ;
       url: http://www.spamhaus.org/drop/drop.txt
-    class: mixerwagon.ft.http.HttpFT
+    class: minemeld.ft.http.HttpFT
     output: true
   spamhaus_EDROP:
     args:
@@ -174,7 +178,7 @@ FTs:
       cchar: ;
       split_char: ;
       url: http://www.spamhaus.org/drop/edrop.txt
-    class: mixerwagon.ft.http.HttpFT
+    class: minemeld.ft.http.HttpFT
     output: true
   openbl_base90:
     args:
@@ -184,7 +188,7 @@ FTs:
         direction: inbound
       cchar: "#"
       url: http://www.openbl.org/lists/base.txt
-    class: mixerwagon.ft.http.HttpFT
+    class: minemeld.ft.http.HttpFT
     output: true
   malwaredomainlist:
     args:
@@ -193,7 +197,7 @@ FTs:
         type: IPv4
         direction: inbound
       url: http://www.malwaredomainlist.com/hostslist/ip.txt
-    class: mixerwagon.ft.http.HttpFT
+    class: minemeld.ft.http.HttpFT
     output: true
   ET_compromisediplist:
     args:
@@ -202,7 +206,7 @@ FTs:
         type: IPv4
         direction: inbound
       url: http://rules.emergingthreats.net/open/suricata/rules/compromised-ips.txt
-    class: mixerwagon.ft.http.HttpFT
+    class: minemeld.ft.http.HttpFT
     output: true
   bruteforceblocker:
     args:
@@ -213,5 +217,5 @@ FTs:
       attributes:
         type: IPv4
         direction: inbound
-    class: mixerwagon.ft.http.HttpFT
+    class: minemeld.ft.http.HttpFT
     output: true

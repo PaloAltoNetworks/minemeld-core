@@ -81,6 +81,9 @@ class ST(object):
         type_ = (True if type_ == TYPE_START else False)
         return endpoint, level, type_, k[11:]
 
+    def close(self):
+        self.db.close()
+
     def put(self, uuid_, start, end, level=0):
         si = self._split_interval(start, end, 0, self.max_endpoint)
         value = struct.pack(">QQ", start, end)

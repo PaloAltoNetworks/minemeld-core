@@ -15,31 +15,47 @@ import multiprocessing
 import argparse
 import yaml
 import shutil
+import os
 
 import minemeld.chassis
+import minemeld.mgmtbus
+
 from minemeld import __version__
 
 LOG = logging.getLogger(__name__)
 
 
-def _run_chassis(fabricconfig, fts, reinit):
+def _run_chassis(fabricconfig, mgmtbusconfig, fts):
     c = minemeld.chassis.Chassis(
         fabricconfig['class'],
         fabricconfig['args'],
-        reinit=reinit
+        mgmtbusconfig['class'],
+        mgmtbusconfig['args']
     )
     c.configure(fts)
 
-    gevent.signal(signal.SIGTERM, c.stop)
-    gevent.signal(signal.SIGQUIT, c.stop)
-    gevent.signal(signal.SIGINT, c.stop)
+    while not c.fts_init():
+        gevent.sleep(1)
+
+    gevent.signal(signal.SIGUSR1, c.stop)
 
     try:
         c.start()
         c.poweroff.wait()
     except KeyboardInterrupt:
-        LOG.debug("KeyboardInterrupt")
+        LOG.error("We should not be here !")
         c.stop()
+
+
+def _start_mgmtbus_master(config, ftlist):
+    mbusmaster = minemeld.mgmtbus.master_factory(
+        config['class'],
+        config['args'],
+        ftlist
+    )
+    mbusmaster.start()
+
+    return mbusmaster
 
 
 def _parse_args():
@@ -58,7 +74,7 @@ def _parse_args():
         action='store',
         metavar='NP',
         help='enable multiprocessing. np is the number of processes, '
-             '-1 to use a process per machine core, 0 to disable'
+             '0 to use a process per machine core'
     )
     parser.add_argument(
         '--verbose',
@@ -103,32 +119,38 @@ def _load_config(path):
             )
             sys.exit(1)
         elif rcconfig is not None and cconfig is None:
-            rcconfig['reinit'] = False
+            rcconfig['newconfig'] = False
             return rcconfig
         elif rcconfig is None and cconfig is not None:
             shutil.copyfile(ccpath, rcpath)
-            cconfig['reinit'] = True
+            cconfig['newconfig'] = True
             return cconfig
         elif rcconfig is not None and cconfig is not None:
             # ugly
             if yaml.dump(cconfig) != yaml.dump(rcconfig):
                 shutil.copyfile(rcpath, rcpath+'.%d' % int(time.time()))
                 shutil.copyfile(ccpath, rcpath)
-                cconfig['reinit'] = True
+                cconfig['newconfig'] = True
                 return cconfig
 
-            rcconfig['reinit'] = False
+            rcconfig['newconfig'] = False
             return rcconfig
 
     with open(path, 'r') as cf:
         config = yaml.safe_load(cf)
 
-    config['reinit'] = True
+    config['newconfig'] = True
 
     return config
 
 
 def main():
+    def _sigint_handler():
+        mbusmaster.checkpoint_graph()
+        for p in processes:
+            os.kill(p.pid, signal.SIGUSR1)
+        raise KeyboardInterrupt('Ctrl-C from _sigint_handler')
+
     args = _parse_args()
 
     # logging
@@ -148,52 +170,70 @@ def main():
     config = _load_config(args.config)
     LOG.info("mm-run.py config: %s", config)
 
-    if args.multiprocessing == 0:
-        # no multiprocessing
-        try:
-            _run_chassis(config['fabric'], config['FTs'], config['reinit'])
-        except KeyboardInterrupt:
-            LOG.info('Ctrl-C received, exiting')
-        except:
-            LOG.exception("Exception in main loop")
+    np = args.multiprocessing
+    if np == 0:
+        np = multiprocessing.cpu_count()
+    LOG.info("multiprocessing active, #cpu: %d", np)
 
-    else:
-        np = args.multiprocessing
-        if np < 0:
-            np = multiprocessing.cpu_count()
-        LOG.info("multiprocessing active, #cpu: %d", np)
+    ftlists = [{} for j in range(np)]
+    j = 0
+    for ft in config['FTs']:
+        pn = j % len(ftlists)
+        ftlists[pn][ft] = config['FTs'][ft]
+        j += 1
 
-        ftlists = [{} for j in range(np)]
-        j = 0
-        for ft in config['FTs']:
-            pn = j % len(ftlists)
-            ftlists[pn][ft] = config['FTs'][ft]
-            j += 1
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
 
-        processes = []
-        for g in ftlists:
-            if len(g) == 0:
-                continue
+    processes = []
+    for g in ftlists:
+        if len(g) == 0:
+            continue
 
-            p = multiprocessing.Process(
-                target=_run_chassis,
-                args=(config['fabric'], g, config['reinit'])
+        p = multiprocessing.Process(
+            target=_run_chassis,
+            args=(
+                config['fabric'],
+                config['mgmtbus'],
+                g
             )
-            processes.append(p)
-            p.start()
+        )
+        processes.append(p)
+        p.start()
 
-        try:
-            while True:
-                r = [int(t.is_alive()) for t in processes]
-                if sum(r) != len(processes):
-                    LOG.info("One of the chassis has stopped, exit")
-                    break
-                time.sleep(1)
+    LOG.info('Waiting for chassis getting ready')
+    gevent.sleep(5)
 
-        except KeyboardInterrupt:
-            LOG.info("Ctrl-C received, exiting")
-        except:
-            LOG.exception("Exception in main loop")
+    mbusmaster = _start_mgmtbus_master(
+        config['mgmtbus'],
+        config['FTs'].keys()
+    )
+    mbusmaster.init_graph(config['newconfig'])
+
+    gevent.signal(signal.SIGINT, _sigint_handler)
+    gevent.signal(signal.SIGTERM, _sigint_handler)
+
+    try:
+        while True:
+            r = [int(t.is_alive()) for t in processes]
+            if sum(r) != len(processes):
+                LOG.info("One of the chassis has stopped, exit")
+                break
+
+            try:
+                mbusmaster.get(block=False, timeout=None)
+            except gevent.Timeout:
+                pass
+            else:
+                LOG.error("We should not be here !")
+                break
+
+            gevent.sleep(1)
+
+    except KeyboardInterrupt:
+        LOG.info("Ctrl-C received, exiting")
+    except:
+        LOG.exception("Exception in main loop")
 
 
 if __name__ == "__main__":

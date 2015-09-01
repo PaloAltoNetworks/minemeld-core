@@ -12,16 +12,15 @@ LOG = logging.getLogger(__name__)
 
 
 class HttpFT(base.BaseFT):
-    _ftclass = 'HttpFT'
-
-    def __init__(self, name, chassis, config, reinit=True):
+    def __init__(self, name, chassis, config):
         self.glet = None
 
         self.table = table.Table(name)
         self.table.create_index('_updated')
         self.active_requests = []
+        self.rebuild_flag = False
 
-        super(HttpFT, self).__init__(name, chassis, config, reinit=reinit)
+        super(HttpFT, self).__init__(name, chassis, config)
 
     def configure(self):
         super(HttpFT, self).configure()
@@ -36,6 +35,15 @@ class HttpFT(base.BaseFT):
         self.force_updates = self.config.get('force_updates', False)
         self.polling_timeout = self.config.get('polling_timeout', 20)
         self.num_retries = self.config.get('num_retries', 2)
+
+    def rebuild(self):
+        self.rebuild_flag = True
+
+    def reset(self):
+        self.table.close()
+
+        self.table = table.Table(self.name, truncate=True)
+        self.table.create_index('_updated')
 
     def _values_compare(self, d1, d2):
         return True
@@ -110,8 +118,8 @@ class HttpFT(base.BaseFT):
     def _run(self):
         tryn = 0
 
-        if not self.reinit_flag:
-            LOG.debug("reinit flag set, resending current indicators")
+        if self.rebuild_flag:
+            LOG.debug("rebuild flag set, resending current indicators")
             # reinit flag is set, emit update for all the known indicators
             for i, v in self.table.query('_updated', include_value=True):
                 self.emit_update(i, v)
@@ -180,12 +188,16 @@ class HttpFT(base.BaseFT):
         return self.table.num_indicators
 
     def start(self):
+        super(HttpFT, self).start()
+
         if self.glet is not None:
             return
 
         self.glet = gevent.spawn_later(random.randint(0, 2), self._run)
 
     def stop(self):
+        super(HttpFT, self).stop()
+
         if self.glet is None:
             return
 

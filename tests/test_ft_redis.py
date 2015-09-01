@@ -58,6 +58,7 @@ class MineMeldFTRedisTests(unittest.TestCase):
         output = True
 
         b.connect(inputs, output)
+        b.mgmtbus_initialize()
 
         self.assertItemsEqual(b.inputs, inputs)
         self.assertEqual(b.output, None)
@@ -65,8 +66,12 @@ class MineMeldFTRedisTests(unittest.TestCase):
         icalls = []
         for i in inputs:
             icalls.append(
-                mock.call(FTNAME, b, i,
-                          allowed_methods=['update', 'withdraw'])
+                mock.call(
+                    FTNAME, b, i,
+                    allowed_methods=[
+                        'update', 'withdraw', 'checkpoint'
+                    ]
+                )
             )
         chassis.request_sub_channel.assert_has_calls(
             icalls,
@@ -79,6 +84,7 @@ class MineMeldFTRedisTests(unittest.TestCase):
             allowed_methods=[
                 'update',
                 'withdraw',
+                'checkpoint',
                 'get',
                 'get_all',
                 'get_range',
@@ -106,6 +112,7 @@ class MineMeldFTRedisTests(unittest.TestCase):
         output = False
 
         b.connect(inputs, output)
+        b.mgmtbus_initialize()
 
         b.start()
         time.sleep(1)
