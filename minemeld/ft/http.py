@@ -6,6 +6,7 @@ import random
 
 from . import base
 from . import table
+from . import ft_states
 from .utils import utc_millisec
 
 LOG = logging.getLogger(__name__)
@@ -125,6 +126,9 @@ class HttpFT(base.BaseFT):
                 self.emit_update(i, v)
 
         while True:
+            if self.state != ft_states.STARTED:
+                break
+
             lastrun = utc_millisec()
 
             try:
