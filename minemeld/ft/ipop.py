@@ -256,9 +256,7 @@ class AggregateIPv4FT(base.BaseFT):
             self.emit_withdraw(u.indicator())
 
     def filtered_withdraw(self, source=None, indicator=None, value=None):
-        vtype = value.get('type', None)
-        if vtype != 'IPv4':
-            return
+        LOG.debug("%s - withdraw from %s - %s", self.name, source, indicator)
 
         v = self.table.get(indicator+source)
         if v is None:

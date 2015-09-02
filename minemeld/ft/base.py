@@ -224,14 +224,10 @@ class BaseFT(object):
                 if k.startswith("_"):
                     value.pop(k)
 
-        fltindicator, fltvalue = self.apply_infilters(indicator, value)
-        if fltindicator is None:
-            return
-
         self.filtered_withdraw(
             source=source,
-            indicator=fltindicator,
-            value=fltvalue
+            indicator=indicator,
+            value=value
         )
 
     def filtered_withdraw(self, source=None, indicator=None, value=None):
@@ -241,10 +237,12 @@ class BaseFT(object):
         LOG.debug('%s {%s} - checkpoint from %s value %s',
                   self.name, self.state, source, value)
 
-        if self.state != ft_states.STARTED:
-            LOG.error("%s {%s} - checkpoint received with state not STARTED",
+        if self.state not in [ft_states.STARTED, ft_states.CHECKPOINT]:
+            LOG.error("%s {%s} - checkpoint received with state not STARTED "
+                      "or CHECKPOINT",
                       self.name, self.state)
-            raise AssertionError("checkpoint received with state not STARTED")
+            raise AssertionError("checkpoint received with state not STARTED "
+                                 "or CHECKPOINT")
 
         for v in self.inputs_checkpoint.values():
             if v != value:
