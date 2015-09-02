@@ -259,6 +259,7 @@ class AggregateIPv4FT(base.BaseFT):
         LOG.debug("%s - withdraw from %s - %s", self.name, source, indicator)
 
         v = self.table.get(indicator+source)
+        LOG.debug("%s - v: %s", self.name, v)
         if v is None:
             return
 
@@ -299,7 +300,7 @@ class AggregateIPv4FT(base.BaseFT):
 
         rangesb = set(self._calc_ipranges(rangestart, rangestop))
 
-        uuidbytes = uuid.UUID(v['id']).bytes
+        uuidbytes = uuid.UUID(v['_id']).bytes
         self.st.delete(uuidbytes, start, end, level=level)
 
         rangesa = set(self._calc_ipranges(rangestart, rangestop))
