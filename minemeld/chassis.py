@@ -127,12 +127,15 @@ class Chassis(object):
         self.poweroff.set(value='stop')
 
     def start(self):
+        LOG.info("chassis start called")
+
         if self.fabric is None:
             return
 
         self.fabric.start()
 
         for ftname, ft in self.fts.iteritems():
+            LOG.debug("starting %s", ftname)
             ft.start()
 
         self.poweroff = gevent.event.AsyncResult()

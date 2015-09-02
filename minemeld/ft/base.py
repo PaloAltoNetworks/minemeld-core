@@ -238,10 +238,12 @@ class BaseFT(object):
         raise NotImplementedError('%s: withdraw' % self.name)
 
     def checkpoint(self, source=None, value=None):
-        LOG.debug('checkpoint from %s value %s', source, value)
+        LOG.debug('%s {%s} - checkpoint from %s value %s',
+                  self.name, self.state, source, value)
 
         if self.state != ft_states.STARTED:
-            LOG.error("checkpoint received with state not STARTED")
+            LOG.error("%s {%s} - checkpoint received with state not STARTED",
+                      self.name, self.state)
             raise AssertionError("checkpoint received with state not STARTED")
 
         for v in self.inputs_checkpoint.values():
@@ -317,6 +319,8 @@ class BaseFT(object):
         raise NotImplementedError('%s: length - not implemented' % self.name)
 
     def start(self):
+        LOG.debug("%s - start called", self.name)
+
         if self.state != ft_states.INIT:
             LOG.error("start on not INIT FT")
             raise AssertionError("start on not INIT FT")

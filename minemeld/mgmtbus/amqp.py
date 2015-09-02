@@ -147,10 +147,10 @@ class AMQPMaster(gevent.Greenlet):
             return
 
         ntries = 0
-        while ntries < 5:
+        while ntries < 2:
             self._send_cmd('state_info')
 
-            success = self.answerevent.wait(timeout=30)
+            success = self.answerevent.wait(timeout=10)
             if not success:
                 LOG.error("Error retrieving FT states after checkpoint")
                 break
