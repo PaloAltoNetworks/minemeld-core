@@ -53,6 +53,7 @@ of descriptions of nodes (processing nodes).
 Each node config has the following general format:
 
 ::
+
     nodename: # name of the node
       args:
         # list of parameters for the node, depend on the node class
