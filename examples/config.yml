@@ -6,7 +6,7 @@ mgmtbus:
   class: AMQP
   args: {}
 
-FTs:
+nodes:
   inboundaggregator:
     args:
       infilters:

@@ -44,13 +44,13 @@ fabric & mgmtbus
 to be used for the fabric and the mgmtbus, and the optional argumentes to be passed
 to the constructors.
 
-FTs
-~~~
+nodes
+~~~~~
 
-The **FTs** contains the desription of the processing DAG. It is composed by a list
-of descriptions of FTs (processing nodes).
+The **nodes** contains the desription of the processing DAG. It is composed by a list
+of descriptions of nodes (processing nodes).
 
-Each FT has the following general format:
+Each node config has the following general format:
 
 ::
     nodename: # name of the node

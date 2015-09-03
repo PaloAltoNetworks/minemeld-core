@@ -182,9 +182,9 @@ def main():
 
     ftlists = [{} for j in range(np)]
     j = 0
-    for ft in config['FTs']:
+    for ft in config['nodes']:
         pn = j % len(ftlists)
-        ftlists[pn][ft] = config['FTs'][ft]
+        ftlists[pn][ft] = config['nodes'][ft]
         j += 1
 
     signal.signal(signal.SIGINT, signal.SIG_IGN)
@@ -211,7 +211,7 @@ def main():
 
     mbusmaster = _start_mgmtbus_master(
         config['mgmtbus'],
-        config['FTs'].keys()
+        config['nodes'].keys()
     )
     mbusmaster.init_graph(config['newconfig'])
 
