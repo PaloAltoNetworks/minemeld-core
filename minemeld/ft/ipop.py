@@ -153,7 +153,7 @@ class AggregateIPv4FT(base.BaseFT):
                         live_ids.add(cuuid)
 
             LOG.debug('middle: %s %s %s', epaddr, start_ids, end_ids)
-            assert len(end_ids) + len(start_ids) > 0
+            assert len(end_ids) + len(start_ids) >= 0
 
             if len(start_ids) != 0:
                 if oep is not None and oep != epaddr and len(live_ids) != 0:
@@ -299,11 +299,13 @@ class AggregateIPv4FT(base.BaseFT):
             rangestop = rangestop[0]
 
         rangesb = set(self._calc_ipranges(rangestart, rangestop))
+        LOG.debug("ranges before: %s", rangesb)
 
         uuidbytes = uuid.UUID(v['_id']).bytes
         self.st.delete(uuidbytes, start, end, level=level)
 
         rangesa = set(self._calc_ipranges(rangestart, rangestop))
+        LOG.debug("ranges after: %s", rangesa)
 
         added = rangesa-rangesb
         LOG.debug("IP ranges added: %s", added)
