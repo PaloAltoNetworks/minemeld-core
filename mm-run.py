@@ -24,6 +24,10 @@ from minemeld import __version__
 
 LOG = logging.getLogger(__name__)
 
+COMMITTED_CONFIG = 'committed-config.yml'
+
+RUNNING_CONFIG = 'running-config.yml'
+
 
 def _run_chassis(fabricconfig, mgmtbusconfig, fts):
     c = minemeld.chassis.Chassis(
@@ -73,7 +77,7 @@ def _parse_args():
         type=int,
         action='store',
         metavar='NP',
-        help='enable multiprocessing. np is the number of processes, '
+        help='enable multiprocessing. NP is the number of processes, '
              '0 to use a process per machine core'
     )
     parser.add_argument(
@@ -85,7 +89,7 @@ def _parse_args():
         'config',
         action='store',
         metavar='CONFIG',
-        help='path of the config file'
+        help='path of the config file or of the config directory'
     )
     return parser.parse_args()
 
@@ -94,11 +98,11 @@ def _load_config(path):
     if os.path.isdir(path):
         ccpath = os.path.join(
             path,
-            'candidate-config.yml'
+            COMMITTED_CONFIG
         )
         rcpath = os.path.join(
             path,
-            'running-config.yml'
+            RUNNING_CONFIG
         )
 
         cconfig = None
@@ -113,7 +117,8 @@ def _load_config(path):
 
         if rcconfig is None and cconfig is None:
             print(
-                "At least on of running-config.yml or candidate-config.yml "
+                "At least one of", RUNNING_CONFIG,
+                "or", COMMITTED_CONFIG,
                 "should exist in", path,
                 file=sys.stderr
             )
