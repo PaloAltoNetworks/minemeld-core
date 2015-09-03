@@ -175,6 +175,18 @@ def main():
     config = _load_config(args.config)
     LOG.info("mm-run.py config: %s", config)
 
+    if 'fabric' not in config:
+        config['fabric'] = {
+            'class': 'minemeld.fabric.AMQP',
+            'args': {}
+        }
+
+    if 'mgmtbus' not in config:
+        config['mgmtbus'] = {
+            'class': 'AMQP',
+            'args': {}
+        }
+
     np = args.multiprocessing
     if np == 0:
         np = multiprocessing.cpu_count()
