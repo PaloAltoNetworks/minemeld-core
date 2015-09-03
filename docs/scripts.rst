@@ -53,6 +53,7 @@ of descriptions of FTs (processing nodes).
 Each FT has the following general format:
 
 ::
+
     nodename: # name of the node
       args:
         # list of parameters for the node, depend on the node class
