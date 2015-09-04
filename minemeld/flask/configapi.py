@@ -270,7 +270,11 @@ def _config_info():
 def _create_node(nodebody):
     info = _config_info()
 
-    version = MMConfigVersion(version=info['version']+'+0')
+    version = nodebody.pop('version', None)
+    if version != config_info['version']:
+        raise ValueError('version mismatch')
+
+    cversion = MMConfigVersion(version=info['version']+'+0')
 
     _set_stanza(
         'node%d' % info['num_nodes'],
@@ -400,7 +404,7 @@ def get_node(nodenum):
     return jsonify(result=result)
 
 
-@app.route('/config/node/<nodenum>', methods=['POST'])
+@app.route('/config/node/<nodenum>', methods=['PUT'])
 def set_node(nodenum):
     try:
         nodenum = int(nodenum)
@@ -414,6 +418,26 @@ def set_node(nodenum):
 
     try:
         result = _set_node(nodenum, body, lock=True)
+    except Exception as e:
+        return jsonify(error={'message': str(e)}), 500
+
+    return jsonify(result=result)
+
+
+@app.route('/config/node/<nodenum>', methods=['DELETE'])
+def delete_node(nodenum):
+    try:
+        nodenum = int(nodenum)
+    except ValueError:
+        return jsonify(error='invalid node number'), 400
+
+    try:
+        body = request.get_json()
+    except Exception as e:
+        return jsonify(error={'message': str(e)}), 400
+
+    try:
+        result = _delete_node(nodenum, body, lock=True)
     except Exception as e:
         return jsonify(error={'message': str(e)}), 500
 
