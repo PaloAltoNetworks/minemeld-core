@@ -42,9 +42,10 @@ try:
 
     # load entry points
     from . import feedredis  # noqa
+    from . import configapi
 
 except ImportError:
-    LOG.exception("redis is needed for feed entrypoint")
+    LOG.exception("redis is needed for feed and config entrypoint")
 
 
 try:
