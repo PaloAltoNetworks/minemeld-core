@@ -12,7 +12,6 @@ from flask import jsonify
 
 from . import app
 from . import SR
-from . import config
 
 LOG = logging.getLogger(__name__)
 FEED_INTERVAL = 100
@@ -160,7 +159,7 @@ def _load_running_config():
     if 'fabric' in rcconfig:
         _set_stanza(
             'fabric',
-            {'name': 'fabric', 'properties':rcconfig['fabric']},
+            {'name': 'fabric', 'properties': rcconfig['fabric']},
             config_key=tempconfigkey,
             version=version
         )
@@ -168,7 +167,7 @@ def _load_running_config():
     if 'mgmtbus' in rcconfig:
         _set_stanza(
             'mgmtbus',
-            {'name': 'mgmtbus', 'properties':rcconfig['mgmtbus']}, 
+            {'name': 'mgmtbus', 'properties': rcconfig['mgmtbus']},
             config_key=tempconfigkey,
             version=version
         )
@@ -177,7 +176,7 @@ def _load_running_config():
     for idx, (nodename, nodevalue) in enumerate(nodes.iteritems()):
         _set_stanza(
             'node%d' % idx,
-            {'name':nodename, 'properties':nodevalue},
+            {'name': nodename, 'properties': nodevalue},
             config_key=tempconfigkey,
             version=version
         )
@@ -193,6 +192,55 @@ def _load_running_config():
     _unlock(REDIS_KEY_CONFIG, clock)
 
     return version.config
+
+
+def _commit_config(version):
+    ccpath = os.path.join(
+        os.path.dirname(os.environ.get('MM_CONFIG')),
+        'candidate-config.yml'
+    )
+
+    clock = _lock_timeout(REDIS_KEY_CONFIG)
+    if clock is None:
+        raise ValueError('Unable to lock config')
+
+    config_info = _config_info()
+
+    if version != config_info['version']:
+        raise ValueError('Versions mismatch')
+
+    newconfig = {}
+
+    fabric = _get_stanza('fabric')
+    if fabric is not None:
+        newconfig['fabric'] = json.loads(fabric)['properties']
+
+    mgmtbus = _get_stanza('mgmtbus')
+    if mgmtbus is not None:
+        newconfig['mgmtbus'] = json.loads(mgmtbus)['properties']
+
+    newconfig['nodes'] = {}
+    for n in range(config_info['num_nodes']):
+        node = _get_stanza('node%d' % n)
+        if node['name'] in newconfig:
+            raise ValueError('Error in config: duplicate node name - %s' %
+                             node['name'])
+        if 'properties' not in node:
+            raise ValueError('Error in config: no properties for node %s' %
+                             node['name'])
+        newconfig['nodes'][node['name']] = node['properties']
+
+    _unlock(REDIS_KEY_CONFIG, clock)
+
+    with open(ccpath, 'w') as f:
+        yaml.safe_dump(
+            newconfig,
+            f,
+            encoding='utf-8',
+            default_flow_style=False
+        )
+
+    return 'OK'
 
 
 @_redlock
@@ -276,6 +324,7 @@ def commit():
     try:
         _commit_config(version)
     except Exception as e:
+        LOG.exception('exception in commit')
         return jsonify(error={'message': str(e)}), 400
 
     return jsonify(result='OK')
@@ -298,7 +347,7 @@ def get_fabric():
     except Exception as e:
         return jsonify(error={'message': str(e)}), 500
 
-    if result == None:
+    if result is None:
         return jsonify(error={'message': 'Not Found'}), 404
 
     return jsonify(result=result)
@@ -311,7 +360,7 @@ def get_mgmtbus():
     except Exception as e:
         return jsonify(error={'message': str(e)}), 500
 
-    if result == None:
+    if result is None:
         return jsonify(error={'message': 'Not Found'}), 404
 
     return jsonify(result=result)
@@ -329,7 +378,7 @@ def create_node():
     except Exception as e:
         return jsonify(error={'message': str(e)}), 500
 
-    return result
+    return jsonify(result=result)
 
 
 @app.route('/config/node/<nodenum>', methods=['GET'])
@@ -342,9 +391,10 @@ def get_node(nodenum):
     try:
         result = _get_stanza('node%d' % nodenum, lock=True)
     except Exception as e:
+        LOG.exception('error in get_node')
         return jsonify(error={'message': str(e)}), 500
 
-    if result == None:
+    if result is None:
         return jsonify(error={'message': 'Not Found'}), 404
 
     return jsonify(result=result)
@@ -363,8 +413,8 @@ def set_node(nodenum):
         return jsonify(error={'message': str(e)}), 400
 
     try:
-        result = _set_node(body, lock=True)
+        result = _set_node(nodenum, body, lock=True)
     except Exception as e:
         return jsonify(error={'message': str(e)}), 500
 
-    return result
+    return jsonify(result=result)
