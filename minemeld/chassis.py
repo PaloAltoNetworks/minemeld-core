@@ -12,6 +12,7 @@ gevent.monkey.patch_all(thread=False, select=False)
 
 import minemeld.mgmtbus
 import minemeld.ft
+import minemeld.fabric
 
 LOG = logging.getLogger(__name__)
 STATE_REPORT_INTERVAL = 10
@@ -31,9 +32,10 @@ class Chassis(object):
 
         self.fabric_class = fabricclass
         self.fabric_config = fabricconfig
-        self.fabric = self._dynamic_load(self.fabric_class)(
-            chassis=self,
-            config=self.fabric_config
+        self.fabric = minemeld.fabric.factory(
+            self.fabric_class,
+            self,
+            self.fabric_config
         )
 
         self.mgmtbus_class = mgmtbusclass
@@ -76,10 +78,11 @@ class Chassis(object):
             LOG.debug(ftconfig)
 
             # new FT
-            newfts[ft] = self._dynamic_load(ftconfig['class'])(
+            newfts[ft] = minemeld.ft.factory(
+                ftconfig['class'],
                 name=ft,
                 chassis=self,
-                config=ftconfig['args']
+                config=ftconfig.get('config', {})
             )
             newfts[ft].connect(
                 ftconfig.get('inputs', []),
