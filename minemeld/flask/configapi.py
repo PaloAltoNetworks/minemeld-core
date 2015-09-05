@@ -21,6 +21,10 @@ REDIS_NODES_LIST = 'nodes'
 LOCK_TIMEOUT = 3000
 
 
+class VersionMismatchError(Exception):
+    pass
+
+
 class MMConfigVersion(object):
     def __init__(self, version=None):
         if version is None:
@@ -116,7 +120,7 @@ def _set_stanza(stanza, value, version, config_key=REDIS_KEY_CONFIG):
     cversion = SR.hget(config_key, version_key)
     if cversion is not None:
         if version != MMConfigVersion(version=cversion):
-            raise ValueError('version mismatch, current version %s' % cversion)
+            raise VersionMismatchError('version mismatch, current version %s' % cversion)
         version += 1
 
     SR.hset(config_key, version_key, str(version))
@@ -207,7 +211,7 @@ def _commit_config(version):
     config_info = _config_info()
 
     if version != config_info['version']:
-        raise ValueError('Versions mismatch')
+        raise VersionMismatchError('Versions mismatch')
 
     newconfig = {}
 
@@ -289,6 +293,20 @@ def _create_node(nodebody):
 
 
 @_redlock
+def _delete_node(nodenum, version):
+    node = _get_stanza('node%d' % nodenum)
+    if node is None:
+        raise ValueError('node %d does not exist' % nodenum)
+
+    if MMConfigVersion(version=version) != MMConfigVersion(node['version']):
+        raise VersionMismatchError('version mismatch')
+
+    SR.hdel(REDIS_KEY_CONFIG, 'node%d' % nodenum)
+
+    return 'OK'
+
+
+@_redlock
 def _set_node(nodenum, nodebody):
     if 'version' not in nodebody:
         raise ValueError('version is required')
@@ -327,6 +345,8 @@ def commit():
 
     try:
         _commit_config(version)
+    except VersionMismatchError:
+        return jsonify(error={'message': 'version mismatch'}), 409
     except Exception as e:
         LOG.exception('exception in commit')
         return jsonify(error={'message': str(e)}), 400
@@ -379,6 +399,8 @@ def create_node():
 
     try:
         result = _create_node(body, lock=True)
+    except VersionMismatchError:
+        return jsonify(error={'message': 'version mismatch'}), 409
     except Exception as e:
         return jsonify(error={'message': str(e)}), 500
 
@@ -418,6 +440,8 @@ def set_node(nodenum):
 
     try:
         result = _set_node(nodenum, body, lock=True)
+    except VersionMismatchError:
+        return jsonify(error={'message': 'version mismatch'}), 409
     except Exception as e:
         return jsonify(error={'message': str(e)}), 500
 
@@ -436,8 +460,14 @@ def delete_node(nodenum):
     except Exception as e:
         return jsonify(error={'message': str(e)}), 400
 
+    version = body.get('version', None)
+    if version is None:
+        return jsonify(error={'message': 'version required'})
+
     try:
-        result = _delete_node(nodenum, body, lock=True)
+        result = _delete_node(nodenum, version, lock=True)
+    except VersionMismatchError:
+        return jsonify(error={'message': 'version mismatch'}), 409
     except Exception as e:
         return jsonify(error={'message': str(e)}), 500
 
