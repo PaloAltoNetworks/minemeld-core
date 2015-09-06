@@ -277,7 +277,7 @@ def _create_node(nodebody):
     info = _config_info()
 
     version = nodebody.pop('version', None)
-    if version != config_info['version']:
+    if version != info['version']:
         raise ValueError('version mismatch')
 
     cversion = MMConfigVersion(version=info['version']+'+0')
@@ -285,11 +285,11 @@ def _create_node(nodebody):
     _set_stanza(
         'node%d' % info['num_nodes'],
         nodebody,
-        MMConfigVersion(version=info['version']+'+0')
+        cversion
     )
 
     return {
-        'version': str(version),
+        'version': str(cversion),
         'id': info['num_nodes']
     }
 
@@ -304,6 +304,7 @@ def _delete_node(nodenum, version):
         raise VersionMismatchError('version mismatch')
 
     SR.hdel(REDIS_KEY_CONFIG, 'node%d' % nodenum)
+    SR.hdel(REDIS_KEY_CONFIG, 'node%d:version' % nodenum)
 
     return 'OK'
 
@@ -338,6 +339,7 @@ def reload_running_config():
 
 
 @app.route('/config/commit', methods=['POST'])
+@flask.ext.login.login_required
 def commit():
     try:
         body = request.get_json()
@@ -360,6 +362,7 @@ def commit():
 
 
 @app.route('/config/info', methods=['GET'])
+@flask.ext.login.login_required
 def get_config_info():
     try:
         result = _config_info(lock=True)
@@ -370,6 +373,7 @@ def get_config_info():
 
 
 @app.route('/config/fabric', methods=['GET'])
+@flask.ext.login.login_required
 def get_fabric():
     try:
         result = _get_stanza('fabric', lock=True)
@@ -383,6 +387,7 @@ def get_fabric():
 
 
 @app.route('/config/mgmtbus', methods=['GET'])
+@flask.ext.login.login_required
 def get_mgmtbus():
     try:
         result = _get_stanza('mgmtbus', lock=True)
@@ -396,6 +401,7 @@ def get_mgmtbus():
 
 
 @app.route('/config/node', methods=['POST'])
+@flask.ext.login.login_required
 def create_node():
     try:
         body = request.get_json()
@@ -413,6 +419,7 @@ def create_node():
 
 
 @app.route('/config/node/<nodenum>', methods=['GET'])
+@flask.ext.login.login_required
 def get_node(nodenum):
     try:
         nodenum = int(nodenum)
@@ -432,6 +439,7 @@ def get_node(nodenum):
 
 
 @app.route('/config/node/<nodenum>', methods=['PUT'])
+@flask.ext.login.login_required
 def set_node(nodenum):
     try:
         nodenum = int(nodenum)
@@ -448,12 +456,14 @@ def set_node(nodenum):
     except VersionMismatchError:
         return jsonify(error={'message': 'version mismatch'}), 409
     except Exception as e:
+        LOG.exception('exception is _set_node')
         return jsonify(error={'message': str(e)}), 500
 
     return jsonify(result=result)
 
 
 @app.route('/config/node/<nodenum>', methods=['DELETE'])
+@flask.ext.login.login_required
 def delete_node(nodenum):
     try:
         nodenum = int(nodenum)
