@@ -13,6 +13,7 @@ Contents:
    
    scripts
    schema
+   configapi
    internals
    license
 

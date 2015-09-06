@@ -3,8 +3,9 @@ _KNOWN_CLASSES = {
     'DshieldBlockList': 'minemeld.ft.dshield.DshieldBlockList',
     'AggregatorIPv4': 'minemeld.ft.ipop.AggregateIPv4FT',
     'Aggregator': 'minemeld.ft.op.AggregateFT',
-    'RedisSet': 'minemeld.ft.redis.RedisSet'   
+    'RedisSet': 'minemeld.ft.redis.RedisSet'
 }
+
 
 def _dynamic_load(classname):
     if '.' not in classname:
@@ -15,6 +16,7 @@ def _dynamic_load(classname):
     cls = getattr(t, classname)
     return cls
 
+
 def factory(classname, name, chassis, config):
     classname = _KNOWN_CLASSES.get(classname, classname)
 
@@ -23,6 +25,7 @@ def factory(classname, name, chassis, config):
         chassis=chassis,
         config=config
     )
+
 
 class ft_states(object):
     READY = 0

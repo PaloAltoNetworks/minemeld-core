@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 from .amqp import AMQP
 
+
 def _dynamic_load(classname):
     if '.' not in classname:
         raise ValueError('invalid absolute classname %s' % classname)
@@ -10,6 +11,7 @@ def _dynamic_load(classname):
     t = __import__(modname, globals(), locals(), [classname])
     cls = getattr(t, classname)
     return cls
+
 
 def factory(classname, chassis, config):
     if classname == 'AMQP':
