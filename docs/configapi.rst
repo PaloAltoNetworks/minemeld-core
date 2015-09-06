@@ -31,8 +31,7 @@ in case of invalid credentials:
     HTTP/1.1 401 UNAUTHORIZED
     [...]
 
-.. DANGER::
-   Use HTTPS with a trusted certificate in production !
+.. warning:: Use HTTPS with a trusted certificate in production !
 
 Configuration information
 -------------------------
