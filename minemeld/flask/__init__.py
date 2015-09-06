@@ -5,10 +5,10 @@ import werkzeug.local
 import logging
 
 from . import config
+from . import aaa
 
 
 LOG = logging.getLogger(__name__)
-
 
 # create flask app and load config from vmsh.config.api module
 app = Flask(__name__)
@@ -18,6 +18,8 @@ if config.get('DEBUG', False):
     app.logger.setLevel(logging.DEBUG)
 else:
     app.logger.setLevel(logging.INFO)
+
+aaa.LOGIN_MANAGER.init_app(app)
 
 
 # redis connections

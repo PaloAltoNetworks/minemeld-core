@@ -10,6 +10,8 @@ import json
 from flask import request
 from flask import jsonify
 
+import flask.ext.login
+
 from . import app
 from . import SR
 
@@ -322,7 +324,10 @@ def _set_node(nodenum, nodebody):
 
 
 @app.route('/config/reload', methods=['GET'])
+@flask.ext.login.login_required
 def reload_running_config():
+    LOG.error('current user: %s', flask.ext.login.current_user.get_id())
+
     try:
         version = _load_running_config()
     except Exception as e:
