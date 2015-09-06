@@ -55,7 +55,7 @@ Each node config has the following general format:
 ::
 
     nodename: # name of the node
-      args:
+      config:
         # list of parameters for the node, depend on the node class
       class: nodeclass # class of the node
       inputs:
