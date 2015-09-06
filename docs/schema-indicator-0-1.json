@@ -39,6 +39,11 @@
             "minimum": 0,
             "maximum": 100
         },
+        "share_level": {
+            "description": "share level of indicator",
+            "type": "string",
+            "enum": ["green", "amber", "red"]
+        },
         "country": {
             "type": "string",
             "description": "ISO country code (IPv4 and IPv6 only)",

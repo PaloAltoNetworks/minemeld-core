@@ -63,3 +63,38 @@ Each node config has the following general format:
         - node1
         - node2
       output: true|false # if the node should generate updates & withdraws
+
+Example:
+
+::
+
+    spamhaus_DROP:
+      config:
+        source_name: http://www.spamhaus.org/drop/drop.txt
+        attributes:
+          type: IPv4
+          direction: inbound
+        cchar: ;
+        split_char: ;
+        url: http://www.spamhaus.org/drop/drop.txt
+      class: HTTP
+      output: true
+
+    inboundaggregator:
+      config:
+        infilters:
+          - name: accept inbound IPv4
+            conditions:
+              - type == 'IPv4'
+              - direction == 'inbound'
+            actions:
+              - accept
+          - name: drop all
+            actions:
+              - drop
+      class: AggregatorIPv4
+      output: true
+      inputs:
+        - spamhaus_DROP
+        - spamhaus_EDROP
+        - dshield_blocklist
