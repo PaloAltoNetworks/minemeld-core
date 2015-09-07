@@ -64,7 +64,8 @@ Each node config has the following general format:
         - node2
       output: true|false # if the node should generate updates & withdraws
 
-Example:
+Example 1
+^^^^^^^^^
 
 ::
 
@@ -79,6 +80,19 @@ Example:
         url: http://www.spamhaus.org/drop/drop.txt
       class: HTTP
       output: true
+
+This describes a node with the following properties:
+
+:name: spamhaus_DROP
+:class: HTTP
+:inputs: *none*, this is a source node (aka miner)
+:output: yes, this node should emit indicators
+:config: specific configuration for this node
+
+Example 2
+^^^^^^^^^
+
+::
 
     inboundaggregator:
       config:
@@ -98,3 +112,8 @@ Example:
         - spamhaus_DROP
         - spamhaus_EDROP
         - dshield_blocklist
+
+:name: inboundaggregator
+:class: AggregatorIPv4
+:inputs: list of nodes this node should receive indicators from
+:output: yes, this node should emit indicators
