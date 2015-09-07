@@ -3,6 +3,7 @@ import logging
 
 LOG = logging.getLogger(__name__)
 
+
 class CollectdClient(object):
     def __init__(self, path):
         self.path = path
@@ -53,8 +54,8 @@ class CollectdClient(object):
             'FLUSH'+('' if timeout is None else ' timeout=%d' % timeout)
         )
 
-    def putval(self, identifier, value, timestamp='N', type_='minemeld_counter',
-               hostname='minemeld', interval=None):
+    def putval(self, identifier, value, timestamp='N',
+               type_='minemeld_counter', hostname='minemeld', interval=None):
         if type(timestamp) == int:
             timestamp = '%d' % timestamp
 
