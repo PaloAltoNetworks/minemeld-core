@@ -25,6 +25,7 @@ class AMQPMaster(gevent.Greenlet):
         self.config = config
 
         self.status_glet = None
+        self._status = {}
 
         self._connection = amqp.connection.Connection(**self.config)
 
@@ -50,6 +51,9 @@ class AMQPMaster(gevent.Greenlet):
         self._rpc_out_channel = self._connection.channel()
 
         self.active_requests = {}
+
+    def rpc_status(self):
+        return self._status
 
     def _in_callback(self, msg):
         try:
@@ -83,7 +87,7 @@ class AMQPMaster(gevent.Greenlet):
             LOG.error('RPC request with no reply_to, ignored')
             return
 
-        m = getattr(self, method, None)
+        m = getattr(self, 'rpc_'+method, None)
         if m is None:
             self._send_result(reply_to, id_, error='Not implemented')
             return
@@ -226,6 +230,22 @@ class AMQPMaster(gevent.Greenlet):
             gevent.sleep(5)
             ntries += 1
 
+    def _send_collectd_metrics(self, answers):
+        cc = CollectdClient(collectd_socket)
+
+        for source, a in answers.iteritems():
+            stats = a.get('statistics', {})
+            length = a.get('length', None)
+
+            for m, v in stats.iteritems():
+                cc.putval(source+'.'+m, v, interval=loop_interval)
+            if length is not None:
+                cc.putval(
+                    source+'.length',
+                    length,
+                    interval=loop_interval
+                )
+
     def _status_loop(self):
         loop_interval = self.config.get('STATUS_INTERVAL', '60')
         try:
@@ -247,20 +267,12 @@ class AMQPMaster(gevent.Greenlet):
             if success is None:
                 LOG.error('timeout in waiting for status updates from nodes')
             else:
-                cc = CollectdClient(collectd_socket)
+                self._status = actreq['answers']
 
-                for source, a in actreq['answers'].iteritems():
-                    stats = a.get('statistics', {})
-                    length = a.get('length', None)
-
-                    for m, v in stats.iteritems():
-                        cc.putval(source+'.'+m, v, interval=loop_interval)
-                    if length is not None:
-                        cc.putval(
-                            source+'.length',
-                            length,
-                            interval=loop_interval
-                        )
+                try:
+                    self._send_collectd_metrics(actreq['answers'])
+                except Exception as e:
+                    LOG.exception('Exception in _status_loop')
 
             gevent.sleep(loop_interval)
 
