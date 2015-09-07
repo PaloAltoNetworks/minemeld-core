@@ -65,6 +65,21 @@ class _Filters(object):
         return indicator, d
 
 
+def _counting(statsname):
+    LOG.debug('_counting %s called', statsname)
+    def _counter_out(f):
+        def _counter(self, *args, **kwargs):
+            LOG.debug('updating %s', statsname)
+
+            if statsname not in self.statistics:
+                self.statistics[statsname] = 0
+
+            self.statistics[statsname] += 1
+            f(self, *args, **kwargs)
+        return _counter
+    return _counter_out
+
+
 class BaseFT(object):
     def __init__(self, name, chassis, config):
         self.name = name
@@ -76,6 +91,8 @@ class BaseFT(object):
 
         self.inputs = []
         self.output = None
+
+        self.statistics = {}
 
         self.read_checkpoint()
 
@@ -146,6 +163,7 @@ class BaseFT(object):
         return self.chassis.send_rpc(self.name, dftname, method, kwargs,
                                      block=block, timeout=timeout)
 
+    @_counting('update.tx')
     def emit_update(self, indicator, value):
         if self.output is None:
             return
@@ -159,6 +177,7 @@ class BaseFT(object):
             'value': value
         })
 
+    @_counting('withdraw.tx')
     def emit_withdraw(self, indicator, value=None):
         if self.output is None:
             return
@@ -172,6 +191,7 @@ class BaseFT(object):
             'value': value
         })
 
+    @_counting('checkpoint.tx')
     def emit_checkpoint(self, value):
         if self.output is None:
             return
@@ -180,6 +200,7 @@ class BaseFT(object):
             'value': value
         })
 
+    @_counting('update.rx')
     def update(self, source=None, indicator=None, value=None):
         if self.state not in [ft_states.STARTED, ft_states.CHECKPOINT]:
             return
@@ -208,9 +229,11 @@ class BaseFT(object):
             value=fltvalue
         )
 
+    @_counting('update.processed')
     def filtered_update(self, source=None, indicator=None, value=None):
         raise NotImplementedError('%s: update' % self.name)
 
+    @_counting('withdraw.rx')
     def withdraw(self, source=None, indicator=None, value=None):
         if self.state not in [ft_states.STARTED, ft_states.CHECKPOINT]:
             return
@@ -230,9 +253,11 @@ class BaseFT(object):
             value=value
         )
 
+    @_counting('update.processed')
     def filtered_withdraw(self, source=None, indicator=None, value=None):
         raise NotImplementedError('%s: withdraw' % self.name)
 
+    @_counting('checkpoint.rx')
     def checkpoint(self, source=None, value=None):
         LOG.debug('%s {%s} - checkpoint from %s value %s',
                   self.name, self.state, source, value)
@@ -282,6 +307,14 @@ class BaseFT(object):
         self.reset()
         self.state = ft_states.INIT
         return 'OK'
+
+    def mgmtbus_status(self):
+        result = {
+            'state': self.state,
+            'statistics': self.statistics,
+            'length': self.length()
+        }
+        return result
 
     def mgmtbus_checkpoint(self, value=None):
         if len(self.inputs) != 0:

@@ -230,6 +230,8 @@ def main():
     gevent.signal(signal.SIGINT, _sigint_handler)
     gevent.signal(signal.SIGTERM, _sigint_handler)
 
+    mbusmaster.start_status_monitor()
+
     try:
         while True:
             r = [int(t.is_alive()) for t in processes]
