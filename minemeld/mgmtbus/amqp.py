@@ -230,7 +230,12 @@ class AMQPMaster(gevent.Greenlet):
             gevent.sleep(5)
             ntries += 1
 
-    def _send_collectd_metrics(self, answers):
+    def _send_collectd_metrics(self, answers, interval):
+        collectd_socket = self.config.get(
+            'COLLECTD_SOCKET',
+            '/var/run/collectd.sock'
+        )
+
         cc = CollectdClient(collectd_socket)
 
         for source, a in answers.iteritems():
@@ -238,12 +243,12 @@ class AMQPMaster(gevent.Greenlet):
             length = a.get('length', None)
 
             for m, v in stats.iteritems():
-                cc.putval(source+'.'+m, v, interval=loop_interval)
+                cc.putval(source+'.'+m, v, interval=interval)
             if length is not None:
                 cc.putval(
                     source+'.length',
                     length,
-                    interval=loop_interval
+                    interval=interval
                 )
 
     def _status_loop(self):
@@ -255,11 +260,6 @@ class AMQPMaster(gevent.Greenlet):
                       'reverting to default')
             loop_interval = 60
 
-        collectd_socket = self.config.get(
-            'COLLECTD_SOCKET',
-            '/var/run/collectd.sock'
-        )
-
         while True:
             reqid = self._send_cmd('status')
             actreq = self.active_requests[reqid]
@@ -270,7 +270,10 @@ class AMQPMaster(gevent.Greenlet):
                 self._status = actreq['answers']
 
                 try:
-                    self._send_collectd_metrics(actreq['answers'])
+                    self._send_collectd_metrics(
+                        actreq['answers'],
+                        loop_interval
+                    )
                 except Exception as e:
                     LOG.exception('Exception in _status_loop')
 
