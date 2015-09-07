@@ -58,6 +58,9 @@
     "patternProperties": {
         "^_[a-zA-Z0-9$_]*$": {
             "description": "private properties"
+        },
+        "^$[a-zA-Z0-9$_]*$": {
+            "description": "reserved, temporary properties"
         }
     }
 }
