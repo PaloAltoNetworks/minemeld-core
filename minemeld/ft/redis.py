@@ -58,7 +58,7 @@ class RedisSet(base.BaseFT):
     def _delete_indicator(self, indicator):
         self.SR.zrem(self.redis_skey, indicator)
 
-    @_counting('update.processed')
+    @base._counting('update.processed')
     def filtered_update(self, source=None, indicator=None, value=None):
         score = 0
         if self.scoring_attribute is not None:
@@ -72,7 +72,7 @@ class RedisSet(base.BaseFT):
 
         self._add_indicator(score, indicator, value)
 
-    @_counting('withdraw.processed')
+    @base._counting('withdraw.processed')
     def filtered_withdraw(self, source=None, indicator=None, value=None):
         self._delete_indicator(indicator)
 

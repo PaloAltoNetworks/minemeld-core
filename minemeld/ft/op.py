@@ -80,7 +80,7 @@ class AggregateFT(base.BaseFT):
 
         return v
 
-    @_counting('update.processed')
+    @base._counting('update.processed')
     def filtered_update(self, source=None, indicator=None, value=None):
         ebl = False
         ewl = False
@@ -107,7 +107,7 @@ class AggregateFT(base.BaseFT):
                 return
             self._emit_update_indicator(indicator)
 
-    @_counting('withdraw.processed')
+    @base._counting('withdraw.processed')
     def filtered_withdraw(self, source=None, indicator=None, value=None):
         ebl = 0
         ewl = 0
