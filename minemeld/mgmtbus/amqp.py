@@ -47,6 +47,8 @@ class AMQPMaster(gevent.Greenlet):
             exclusive=True
         )
 
+        self._rpc_out_channel = self._connection.channel()
+
         self.active_requests = {}
 
     def _in_callback(self, msg):
@@ -58,6 +60,42 @@ class AMQPMaster(gevent.Greenlet):
 
         LOG.debug('master _in_callback %s', body)
 
+        if 'method' in body:
+            self._rpc_call(body)
+
+        self._rpc_reply(body)
+
+    def _rpc_call(self, body):
+        method = body.get('method', None)
+        id_ = body.get('id', None)
+        reply_to = body.get('reply_to', None)
+        params = body.get('params', {})
+
+        if method is None:
+            LOG.error('RPC request with no method, ignored')
+            return
+
+        if id_ is None:
+            LOG.error('RPC request with no id, ignored')
+            return
+
+        if reply_to is None:
+            LOG.error('RPC request with no reply_to, ignored')
+            return
+
+        m = getattr(self, method, None)
+        if m is None:
+            self._send_result(reply_to, id_, error='Not implemented')
+            return
+
+        try:
+            result = m(self, **params)
+        except Exception as e:
+            self._send_result(reply_to, id_, error=str(e))
+        else:
+            self._send_result(reply_to, id_, result=result)
+
+    def _rpc_reply(self, body):
         id_ = body.get('id', None)
         if id_ is None:
             LOG.error('No id in msg body, msg ignored')
@@ -80,7 +118,6 @@ class AMQPMaster(gevent.Greenlet):
                       source, body.get('error', None))
             actreq['errors'] += 1
             return
-
         actreq['answers'][source] = result
 
         if len(actreq['answers']) + actreq['errors'] == len(self.ftlist):
@@ -111,6 +148,16 @@ class AMQPMaster(gevent.Greenlet):
         )
 
         return id_
+
+    def _send_result(self, reply_to, id_, result=None, error=None):
+        ans = {
+            'id': id_,
+            'result': result,
+            'error': error
+        }
+        ans = json.dumps(ans)
+        msg = amqp.Message(body=ans)
+        self._rpc_out_channel.basic_publish(msg, routing_key=reply_to)
 
     def init_graph(self, newconfig):
         if newconfig:
@@ -195,20 +242,25 @@ class AMQPMaster(gevent.Greenlet):
 
         while True:
             reqid = self._send_cmd('status')
-            success = self.active_requests[reqid]['event'].wait(timeout=30)
+            actreq = self.active_requests[reqid]
+            success = actreq['event'].wait(timeout=30)
             if success is None:
                 LOG.error('timeout in waiting for status updates from nodes')
             else:
                 cc = CollectdClient(collectd_socket)
 
-                for source, a in self.active_requests[reqid]['answers'].iteritems():
+                for source, a in actreq['answers'].iteritems():
                     stats = a.get('statistics', {})
                     length = a.get('length', None)
 
                     for m, v in stats.iteritems():
                         cc.putval(source+'.'+m, v, interval=loop_interval)
                     if length is not None:
-                        cc.putval(source+'.length', length, interval=loop_interval)
+                        cc.putval(
+                            source+'.length',
+                            length,
+                            interval=loop_interval
+                        )
 
             gevent.sleep(loop_interval)
 
