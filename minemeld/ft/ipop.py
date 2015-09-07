@@ -177,6 +177,7 @@ class AggregateIPv4FT(base.BaseFT):
 
         return result
 
+    @base._counting('update.processed')
     def filtered_update(self, source=None, indicator=None, value=None):
         vtype = value.get('type', None)
         if vtype != 'IPv4':
@@ -255,6 +256,7 @@ class AggregateIPv4FT(base.BaseFT):
         for u in removed:
             self.emit_withdraw(u.indicator())
 
+    @base._counting('withdraw.processed')
     def filtered_withdraw(self, source=None, indicator=None, value=None):
         LOG.debug("%s - withdraw from %s - %s", self.name, source, indicator)
 

@@ -8,9 +8,9 @@ import json
 import logging
 import uuid
 
-LOG = logging.getLogger(__name__)
+from .collectd import CollectdClient
 
-QUEUE_TTL = 15*60*1000  # TTL on messages: 15 minutes
+LOG = logging.getLogger(__name__)
 
 AMQP_PREFIX = "mbus:"
 
@@ -23,6 +23,9 @@ class AMQPMaster(gevent.Greenlet):
 
         self.ftlist = ftlist
         self.config = config
+
+        self.status_glet = None
+        self._status = {}
 
         self._connection = amqp.connection.Connection(**self.config)
 
@@ -45,8 +48,12 @@ class AMQPMaster(gevent.Greenlet):
             exclusive=True
         )
 
-        self.cur_status = None
-        self.answers = []
+        self._rpc_out_channel = self._connection.channel()
+
+        self.active_requests = {}
+
+    def rpc_status(self):
+        return self._status
 
     def _in_callback(self, msg):
         try:
@@ -57,26 +64,72 @@ class AMQPMaster(gevent.Greenlet):
 
         LOG.debug('master _in_callback %s', body)
 
+        if 'method' in body:
+            self._rpc_call(body)
+
+        self._rpc_reply(body)
+
+    def _rpc_call(self, body):
+        method = body.get('method', None)
+        id_ = body.get('id', None)
+        reply_to = body.get('reply_to', None)
+        params = body.get('params', {})
+
+        if method is None:
+            LOG.error('RPC request with no method, ignored')
+            return
+
+        if id_ is None:
+            LOG.error('RPC request with no id, ignored')
+            return
+
+        if reply_to is None:
+            LOG.error('RPC request with no reply_to, ignored')
+            return
+
+        m = getattr(self, 'rpc_'+method, None)
+        if m is None:
+            self._send_result(reply_to, id_, error='Not implemented')
+            return
+
+        try:
+            result = m(self, **params)
+        except Exception as e:
+            self._send_result(reply_to, id_, error=str(e))
+        else:
+            self._send_result(reply_to, id_, result=result)
+
+    def _rpc_reply(self, body):
         id_ = body.get('id', None)
         if id_ is None:
-            LOG.error('No id in msg body')
+            LOG.error('No id in msg body, msg ignored')
             return
-        if id_ != self.cur_id:
-            LOG.debug('Wrong id in reply, msg ignored (%s, %s)',
-                      id_, self.cur_id)
+        if id_ not in self.active_requests:
+            LOG.error('Wrong id in reply, msg ignored (%s)', id_)
+            return
+
+        actreq = self.active_requests[id_]
+
+        source = body.get('source', None)
+        if source is None:
+            LOG.error('No source in msg body, msg ignored')
+            actreq['errors'] += 1
             return
 
         result = body.get('result', None)
         if result is None:
-            LOG.error('error in reply: %s', body.get('error', None))
-            self.answers.append(None)
+            LOG.error('error in reply from %s: %s',
+                      source, body.get('error', None))
+            actreq['errors'] += 1
+            return
+        actreq['answers'][source] = result
 
-        self.answers.append(result)
+        if len(actreq['answers']) + actreq['errors'] == len(self.ftlist):
+            actreq['event'].set()
+            if actreq['discard']:
+                self.active_requests.pop(id_)
 
-        if len(self.answers) == len(self.ftlist):
-            self.answerevent.set()
-
-    def _send_cmd(self, method, params={}):
+    def _send_cmd(self, method, params={}, and_discard=False):
         LOG.debug('_send_cmd %s', method)
 
         id_ = str(uuid.uuid1())
@@ -85,84 +138,150 @@ class AMQPMaster(gevent.Greenlet):
             'method': method,
             'params': params
         }
-        self.cur_status = method
-        self.cur_id = id_
-        self.answers = []
-        self.answerevent = gevent.event.Event()
+        self.active_requests[id_] = {
+            'cmd': method,
+            'answers': {},
+            'event': gevent.event.Event(),
+            'errors': 0,
+            'discard': and_discard
+        }
 
         self._out_channel.basic_publish(
             amqp.Message(body=json.dumps(msg)),
             exchange=AMQP_BUS_EXCHANGE
         )
 
+        return id_
+
+    def _send_result(self, reply_to, id_, result=None, error=None):
+        ans = {
+            'id': id_,
+            'result': result,
+            'error': error
+        }
+        ans = json.dumps(ans)
+        msg = amqp.Message(body=ans)
+        self._rpc_out_channel.basic_publish(msg, routing_key=reply_to)
+
     def init_graph(self, newconfig):
         if newconfig:
-            self._send_cmd('rebuild')
+            self._send_cmd('rebuild', and_discard=True)
             return
 
-        self._send_cmd('state_info')
-
-        success = self.answerevent.wait(timeout=30)
+        siid = self._send_cmd('state_info')
+        success = self.active_requests[siid]['event'].wait(timeout=30)
         if not success:
-            self._send_cmd('reset')
+            LOG.error('timeout in state_info, sending reset')
+            self._send_cmd('reset', and_discard=True)
             return
 
-        source_chkp = None
-        checkpoint = None
-        goflag = True
-        sourceflag = True
-        for a in self.answers:
-            if a is None:
-                goflag = False
+        actreq = self.active_requests[siid]
 
-            c = a['checkpoint']
-            if checkpoint is None:
-                checkpoint = c
-            elif checkpoint != c:
-                goflag = False
+        if actreq['errors'] > 0:
+            LOG.critical('errors reported from nodes in init_graph')
+            raise RuntimeError('errors reported from nodes in init_graph')
 
-            if a['is_source']:
-                if source_chkp is None:
-                    source_chkp = c
-                elif source_chkp != c:
-                    sourceflag = False
+        checkpoints = set([a.get('checkpoint', None)
+                           for a in actreq['answers'].values()])
+        if len(checkpoints) == 1:
+            c = next(iter(checkpoints))
+            if c is not None:
+                LOG.info('all nodes at the same checkpoint (%s) '
+                         ' sending initialize', c)
+                self._send_cmd('initialize', and_discard=True)
+                return
 
-        if goflag:
-            self._send_cmd('initialize')
-            return
+        source_chkps = set([a.get('checkpoint', None)
+                            for a in actreq['answers'].values()
+                            if a['is_source']])
+        if len(source_chkps) == 1:
+            c = next(iter(source_chkps))
+            if c is not None:
+                LOG.info('all source nodes at the same checkpoint (%s) '
+                         ' sending rebuild', c)
+                self._send_cmd('rebuild', and_discard=True)
+                return
 
-        if sourceflag:
-            self._send_cmd('rebuild')
-            return
-
-        self._send_cmd('reset')
+        self._send_cmd('reset', and_discard=True)
 
     def checkpoint_graph(self):
         chkp = str(uuid.uuid4())
 
-        self._send_cmd('checkpoint', params={'value': chkp})
-        success = self.answerevent.wait(timeout=30)
+        reqid = self._send_cmd('checkpoint', params={'value': chkp})
+        success = self.active_requests[reqid]['event'].wait(timeout=30)
         if not success:
             LOG.error('Timeout waiting for answers to checkpoint')
             return
 
         ntries = 0
         while ntries < 2:
-            self._send_cmd('state_info')
-
-            success = self.answerevent.wait(timeout=10)
+            reqid = self._send_cmd('state_info')
+            success = self.active_requests[reqid]['event'].wait(timeout=10)
             if not success:
-                LOG.error("Error retrieving FT states after checkpoint")
+                LOG.error("Error retrieving nodes states after checkpoint")
                 break
 
             ok = True
-            for a in self.answers:
+            for a in self.active_requests[reqid]['answers'].values():
                 ok &= (a['checkpoint'] == chkp)
             if ok:
                 break
 
             gevent.sleep(5)
             ntries += 1
+
+    def _send_collectd_metrics(self, answers):
+        cc = CollectdClient(collectd_socket)
+
+        for source, a in answers.iteritems():
+            stats = a.get('statistics', {})
+            length = a.get('length', None)
+
+            for m, v in stats.iteritems():
+                cc.putval(source+'.'+m, v, interval=loop_interval)
+            if length is not None:
+                cc.putval(
+                    source+'.length',
+                    length,
+                    interval=loop_interval
+                )
+
+    def _status_loop(self):
+        loop_interval = self.config.get('STATUS_INTERVAL', '60')
+        try:
+            loop_interval = int(loop_interval)
+        except ValueError:
+            LOG.error('invalid STATUS_INTERVAL settings, '
+                      'reverting to default')
+            loop_interval = 60
+
+        collectd_socket = self.config.get(
+            'COLLECTD_SOCKET',
+            '/var/run/collectd.sock'
+        )
+
+        while True:
+            reqid = self._send_cmd('status')
+            actreq = self.active_requests[reqid]
+            success = actreq['event'].wait(timeout=30)
+            if success is None:
+                LOG.error('timeout in waiting for status updates from nodes')
+            else:
+                self._status = actreq['answers']
+
+                try:
+                    self._send_collectd_metrics(actreq['answers'])
+                except Exception as e:
+                    LOG.exception('Exception in _status_loop')
+
+            gevent.sleep(loop_interval)
+
+    def start_status_monitor(self):
+        if self.status_glet is not None:
+            LOG.error('double call to start_status')
+            return
+
+        self.status_glet = gevent.spawn(self._status_loop)
 
     def _run(self):
         while True:
@@ -226,19 +345,20 @@ class AMQPSlave(object):
         for ft in self.fts:
             m = getattr(ft, 'mgmtbus_'+method, None)
             if m is None:
-                self._send_result(id_, error='Not implemented')
+                self._send_result(ft.name, id_, error='Not implemented')
                 continue
 
             try:
                 result = m(**params)
             except Exception as e:
-                self._send_result(id_, error=str(e))
+                self._send_result(ft.name, id_, error=str(e))
             else:
-                self._send_result(id_, result=result)
+                self._send_result(ft.name, id_, result=result)
 
-    def _send_result(self, id_, result=None, error=None):
+    def _send_result(self, name, id_, result=None, error=None):
         ans = {
             'id': id_,
+            'source': name,
             'result': result,
             'error': error
         }

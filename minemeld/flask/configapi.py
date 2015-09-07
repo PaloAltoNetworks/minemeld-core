@@ -122,7 +122,8 @@ def _set_stanza(stanza, value, version, config_key=REDIS_KEY_CONFIG):
     cversion = SR.hget(config_key, version_key)
     if cversion is not None:
         if version != MMConfigVersion(version=cversion):
-            raise VersionMismatchError('version mismatch, current version %s' % cversion)
+            raise VersionMismatchError('version mismatch, current version %s' %
+                                       cversion)
         version += 1
 
     SR.hset(config_key, version_key, str(version))
