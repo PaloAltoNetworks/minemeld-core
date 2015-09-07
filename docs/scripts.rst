@@ -87,7 +87,7 @@ This describes a node with the following properties:
 :class: HTTP
 :inputs: *none*, this is a source node (aka miner)
 :output: yes, this node should emit indicators
-:config: specific configuration for this node
+:config: specific configuration for this node class
 
 Example 2
 ^^^^^^^^^
@@ -117,3 +117,4 @@ Example 2
 :class: AggregatorIPv4
 :inputs: list of nodes this node should receive indicators from
 :output: yes, this node should emit indicators
+:config: specific configuration for this node class
