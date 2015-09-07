@@ -67,6 +67,7 @@ class _Filters(object):
 
 def _counting(statsname):
     LOG.debug('_counting %s called', statsname)
+
     def _counter_out(f):
         def _counter(self, *args, **kwargs):
             LOG.debug('updating %s', statsname)
@@ -312,7 +313,9 @@ class BaseFT(object):
         result = {
             'state': self.state,
             'statistics': self.statistics,
-            'length': self.length()
+            'length': self.length(),
+            'inputs': self.inputs,
+            'output': self.output is None
         }
         return result
 
