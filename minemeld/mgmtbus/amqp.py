@@ -276,7 +276,7 @@ class AMQPMaster(gevent.Greenlet):
                         actreq['answers'],
                         loop_interval
                     )
-                except Exception as e:
+                except:
                     LOG.exception('Exception in _status_loop')
 
             gevent.sleep(loop_interval)

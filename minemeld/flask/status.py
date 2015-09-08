@@ -10,23 +10,24 @@ import flask.ext.login
 
 from . import app
 from . import MMMaster
+from . import MMStateFanout
 
 LOG = logging.getLogger(__name__)
 
 
 def stream_events():
-    sid = MWStateFanout.subscribe()
+    sid = MMStateFanout.subscribe()
 
     try:
         while True:
-            yield MWStateFanout.get(sid)
+            yield MMStateFanout.get(sid)
 
     except GeneratorExit:
-        MWStateFanout.unsubscribe(sid)
+        MMStateFanout.unsubscribe(sid)
 
     except:
         LOG.exception("Exception stream_events")
-        MWStateFanout.unsubscribe(sid)
+        MMStateFanout.unsubscribe(sid)
 
 
 # @app.route('/status/events', methods=['GET'])

@@ -107,7 +107,8 @@ try:
 
             result = body.get('result', None)
             if result is None:
-                errormsg = body.get('error', 'Error talking with mgmtbus master')
+                errormsg = body.get('error',
+                                    'Error talking with mgmtbus master')
                 self.active_requests[id_]['result'].set_exception(
                     RuntimeError(errormsg)
                 )
@@ -133,12 +134,12 @@ try:
             self.active_requests[id_] = {
                 'result': gevent.event.AsyncResult(),
             }
-    
+
             self._out_channel.basic_publish(
                 amqp.Message(body=json.dumps(msg)),
                 routing_key='mbus:master'
             )
-    
+
             return id_
 
         def status(self):
@@ -170,7 +171,7 @@ try:
 
     MMMaster = werkzeug.LocalProxy(get_mmmaster)
 
-    class _MWStateFanout(object):
+    class _MMStateFanout(object):
         def __init__(self):
             self.subscribers = {}
             self.next_subscriber_id = 0
@@ -247,21 +248,21 @@ try:
             self._connection.close()
             self._connection = None
 
-    def get_mwstatefanout():
-        r = getattr(g, '_mwstatefanout', None)
+    def get_mmstatefanout():
+        r = getattr(g, '_mmstatefanout', None)
         if r is None:
-            r = _MWStateFanout()
-            g._mwstatefanout = r
+            r = _MMStateFanout()
+            g._mmstatefanout = r
         return r
 
     @app.teardown_appcontext
-    def tearwdown_mwstatefanout(exception):
-        r = getattr(g, '_mwstatefanout', None)
+    def tearwdown_mmstatefanout(exception):
+        r = getattr(g, '_mmstatefanout', None)
         if r is not None:
-            g._mwstatefanout.stop()
-            g._mwstatefanout = None
+            g._mmstatefanout.stop()
+            g._mmstatefanout = None
 
-    MWStateFanout = werkzeug.LocalProxy(get_mwstatefanout)
+    MWStateFanout = werkzeug.LocalProxy(get_mmstatefanout)
 
     from . import status  # noqa
 
