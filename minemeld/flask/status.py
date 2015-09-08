@@ -29,8 +29,8 @@ def stream_events():
         MWStateFanout.unsubscribe(sid)
 
 
-@app.route('/status/events', methods=['GET'])
-@flask.ext.login.login_required
+# @app.route('/status/events', methods=['GET'])
+# @flask.ext.login.login_required
 def get_events():
     r = Response(stream_with_context(stream_events()),
                  mimetype="text/event-stream")
