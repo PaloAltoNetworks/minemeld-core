@@ -262,9 +262,17 @@ try:
             g._mmstatefanout.stop()
             g._mmstatefanout = None
 
-    MWStateFanout = werkzeug.LocalProxy(get_mmstatefanout)
+    MMStateFanout = werkzeug.LocalProxy(get_mmstatefanout)
 
     from . import status  # noqa
 
 except ImportError:
     LOG.exception("amqp, psutil and gevent needed for the status entrypoint")
+
+try:
+    import rrdtool  # noqa
+
+    from . import metricsapi  # noqa
+
+except ImportError:
+    LOG.exception("rrdtool needed for metrics endpoint")
