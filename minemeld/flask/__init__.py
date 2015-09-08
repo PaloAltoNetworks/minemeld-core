@@ -53,12 +53,125 @@ except ImportError:
 try:
     # amqp connection
     import gevent
+    import gevent.event
     import gevent.queue
     import amqp
     import json
+    import uuid
     import psutil  # noqa
 
-    class _MWStateFanout():
+    class _MMMasterConnection(object):
+        def __init__(self):
+            self._connection = None
+            self._in_channel = None
+            self._out_channel = None
+            self._in_q = None
+
+            self._g_ioloop = None
+
+            self.active_requests = {}
+
+        def _open_channel(self):
+            if self._connection is not None:
+                return
+
+            self._connection = amqp.connection.Connection(
+                **config.get('FABRIC', {})
+            )
+            self._out_channel = self._connection.channel()
+
+            self._in_channel = self._connection.channel()
+            self._in_q = self._in_channel.queue_declare(exclusive=True)
+            self._in_channel.basic_consume(
+                callback=self._callback,
+                no_ack=True,
+                exclusive=True
+            )
+
+            self._g_ioloop = gevent.spawn(self._ioloop)
+
+        def _callback(self, msg):
+            try:
+                body = json.loads(msg.body)
+            except ValueError:
+                LOG.error("invalid message received")
+                return
+
+            id_ = body.get('id', None)
+            if id_ is None:
+                LOG.error("message with no id received, ignored")
+                return
+            if id_ not in self.active_requests:
+                LOG.error("message with unknown id received, ignored")
+                return
+
+            result = body.get('result', None)
+            if result is None:
+                errormsg = body.get('error',
+                                    'Error talking with mgmtbus master')
+                self.active_requests[id_]['result'].set_exception(
+                    RuntimeError(errormsg)
+                )
+                return
+
+            self.active_requests[id_]['result'].set(value=result)
+            self.active_requests.pop(id_)
+
+        def _ioloop(self):
+            while True:
+                self._connection.drain_events()
+
+        def _send_cmd(self, method, params={}):
+            self._open_channel()
+
+            id_ = str(uuid.uuid1())
+            msg = {
+                'id': id_,
+                'reply_to': self._in_q.queue,
+                'method': method,
+                'params': params
+            }
+            self.active_requests[id_] = {
+                'result': gevent.event.AsyncResult(),
+            }
+
+            self._out_channel.basic_publish(
+                amqp.Message(body=json.dumps(msg)),
+                routing_key='mbus:master'
+            )
+
+            return id_
+
+        def status(self):
+            reqid = self._send_cmd('status')
+            return self.active_requests[reqid]['result'].get(timeout=10)
+
+        def stop(self):
+            if self._g_ioloop is not None:
+                self._g_ioloop.kill()
+
+            if self._connection is not None:
+                self._in_channel.close()
+                self._out_channel.close()
+                self._connection.close()
+
+    def get_mmmaster():
+        r = getattr(g, 'MMMaster', None)
+        if r is None:
+            r = _MMMasterConnection()
+            g.MMMaster = r
+        return r
+
+    @app.teardown_appcontext
+    def tearwdown_mmmaster(exception):
+        r = getattr(g, 'MMMaster', None)
+        if r is not None:
+            g.MMMaster.stop()
+            g.MMMaster = None
+
+    MMMaster = werkzeug.LocalProxy(get_mmmaster)
+
+    class _MMStateFanout(object):
         def __init__(self):
             self.subscribers = {}
             self.next_subscriber_id = 0
@@ -135,21 +248,21 @@ try:
             self._connection.close()
             self._connection = None
 
-    def get_mwstatefanout():
-        r = getattr(g, '_mwstatefanout', None)
+    def get_mmstatefanout():
+        r = getattr(g, '_mmstatefanout', None)
         if r is None:
-            r = _MWStateFanout()
-            g._mwstatefanout = r
+            r = _MMStateFanout()
+            g._mmstatefanout = r
         return r
 
     @app.teardown_appcontext
-    def tearwdown_mwstatefanout(exception):
-        r = getattr(g, '_mwstatefanout', None)
+    def tearwdown_mmstatefanout(exception):
+        r = getattr(g, '_mmstatefanout', None)
         if r is not None:
-            g._mwstatefanout.stop()
-            g._mwstatefanout = None
+            g._mmstatefanout.stop()
+            g._mmstatefanout = None
 
-    MWStateFanout = werkzeug.LocalProxy(get_mwstatefanout)
+    MWStateFanout = werkzeug.LocalProxy(get_mmstatefanout)
 
     from . import status  # noqa
 

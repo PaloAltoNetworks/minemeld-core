@@ -66,6 +66,7 @@ class AMQPMaster(gevent.Greenlet):
 
         if 'method' in body:
             self._rpc_call(body)
+            return
 
         self._rpc_reply(body)
 
@@ -93,11 +94,12 @@ class AMQPMaster(gevent.Greenlet):
             return
 
         try:
-            result = m(self, **params)
+            result = m(**params)
         except Exception as e:
             self._send_result(reply_to, id_, error=str(e))
-        else:
-            self._send_result(reply_to, id_, result=result)
+            return
+
+        self._send_result(reply_to, id_, result=result)
 
     def _rpc_reply(self, body):
         id_ = body.get('id', None)
@@ -274,7 +276,7 @@ class AMQPMaster(gevent.Greenlet):
                         actreq['answers'],
                         loop_interval
                     )
-                except Exception as e:
+                except:
                     LOG.exception('Exception in _status_loop')
 
             gevent.sleep(loop_interval)
