@@ -30,25 +30,30 @@ RUNNING_CONFIG = 'running-config.yml'
 
 
 def _run_chassis(fabricconfig, mgmtbusconfig, fts):
-    c = minemeld.chassis.Chassis(
-        fabricconfig['class'],
-        fabricconfig['args'],
-        mgmtbusconfig['class'],
-        mgmtbusconfig['args']
-    )
-    c.configure(fts)
-
-    while not c.fts_init():
-        gevent.sleep(1)
-
-    gevent.signal(signal.SIGUSR1, c.stop)
-
     try:
-        c.start()
-        c.poweroff.wait()
-    except KeyboardInterrupt:
-        LOG.error("We should not be here !")
-        c.stop()
+        c = minemeld.chassis.Chassis(
+            fabricconfig['class'],
+            fabricconfig['args'],
+            mgmtbusconfig['class'],
+            mgmtbusconfig['args']
+        )
+        c.configure(fts)
+    
+        while not c.fts_init():
+            gevent.sleep(1)
+    
+        gevent.signal(signal.SIGUSR1, c.stop)
+
+        try:
+            c.start()
+            c.poweroff.wait()
+        except KeyboardInterrupt:
+            LOG.error("We should not be here !")
+            c.stop()
+
+    except:
+        LOG.exception('Exception in chassis main procedure')
+        raise
 
 
 def _start_mgmtbus_master(config, ftlist):
