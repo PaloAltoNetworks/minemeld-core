@@ -3,3 +3,4 @@ gunicorn==19.3.0
 psutil==3.1.1
 Flask-Login==0.2.11
 passlib==1.6.5
+rrdtool==0.1.2
