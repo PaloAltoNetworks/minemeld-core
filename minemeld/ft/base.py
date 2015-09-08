@@ -315,7 +315,7 @@ class BaseFT(object):
             'statistics': self.statistics,
             'length': self.length(),
             'inputs': self.inputs,
-            'output': self.output is None
+            'output': (self.output is not None)
         }
         return result
 

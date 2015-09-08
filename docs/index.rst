@@ -13,7 +13,9 @@ Contents:
    
    scripts
    schema
+   statusapi
    configapi
+   metricsapi
    internals
    license
 
