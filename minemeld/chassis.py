@@ -45,18 +45,6 @@ class Chassis(object):
             self.mgmtbus_config
         )
 
-    def _diff(self, A, B):
-        setA = set(A.keys())
-        setB = set(B.keys())
-        if len(setA) != len(setB):
-            return True
-        if len(setA.union(setB)) != len(setA):
-            return True
-        for k, v in A.iteritems():
-            if B[k] != v:
-                return True
-        return False
-
     def _dynamic_load(self, classname):
         modname, classname = classname.rsplit('.', 1)
         t = __import__(modname, globals(), locals(), [classname])
