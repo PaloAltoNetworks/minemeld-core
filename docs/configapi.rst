@@ -1,7 +1,7 @@
 Configuration API
 =================
 
-Configuration API are used to change a temporary configuration. The temp
+Configuration API can be used to change a temporary configuration. The temp
 configuration is applied when the /config/commit API is called.
 
 The temp configuration has a *version* attribute. The version changes
