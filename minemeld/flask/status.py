@@ -6,8 +6,10 @@ from flask import Response
 from flask import stream_with_context
 from flask import jsonify
 
+import flask.ext.login
+
 from . import app
-from . import MWStateFanout
+from . import MMMaster
 
 LOG = logging.getLogger(__name__)
 
@@ -28,6 +30,7 @@ def stream_events():
 
 
 @app.route('/status/events', methods=['GET'])
+@flask.ext.login.login_required
 def get_events():
     r = Response(stream_with_context(stream_events()),
                  mimetype="text/event-stream")
@@ -35,6 +38,7 @@ def get_events():
 
 
 @app.route('/status/system', methods=['GET'])
+@flask.ext.login.login_required
 def get_system_status():
     res = {}
     res['cpu'] = psutil.cpu_percent(interval=1, percpu=True)
@@ -43,3 +47,9 @@ def get_system_status():
     res['disk'] = psutil.disk_usage('/').percent
 
     return jsonify(result=res)
+
+
+@app.route('/status/minemeld', methods=['GET'])
+@flask.ext.login.login_required
+def get_minemeld_status():
+    return jsonify(result=MMMaster.status())
