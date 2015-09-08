@@ -1,13 +1,13 @@
 Internals
 =========
 
-mixerwagon.ft.table
+minemeld.ft.table
 -------------------
 
-.. automodule:: mixerwagon.ft.table
+.. automodule:: minemeld.ft.table
 
 
-mixerwagon.ft.st
+minemeld.ft.st
 ----------------
 
-.. automodule:: mixerwagon.ft.st
+.. automodule:: minemeld.ft.st

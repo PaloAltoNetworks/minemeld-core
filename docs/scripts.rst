@@ -1,7 +1,7 @@
 mm-run.py
 =========
 
-mw-run.py is a simple script that can be used as frontend to the mixerwagon library.
+mm-run.py is a simple script that can be used as frontend to the minemeld library.
 
 Usage
 -----

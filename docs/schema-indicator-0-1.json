@@ -1,7 +1,7 @@
 {
-    "id": "https://www.paloaltonetworks.com/mixer-wagon-indicator-schema-0-1#",
+    "id": "https://www.paloaltonetworks.com/minemeld-indicator-schema-0-1#",
     "$schema": "http://json-schema.org/draft-04/schema#",
-    "description": "schema for mixer-wagon attributes",
+    "description": "schema for minemeld attributes",
     "type": "object",
     "required": [ "type" ],
     "properties": {
