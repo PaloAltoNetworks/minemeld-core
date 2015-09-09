@@ -301,7 +301,8 @@ class AMQPSubChannel(object):
         self.channel = conn.channel()
         self.channel.exchange_declare(
             self.topic,
-            'fanout'
+            'fanout',
+            auto_delete=True
         )
         q = self.channel.queue_declare(
             exclusive=False
@@ -346,13 +347,14 @@ class AMQP(object):
         self.failure_listeners.append(listener)
 
     def request_rpc_server_channel(self, name, obj=None, allowed_methods=[],
-                                   fanout=None):
+                                   method_prefix='', fanout=None):
         if name in self.rpc_server_channels:
             return
 
         self.rpc_server_channels[name] = AMQPRpcServerChannel(
             name,
             obj,
+            method_prefix=method_prefix,
             allowed_methods=allowed_methods,
             fanout=fanout
         )

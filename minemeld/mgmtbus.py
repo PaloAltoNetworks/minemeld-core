@@ -5,7 +5,7 @@ import gevent.event
 import logging
 import uuid
 
-import minemeld.comm
+import minemeld.comm.amqp
 
 from .collectd import CollectdClient
 
@@ -17,17 +17,18 @@ AMQP_BUS_EXCHANGE = AMQP_PREFIX+"bus"
 
 
 class MgmtbusMaster(object):
-    def __init__(self, ftlist, config, comm_class):
+    def __init__(self, ftlist, config, comm_class, comm_config):
         super(MgmtbusMaster, self).__init__()
 
         self.ftlist = ftlist
-        self.comm_config = config
+        self.config = config
+        self.comm_config = comm_config
         self.comm_class = comm_class
 
         self.status_glet = None
         self._status = {}
 
-        self.comm = self.comm_class(**self.comm_config)
+        self.comm = self.comm_class(self.comm_config)
         self._out_channel = self.comm.request_pub_channel(AMQP_BUS_EXCHANGE)
         self.comm.request_rpc_server_channel(
             AMQP_PREFIX+'master',
@@ -43,7 +44,7 @@ class MgmtbusMaster(object):
         return self._status
 
     def _send_cmd(self, command, params={}, and_discard=False):
-        return self.comm.send_rpc(
+        return self._rpc_client.send_rpc(
             command,
             params=params,
             and_discard=and_discard,
@@ -181,11 +182,12 @@ class MgmtbusMaster(object):
 
 
 class MgmtbusSlaveHub(object):
-    def __init__(self, name, config, comm_class):
-        self.comm_config = config
+    def __init__(self, config, comm_class, comm_config):
+        self.config = config
+        self.comm_config = comm_config
         self.comm_class = comm_class
 
-        self.comm = self.comm_class(**self.comm_config)
+        self.comm = self.comm_class(self.comm_config)
 
     def request_channel(self, ft):
         self.comm.request_rpc_server_channel(
@@ -210,16 +212,18 @@ class MgmtbusSlaveHub(object):
         self.comm.stop()
 
 
-def master_factory(mgmtbusclass, mgmtbusargs, fts):
+def master_factory(config, comm_class, comm_config, fts):
     return MgmtbusMaster(
         fts,
-        mgmtbusargs,
-        minemeld.comm.AMQP
+        config,
+        minemeld.comm.amqp.AMQP,
+        comm_config
     )
 
 
-def slave_hub_factory(mgmtbusclass, mgmtbusargs):
+def slave_hub_factory(config, comm_class, comm_config):
     return MgmtbusSlaveHub(
-        mgmtbusargs,
-        minemeld.comm.AMQP
+        config,
+        minemeld.comm.amqp.AMQP,
+        comm_config
     )

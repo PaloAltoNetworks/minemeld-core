@@ -33,9 +33,8 @@ def _run_chassis(fabricconfig, mgmtbusconfig, fts):
     try:
         c = minemeld.chassis.Chassis(
             fabricconfig['class'],
-            fabricconfig['args'],
-            mgmtbusconfig['class'],
-            mgmtbusconfig['args']
+            fabricconfig['config'],
+            mgmtbusconfig
         )
         c.configure(fts)
 
@@ -57,9 +56,15 @@ def _run_chassis(fabricconfig, mgmtbusconfig, fts):
 
 
 def _start_mgmtbus_master(config, ftlist):
+    config = config.get('master', {})
+    t = config.get('transport', {})
+    comm_class = t.get('class', 'AMQP')
+    comm_config = t.get('config', {})
+
     mbusmaster = minemeld.mgmtbus.master_factory(
-        config['class'],
-        config['args'],
+        config,
+        comm_class,
+        comm_config,
         ftlist
     )
     mbusmaster.start()
@@ -183,15 +188,19 @@ def main():
     if 'fabric' not in config:
         config['fabric'] = {
             'class': 'AMQP',
-            'args': {
+            'config': {
                 'num_connections': 5
             }
         }
 
     if 'mgmtbus' not in config:
         config['mgmtbus'] = {
-            'class': 'AMQP',
-            'args': {}
+            'transport': {
+                'class': 'AMQP',
+                'config': {}
+            },
+            'master': {},
+            'slave': {}
         }
 
     np = args.multiprocessing
@@ -244,14 +253,6 @@ def main():
             r = [int(t.is_alive()) for t in processes]
             if sum(r) != len(processes):
                 LOG.info("One of the chassis has stopped, exit")
-                break
-
-            try:
-                mbusmaster.get(block=False, timeout=None)
-            except gevent.Timeout:
-                pass
-            else:
-                LOG.error("We should not be here !")
                 break
 
             gevent.sleep(1)

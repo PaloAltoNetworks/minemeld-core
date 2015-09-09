@@ -4,8 +4,6 @@ A chassis instance contains a list of FT and a fabric.
 FTs communicate using the fabric.
 """
 
-import uuid
-
 import logging
 
 import gevent
@@ -21,8 +19,7 @@ STATE_REPORT_INTERVAL = 10
 
 
 class Chassis(object):
-    def __init__(self, fabricclass, fabricconfig,
-                 mgmtbusclass, mgmtbusconfig):
+    def __init__(self, fabricclass, fabricconfig, mgmtbusconfig):
         """Chassis class
 
         Args:
@@ -40,12 +37,15 @@ class Chassis(object):
             self.fabric_config
         )
 
-        self.mgmtbus_class = mgmtbusclass
-        self.mgmtbus_config = mgmtbusconfig
+        config = mgmtbusconfig.get('slave', {})
+        t = mgmtbusconfig.get('transport', {})
+        comm_class = t.get('class', 'AMQP')
+        comm_config = t.get('config', {})
+
         self.mgmtbus = minemeld.mgmtbus.slave_hub_factory(
-            str(uuid.uuid1()),
-            self.mgmtbus_class,
-            self.mgmtbus_config
+            config,
+            comm_class,
+            comm_config
         )
 
     def _dynamic_load(self, classname):
