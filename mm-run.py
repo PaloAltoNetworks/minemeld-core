@@ -38,10 +38,10 @@ def _run_chassis(fabricconfig, mgmtbusconfig, fts):
             mgmtbusconfig['args']
         )
         c.configure(fts)
-    
+
         while not c.fts_init():
             gevent.sleep(1)
-    
+
         gevent.signal(signal.SIGUSR1, c.stop)
 
         try:
@@ -182,8 +182,10 @@ def main():
 
     if 'fabric' not in config:
         config['fabric'] = {
-            'class': 'minemeld.fabric.AMQP',
-            'args': {}
+            'class': 'AMQP',
+            'args': {
+                'num_connections': 5
+            }
         }
 
     if 'mgmtbus' not in config:

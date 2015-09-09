@@ -4,6 +4,8 @@ A chassis instance contains a list of FT and a fabric.
 FTs communicate using the fabric.
 """
 
+import uuid
+
 import logging
 
 import gevent
@@ -40,7 +42,8 @@ class Chassis(object):
 
         self.mgmtbus_class = mgmtbusclass
         self.mgmtbus_config = mgmtbusconfig
-        self.mgmtbus = minemeld.mgmtbus.slave_factory(
+        self.mgmtbus = minemeld.mgmtbus.slave_hub_factory(
+            str(uuid.uuid1()),
             self.mgmtbus_class,
             self.mgmtbus_config
         )
@@ -79,6 +82,9 @@ class Chassis(object):
 
         self.fts = newfts
 
+        # XXX should be moved to constructor
+        self.mgmtbus.start()
+
     def request_mgmtbus_channel(self, ft):
         return self.mgmtbus.request_channel(ft)
 
@@ -114,6 +120,7 @@ class Chassis(object):
             ft.stop()
 
         self.fabric.stop()
+        self.mgmtbus.stop()
 
         self.poweroff.set(value='stop')
 
