@@ -20,6 +20,7 @@ class HttpFT(base.BaseFT):
         self.table.create_index('_updated')
         self.active_requests = []
         self.rebuild_flag = False
+        self.last_run = None
 
         super(HttpFT, self).__init__(name, chassis, config)
 
@@ -142,6 +143,8 @@ class HttpFT(base.BaseFT):
                     gevent.sleep(random.randint(1, 5))
                     continue
 
+            self.last_run = lastrun
+
             tryn = 0
 
             now = utc_millisec()
@@ -153,6 +156,12 @@ class HttpFT(base.BaseFT):
                 deltat += self.interval*1000
 
             gevent.sleep(deltat/1000.0)
+
+    def mgmtbus_status(self):
+        result = super(HttpFT, self).mgmtbus_status()
+        result['last_run'] = self.last_run
+
+        return result
 
     def _send_indicators(self, source=None, from_key=None, to_key=None):
         q = self.table.query(
