@@ -1,6 +1,7 @@
 import logging
 import copy
 import os
+import collections
 
 from . import condition
 from . import ft_states
@@ -71,10 +72,6 @@ def _counting(statsname):
     def _counter_out(f):
         def _counter(self, *args, **kwargs):
             LOG.debug('updating %s', statsname)
-
-            if statsname not in self.statistics:
-                self.statistics[statsname] = 0
-
             self.statistics[statsname] += 1
             f(self, *args, **kwargs)
         return _counter
@@ -93,7 +90,7 @@ class BaseFT(object):
         self.inputs = []
         self.output = None
 
-        self.statistics = {}
+        self.statistics = collections.defaultdict(lambda: 0)
 
         self.read_checkpoint()
 

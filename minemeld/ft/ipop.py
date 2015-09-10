@@ -87,7 +87,7 @@ class AggregateIPv4FT(base.BaseFT):
 
         return mv
 
-    def _merge_values(self, source, ov, nv):
+    def _merge_values(self, origin, ov, nv):
         result = {'sources': []}
 
         result['_added'] = ov['_added']
@@ -98,20 +98,21 @@ class AggregateIPv4FT(base.BaseFT):
 
         return result
 
-    def _add_indicator(self, source, indicator, value):
+    def _add_indicator(self, origin, indicator, value):
         now = utc_millisec()
 
-        v = self.table.get(indicator+source)
+        v = self.table.get(indicator+origin)
         if v is None:
             v = {
                 '_id': str(uuid.uuid4()),
                 '_added': now
             }
+            self.statistics['added'] += 1
 
-        v = self._merge_values(source, v, value)
+        v = self._merge_values(origin, v, value)
         v['_updated'] = now
 
-        self.table.put(indicator+source, v)
+        self.table.put(indicator+origin, v)
 
         return v
 
@@ -153,7 +154,7 @@ class AggregateIPv4FT(base.BaseFT):
                         live_ids.add(cuuid)
 
             LOG.debug('middle: %s %s %s', epaddr, start_ids, end_ids)
-            assert len(end_ids) + len(start_ids) >= 0
+            assert len(end_ids) + len(start_ids) > 0
 
             if len(start_ids) != 0:
                 if oep is not None and oep != epaddr and len(live_ids) != 0:
@@ -177,14 +178,7 @@ class AggregateIPv4FT(base.BaseFT):
 
         return result
 
-    @base._counting('update.processed')
-    def filtered_update(self, source=None, indicator=None, value=None):
-        vtype = value.get('type', None)
-        if vtype != 'IPv4':
-            return
-
-        v = self._add_indicator(source, indicator, value)
-
+    def _range_from_indicator(self, indicator):
         if '-' in indicator:
             start, end = map(
                 lambda x: int(netaddr.IPAddress(x)),
@@ -198,12 +192,9 @@ class AggregateIPv4FT(base.BaseFT):
             start = int(netaddr.IPAddress(indicator))
             end = start
 
-        level = 1
-        if source in self.whitelists:
-            level = WL_LEVEL
+        return start, end
 
-        LOG.debug("update: indicator: %s %s level: %s", start, end, level)
-
+    def _endpoints_from_range(self, start, end):
         rangestart = next(
             self.st.query_endpoints(start=0, stop=max(start-1, 0),
                                     reverse=True),
@@ -211,7 +202,7 @@ class AggregateIPv4FT(base.BaseFT):
         )
         if rangestart is not None:
             rangestart = rangestart[0]
-        LOG.debug('rangestart: %s', rangestart)
+        LOG.debug('%s - range start: %s', self.name, rangestart)
 
         rangestop = next(
             self.st.query_endpoints(reverse=False,
@@ -222,21 +213,45 @@ class AggregateIPv4FT(base.BaseFT):
         )
         if rangestop is not None:
             rangestop = rangestop[0]
+        LOG.debug('%s - range stop: %s', self.name, rangestart)
+
+        return rangestart, rangestop
+
+    @base._counting('update.processed')
+    def filtered_update(self, source=None, indicator=None, value=None):
+        vtype = value.get('type', None)
+        if vtype != 'IPv4':
+            LOG.debug('%s - update received from %s with type != IPv4 (%s)',
+                      self.name, source, vtype)
+            return
+
+        v = self._add_indicator(source, indicator, value)
+
+        start, end = self._range_from_indicator(indicator)
+
+        level = 1
+        if source in self.whitelists:
+            level = WL_LEVEL
+
+        LOG.debug("%s - update: indicator: (%s) %s %s level: %s",
+                  self.name, indicator, start, end, level)
+
+        rangestart, rangestop = self._endpoints_from_range(start, end)
 
         rangesb = set(self._calc_ipranges(rangestart, rangestop))
-        LOG.debug('rangesb: %s', rangesb)
+        LOG.debug('%s - ranges before update: %s', self.name, rangesb)
 
         uuidbytes = uuid.UUID(v['_id']).bytes
         self.st.put(uuidbytes, start, end, level=level)
 
         rangesa = set(self._calc_ipranges(rangestart, rangestop))
-        LOG.debug('rangesa: %s', rangesa)
+        LOG.debug('%s - ranges after update: %s', self.name, rangesa)
 
         added = rangesa-rangesb
-        LOG.debug("IP ranges added: %s", added)
+        LOG.debug("%s - IP ranges added: %s", self.name, added)
 
         removed = rangesb-rangesa
-        LOG.debug("IP ranges removed: %s", removed)
+        LOG.debug("%s - IP ranges removed: %s", self.name, removed)
 
         for u in added:
             self.emit_update(
@@ -266,39 +281,15 @@ class AggregateIPv4FT(base.BaseFT):
             return
 
         self.table.delete(indicator+source)
+        self.statistics['removed'] += 1
 
-        if '-' in indicator:
-            start, end = map(
-                lambda x: int(netaddr.IPAddress(x)),
-                indicator.split('-', 1)
-            )
-            end += 1
-        elif '/' in indicator:
-            ipnet = netaddr.IPNetwork(indicator)
-            start = int(ipnet.ip)
-            end = start+ipnet.size
-        else:
-            start = int(netaddr.IPAddress(indicator))
-            end = start+1
+        start, end = self._range_from_indicator(indicator)
 
         level = 1
         if source in self.whitelists:
             level = WL_LEVEL
 
-        rangestart = next(
-            self.st.query_endpoints(start=0, stop=start, reverse=True),
-            None
-        )
-        if rangestart is not None:
-            rangestart = rangestart[0]
-
-        rangestop = next(
-            self.st.query_endpoints(reverse=False, start=end,
-                                    stop=self.st.max_endpoint),
-            None
-        )
-        if rangestop is not None:
-            rangestop = rangestop[0]
+        rangestart, rangestop = self._endpoints_from_range(start, end)
 
         rangesb = set(self._calc_ipranges(rangestart, rangestop))
         LOG.debug("ranges before: %s", rangesb)

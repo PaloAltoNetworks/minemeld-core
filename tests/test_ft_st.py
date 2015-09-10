@@ -39,6 +39,44 @@ class MineMeldFTTableTests(unittest.TestCase):
         st.put(sid, 1, 5, 1)
         st.delete(sid, 1, 5, 1)
 
+    def test_query_endpoints_forward(self):
+        st = minemeld.ft.st.ST(TABLENAME, 8, truncate=True)
+
+        sid1 = uuid.uuid4().bytes
+        sid2 = uuid.uuid4().bytes
+
+        st.put(sid1, 1, 70, 1)
+        st.put(sid2, 50, 100, 1)
+
+        eps = [ep[0] for ep in st.query_endpoints(
+            start=0,
+            stop=st.max_endpoint,
+            reverse=False,
+            include_start=False,
+            include_stop=False
+        )]
+
+        self.assertEqual(eps, [1, 50, 70, 100])
+
+    def test_query_endpoints_reverse(self):
+        st = minemeld.ft.st.ST(TABLENAME, 8, truncate=True)
+
+        sid1 = uuid.uuid4().bytes
+        sid2 = uuid.uuid4().bytes
+
+        st.put(sid1, 1, 70, 1)
+        st.put(sid2, 50, 100, 1)
+
+        eps = [ep[0] for ep in st.query_endpoints(
+            start=0,
+            stop=st.max_endpoint,
+            reverse=True,
+            include_start=False,
+            include_stop=False
+        )]
+
+        self.assertEqual(eps, [100, 70, 50, 1])
+
     def test_basic_cover(self):
         st = minemeld.ft.st.ST(TABLENAME, 8, truncate=True)
 
