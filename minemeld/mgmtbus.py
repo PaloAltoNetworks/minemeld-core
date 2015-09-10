@@ -113,6 +113,7 @@ class MgmtbusMaster(object):
             for a in result['answers'].values():
                 ok &= (a['checkpoint'] == chkp)
             if ok:
+                LOG.info('checkpoint graph - all good')
                 break
 
             gevent.sleep(5)
