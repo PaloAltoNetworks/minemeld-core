@@ -174,6 +174,7 @@ class BaseFT(object):
             return
 
         self.output.publish("update", {
+            'source': self.name,
             'indicator': indicator,
             'value': value
         })
@@ -188,6 +189,7 @@ class BaseFT(object):
             return
 
         self.output.publish("withdraw", {
+            'source': self.name,
             'indicator': indicator,
             'value': value
         })
@@ -198,11 +200,15 @@ class BaseFT(object):
             return
 
         self.output.publish('checkpoint', {
+            'source': self.name,
             'value': value
         })
 
     @_counting('update.rx')
     def update(self, source=None, indicator=None, value=None):
+        LOG.debug('%s {%s} - update from %s value %s',
+                  self.name, self.state, source, value)
+
         if self.state not in [ft_states.STARTED, ft_states.CHECKPOINT]:
             return
 
@@ -236,6 +242,9 @@ class BaseFT(object):
 
     @_counting('withdraw.rx')
     def withdraw(self, source=None, indicator=None, value=None):
+        LOG.debug('%s {%s} - withdraw from %s value %s',
+                  self.name, self.state, source, value)
+
         if self.state not in [ft_states.STARTED, ft_states.CHECKPOINT]:
             return
 

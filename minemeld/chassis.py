@@ -19,8 +19,7 @@ STATE_REPORT_INTERVAL = 10
 
 
 class Chassis(object):
-    def __init__(self, fabricclass, fabricconfig,
-                 mgmtbusclass, mgmtbusconfig):
+    def __init__(self, fabricclass, fabricconfig, mgmtbusconfig):
         """Chassis class
 
         Args:
@@ -38,11 +37,10 @@ class Chassis(object):
             self.fabric_config
         )
 
-        self.mgmtbus_class = mgmtbusclass
-        self.mgmtbus_config = mgmtbusconfig
-        self.mgmtbus = minemeld.mgmtbus.slave_factory(
-            self.mgmtbus_class,
-            self.mgmtbus_config
+        self.mgmtbus = minemeld.mgmtbus.slave_hub_factory(
+            mgmtbusconfig['slave'],
+            mgmtbusconfig['transport']['class'],
+            mgmtbusconfig['transport']['config']
         )
 
     def _dynamic_load(self, classname):
@@ -79,6 +77,9 @@ class Chassis(object):
 
         self.fts = newfts
 
+        # XXX should be moved to constructor
+        self.mgmtbus.start()
+
     def request_mgmtbus_channel(self, ft):
         return self.mgmtbus.request_channel(ft)
 
@@ -114,6 +115,7 @@ class Chassis(object):
             ft.stop()
 
         self.fabric.stop()
+        self.mgmtbus.stop()
 
         self.poweroff.set(value='stop')
 

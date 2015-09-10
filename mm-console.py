@@ -6,22 +6,40 @@ gevent.monkey.patch_all(thread=False, select=False)
 
 import logging
 import signal
-import uuid
+import time
 
 import click
 
-import minemeld.chassis
+import minemeld.comm
 
 LOG = logging.getLogger(__name__)
 
 
+def _send_cmd(ctx, target, command, params={}):
+    params['source'] = ctx.obj['SOURCE']
+    return ctx.obj['COMM'].send_rpc(
+        target,
+        command,
+        params
+    )
+
+
+class FakeNode(object):
+    def update(self, source=None, indicator=None, value=None):
+        print 'source:', source
+        print 'indicator:', indicator
+        print 'value: %s' % value
+        print
+
+
 @click.group()
-@click.option('--fabric-class', default='minemeld.fabric.AMQP',
+@click.option('--comm-class', default='AMQP',
               metavar='CLASSNAME')
 @click.option('--verbose', count=True)
 @click.pass_context
-def cli(ctx, verbose, fabric_class):
-    fabric_class = str(fabric_class)
+def cli(ctx, verbose, comm_class):
+    comm_class = str(comm_class)
+    source = 'console-%d' % int(time.time())
 
     loglevel = logging.WARNING
     if verbose > 0:
@@ -35,31 +53,21 @@ def cli(ctx, verbose, fabric_class):
         datefmt="%Y-%m-%dT%H:%M:%S"
     )
 
-    ftname = str(uuid.uuid4())
-
-    c = minemeld.chassis.Chassis(
-        fabric_class,
-        {},
-        report_state=False
+    comm = minemeld.comm.factory(comm_class, {})  # XXX should support config
+    comm.request_rpc_server_channel(
+        source,
+        FakeNode(),
+        allowed_methods=['update']
     )
 
-    c.configure({
-        ftname: {
-            'class': 'minemeld.ft.inspect.InspectFT',
-            'args': {}
-        }
-    })
+    gevent.signal(signal.SIGTERM, comm.stop)
+    gevent.signal(signal.SIGQUIT, comm.stop)
+    gevent.signal(signal.SIGINT, comm.stop)
 
-    gevent.signal(signal.SIGTERM, c.stop)
-    gevent.signal(signal.SIGQUIT, c.stop)
-    gevent.signal(signal.SIGINT, c.stop)
+    comm.start()
 
-    c.start()
-    ft = c.get_ft(ftname)
-
-    ctx.obj['CHASSIS'] = c
-    ctx.obj['FTNAME'] = ftname
-    ctx.obj['FT'] = ft
+    ctx.obj['COMM'] = comm
+    ctx.obj['SOURCE'] = source
 
 
 @cli.command()
@@ -69,12 +77,9 @@ def length(ctx, target):
     if target is None:
         raise click.UsageError(message='target required')
 
-    try:
-        ctx.obj['FT'].call_length(target=target)
-    except gevent.timeout.Timeout:
-        print 'Timeout'
+    print _send_cmd(ctx, target, 'length')
 
-    ctx.obj['CHASSIS'].stop()
+    ctx.obj['COMM'].stop()
 
 
 @cli.command()
@@ -87,12 +92,9 @@ def get(ctx, target, indicator):
     if indicator is None:
         raise click.UsageError(message='indicator required')
 
-    try:
-        ctx.obj['FT'].call_get(target=target, indicator=indicator)
-    except gevent.timeout.Timeout:
-        print 'Timeout'
+    print _send_cmd(ctx, target, 'get', params={'value': indicator})
 
-    ctx.obj['CHASSIS'].stop()
+    ctx.obj['COMM'].stop()
 
 
 @cli.command()
@@ -102,12 +104,9 @@ def get_all(ctx, target):
     if target is None:
         raise click.UsageError(message='target required')
 
-    try:
-        ctx.obj['FT'].call_get_all(target=target)
-    except gevent.timeout.Timeout:
-        print 'Timeout'
+    print _send_cmd(ctx, target, 'get_all')
 
-    ctx.obj['CHASSIS'].stop()
+    ctx.obj['COMM'].stop()
 
 
 @cli.command()
@@ -120,13 +119,13 @@ def get_range(ctx, target, index, from_key, to_key):
     if target is None:
         raise click.UsageError(message='target required')
 
-    try:
-        ctx.obj['FT'].call_get_range(target=target, index=index,
-                                     from_key=from_key, to_key=to_key)
-    except gevent.timeout.Timeout:
-        print 'Timeout'
+    print _send_cmd(ctx, target, 'get_all_range', params={
+        'index': index,
+        'from_key': from_key,
+        'to_key': to_key
+    })
 
-    ctx.obj['CHASSIS'].stop()
+    ctx.obj['COMM'].stop()
 
 
 if __name__ == "__main__":

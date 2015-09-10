@@ -33,15 +33,14 @@ def _run_chassis(fabricconfig, mgmtbusconfig, fts):
     try:
         c = minemeld.chassis.Chassis(
             fabricconfig['class'],
-            fabricconfig['args'],
-            mgmtbusconfig['class'],
-            mgmtbusconfig['args']
+            fabricconfig['config'],
+            mgmtbusconfig
         )
         c.configure(fts)
-    
+
         while not c.fts_init():
             gevent.sleep(1)
-    
+
         gevent.signal(signal.SIGUSR1, c.stop)
 
         try:
@@ -58,8 +57,9 @@ def _run_chassis(fabricconfig, mgmtbusconfig, fts):
 
 def _start_mgmtbus_master(config, ftlist):
     mbusmaster = minemeld.mgmtbus.master_factory(
-        config['class'],
-        config['args'],
+        config['master'],
+        config['transport']['class'],
+        config['transport']['config'],
         ftlist
     )
     mbusmaster.start()
@@ -178,19 +178,26 @@ def main():
     LOG.info("mm-run.py arguments: %s", args)
 
     config = _load_config(args.config)
-    LOG.info("mm-run.py config: %s", config)
 
     if 'fabric' not in config:
         config['fabric'] = {
-            'class': 'minemeld.fabric.AMQP',
-            'args': {}
+            'class': 'AMQP',
+            'config': {
+                'num_connections': 5
+            }
         }
 
     if 'mgmtbus' not in config:
         config['mgmtbus'] = {
-            'class': 'AMQP',
-            'args': {}
+            'transport': {
+                'class': 'AMQP',
+                'config': {}
+            },
+            'master': {},
+            'slave': {}
         }
+
+    LOG.info("mm-run.py config: %s", config)
 
     np = args.multiprocessing
     if np == 0:
@@ -242,14 +249,6 @@ def main():
             r = [int(t.is_alive()) for t in processes]
             if sum(r) != len(processes):
                 LOG.info("One of the chassis has stopped, exit")
-                break
-
-            try:
-                mbusmaster.get(block=False, timeout=None)
-            except gevent.Timeout:
-                pass
-            else:
-                LOG.error("We should not be here !")
                 break
 
             gevent.sleep(1)
