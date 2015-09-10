@@ -67,8 +67,6 @@ class _Filters(object):
 
 
 def _counting(statsname):
-    LOG.debug('_counting %s called', statsname)
-
     def _counter_out(f):
         def _counter(self, *args, **kwargs):
             LOG.debug('updating %s', statsname)
