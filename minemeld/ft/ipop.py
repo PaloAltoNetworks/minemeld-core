@@ -99,6 +99,8 @@ class AggregateIPv4FT(base.BaseFT):
         return result
 
     def _add_indicator(self, origin, indicator, value):
+        added = False
+
         now = utc_millisec()
 
         v = self.table.get(indicator+origin)
@@ -107,6 +109,7 @@ class AggregateIPv4FT(base.BaseFT):
                 '_id': str(uuid.uuid4()),
                 '_added': now
             }
+            added = True
             self.statistics['added'] += 1
 
         v = self._merge_values(origin, v, value)
@@ -114,7 +117,7 @@ class AggregateIPv4FT(base.BaseFT):
 
         self.table.put(indicator+origin, v)
 
-        return v
+        return v, added
 
     def _calc_ipranges(self, start, end):
         LOG.debug('_calc_ipranges: %s %s', start, end)
@@ -225,7 +228,7 @@ class AggregateIPv4FT(base.BaseFT):
                       self.name, source, vtype)
             return
 
-        v = self._add_indicator(source, indicator, value)
+        v, newindicator = self._add_indicator(source, indicator, value)
 
         start, end = self._range_from_indicator(indicator)
 
@@ -240,6 +243,13 @@ class AggregateIPv4FT(base.BaseFT):
 
         rangesb = set(self._calc_ipranges(rangestart, rangestop))
         LOG.debug('%s - ranges before update: %s', self.name, rangesb)
+
+        if not newindicator:
+            for u in rangesb:
+                self.emit_update(
+                    u.indicator(),
+                    self._calc_indicator_value(u.uuids)
+                )
 
         uuidbytes = uuid.UUID(v['_id']).bytes
         self.st.put(uuidbytes, start, end, level=level)
