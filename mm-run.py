@@ -161,6 +161,11 @@ def main():
             os.kill(p.pid, signal.SIGUSR1)
         raise KeyboardInterrupt('Ctrl-C from _sigint_handler')
 
+    def _sigterm_handler():
+        mbusmaster.checkpoint_graph()
+        for p in processes:
+            os.kill(p.pid, signal.SIGUSR1)
+
     args = _parse_args()
 
     # logging
@@ -240,7 +245,7 @@ def main():
     mbusmaster.init_graph(config['newconfig'])
 
     gevent.signal(signal.SIGINT, _sigint_handler)
-    gevent.signal(signal.SIGTERM, _sigint_handler)
+    gevent.signal(signal.SIGTERM, _sigterm_handler)
 
     mbusmaster.start_status_monitor()
 
