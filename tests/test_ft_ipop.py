@@ -754,3 +754,72 @@ class MineMeldFTOpTests(unittest.TestCase):
         a.table.db.close()
         a.st.db.close()
         a = None
+
+    def test_updated_indicator(self):
+        config = {}
+        chassis = mock.Mock()
+
+        ochannel = mock.Mock()
+        chassis.request_pub_channel.return_value = ochannel
+
+        rpcmock = mock.Mock()
+        rpcmock.get.return_value = {'error': None, 'result': 'OK'}
+        chassis.send_rpc.return_value = rpcmock
+
+        a = minemeld.ft.ipop.AggregateIPv4FT(FTNAME, chassis, config)
+
+        inputs = ['s1', 's2']
+        output = True
+
+        a.connect(inputs, output)
+        a.mgmtbus_initialize()
+        a.start()
+
+        ochannel.publish.reset_mock()
+        a.update('s1', indicator='192.168.0.0', value={
+            'type': 'IPv4',
+            'sources': ['s1s'],
+            's1$a': 1
+        })
+        self.assertTrue(
+            check_for_rpc(
+                ochannel.publish.call_args_list,
+                [
+                    {
+                        'method': 'update',
+                        'indicator': '192.168.0.0-192.168.0.0',
+                        'value': {
+                            's1$a': 1
+                        }
+                    }
+                ],
+                all_here=True
+            )
+        )
+
+        ochannel.publish.reset_mock()
+        a.update('s1', indicator='192.168.0.0', value={
+            'type': 'IPv4',
+            'sources': ['s1s'],
+            's1$a': 2
+        })
+        self.assertTrue(
+            check_for_rpc(
+                ochannel.publish.call_args_list,
+                [
+                    {
+                        'method': 'update',
+                        'indicator': '192.168.0.0-192.168.0.0',
+                        'value': {
+                            's1$a': 2
+                        }
+                    }
+                ],
+                all_here=True
+            )
+        )
+
+        a.stop()
+        a.table.db.close()
+        a.st.db.close()
+        a = None
