@@ -7,16 +7,19 @@ gevent.monkey.patch_all(thread=False, select=False)
 import logging
 import signal
 import time
+import pprint
 
 import click
 
 import minemeld.comm
+import minemeld.mgmtbus
 
 LOG = logging.getLogger(__name__)
 
 
-def _send_cmd(ctx, target, command, params={}):
-    params['source'] = ctx.obj['SOURCE']
+def _send_cmd(ctx, target, command, params={}, source=True):
+    if source:
+        params['source'] = ctx.obj['SOURCE']
     return ctx.obj['COMM'].send_rpc(
         target,
         command,
@@ -124,6 +127,15 @@ def get_range(ctx, target, index, from_key, to_key):
         'from_key': from_key,
         'to_key': to_key
     })
+
+    ctx.obj['COMM'].stop()
+
+
+@cli.command()
+@click.pass_context
+def status(ctx):
+    pprint.pprint(_send_cmd(ctx, minemeld.mgmtbus.MGMTBUS_MASTER,
+                            'status', source=False))
 
     ctx.obj['COMM'].stop()
 
