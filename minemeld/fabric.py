@@ -2,7 +2,7 @@ from __future__ import absolute_import
 
 import logging
 
-import minemeld.comm.amqp
+import minemeld.comm
 
 LOG = logging.getLogger(__name__)
 
@@ -14,7 +14,7 @@ class Fabric(object):
         self.comm_config = config
         self.comm_class = comm_class
 
-        self.comm = self.comm_class(self.comm_config)
+        self.comm = minemeld.comm.factory(self.comm_class, self.comm_config)
 
     def request_rpc_channel(self, ftname, ft, allowed_methods):
         self.comm.request_rpc_server_channel(ftname, ft, allowed_methods)
@@ -49,27 +49,9 @@ class Fabric(object):
         self.comm.stop()
 
 
-def _dynamic_load(classname):
-    if '.' not in classname:
-        raise ValueError('invalid absolute classname %s' % classname)
-
-    modname, classname = classname.rsplit('.', 1)
-    t = __import__(modname, globals(), locals(), [classname])
-    cls = getattr(t, classname)
-    return cls
-
-
 def factory(classname, chassis, config):
-    if classname == 'AMQP':
-        return Fabric(
-            chassis=chassis,
-            config=config,
-            comm_class=minemeld.comm.amqp.AMQP
-        )
-
-    comm_class = _dynamic_load(classname)
     return Fabric(
         chassis=chassis,
         config=config,
-        comm_class=comm_class
+        comm_class=classname
     )

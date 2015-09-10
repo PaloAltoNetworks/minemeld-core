@@ -52,108 +52,44 @@ except ImportError:
 
 try:
     # amqp connection
+    import minemeld.comm
     import gevent
     import gevent.event
     import gevent.queue
     import amqp
     import json
-    import uuid
     import psutil  # noqa
 
     class _MMMasterConnection(object):
         def __init__(self):
-            self._connection = None
-            self._in_channel = None
-            self._out_channel = None
-            self._in_q = None
+            self.comm = None
 
-            self._g_ioloop = None
-
-            self.active_requests = {}
+            tconfig = config.get('MGMTBUS', {})
+            self.comm_class = tconfig.get('class', 'AMQP')
+            self.comm_config = tconfig.get('config', {})
 
         def _open_channel(self):
-            if self._connection is not None:
+            if self.comm is not None:
                 return
 
-            self._connection = amqp.connection.Connection(
-                **config.get('FABRIC', {})
+            self.comm = minemeld.comm.factory(
+                self.comm_class,
+                self.comm_config
             )
-            self._out_channel = self._connection.channel()
-
-            self._in_channel = self._connection.channel()
-            self._in_q = self._in_channel.queue_declare(exclusive=True)
-            self._in_channel.basic_consume(
-                callback=self._callback,
-                no_ack=True,
-                exclusive=True
-            )
-
-            self._g_ioloop = gevent.spawn(self._ioloop)
-
-        def _callback(self, msg):
-            try:
-                body = json.loads(msg.body)
-            except ValueError:
-                LOG.error("invalid message received")
-                return
-
-            id_ = body.get('id', None)
-            if id_ is None:
-                LOG.error("message with no id received, ignored")
-                return
-            if id_ not in self.active_requests:
-                LOG.error("message with unknown id received, ignored")
-                return
-
-            result = body.get('result', None)
-            if result is None:
-                errormsg = body.get('error',
-                                    'Error talking with mgmtbus master')
-                self.active_requests[id_]['result'].set_exception(
-                    RuntimeError(errormsg)
-                )
-                return
-
-            self.active_requests[id_]['result'].set(value=result)
-            self.active_requests.pop(id_)
-
-        def _ioloop(self):
-            while True:
-                self._connection.drain_events()
+            self.comm.start()
 
         def _send_cmd(self, method, params={}):
             self._open_channel()
 
-            id_ = str(uuid.uuid1())
-            msg = {
-                'id': id_,
-                'reply_to': self._in_q.queue,
-                'method': method,
-                'params': params
-            }
-            self.active_requests[id_] = {
-                'result': gevent.event.AsyncResult(),
-            }
-
-            self._out_channel.basic_publish(
-                amqp.Message(body=json.dumps(msg)),
-                routing_key='mbus:master'
-            )
-
-            return id_
+            return self.comm.send_rpc('mbus:master', method, params)
 
         def status(self):
-            reqid = self._send_cmd('status')
-            return self.active_requests[reqid]['result'].get(timeout=10)
+            return self._send_cmd('status')
 
         def stop(self):
-            if self._g_ioloop is not None:
-                self._g_ioloop.kill()
-
-            if self._connection is not None:
-                self._in_channel.close()
-                self._out_channel.close()
-                self._connection.close()
+            if self.comm is not None:
+                self.comm.stop()
+                self.comm = None
 
     def get_mmmaster():
         r = getattr(g, 'MMMaster', None)

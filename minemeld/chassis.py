@@ -37,15 +37,10 @@ class Chassis(object):
             self.fabric_config
         )
 
-        config = mgmtbusconfig.get('slave', {})
-        t = mgmtbusconfig.get('transport', {})
-        comm_class = t.get('class', 'AMQP')
-        comm_config = t.get('config', {})
-
         self.mgmtbus = minemeld.mgmtbus.slave_hub_factory(
-            config,
-            comm_class,
-            comm_config
+            mgmtbusconfig['slave'],
+            mgmtbusconfig['transport']['class'],
+            mgmtbusconfig['transport']['config']
         )
 
     def _dynamic_load(self, classname):

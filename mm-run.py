@@ -56,15 +56,10 @@ def _run_chassis(fabricconfig, mgmtbusconfig, fts):
 
 
 def _start_mgmtbus_master(config, ftlist):
-    config = config.get('master', {})
-    t = config.get('transport', {})
-    comm_class = t.get('class', 'AMQP')
-    comm_config = t.get('config', {})
-
     mbusmaster = minemeld.mgmtbus.master_factory(
-        config,
-        comm_class,
-        comm_config,
+        config['master'],
+        config['transport']['class'],
+        config['transport']['config'],
         ftlist
     )
     mbusmaster.start()
@@ -183,7 +178,6 @@ def main():
     LOG.info("mm-run.py arguments: %s", args)
 
     config = _load_config(args.config)
-    LOG.info("mm-run.py config: %s", config)
 
     if 'fabric' not in config:
         config['fabric'] = {
@@ -202,6 +196,8 @@ def main():
             'master': {},
             'slave': {}
         }
+
+    LOG.info("mm-run.py config: %s", config)
 
     np = args.multiprocessing
     if np == 0:
