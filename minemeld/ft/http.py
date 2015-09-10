@@ -2,6 +2,7 @@ import requests
 import logging
 import copy
 import gevent
+import gevent.event
 import random
 
 from . import base
@@ -21,6 +22,7 @@ class HttpFT(base.BaseFT):
         self.active_requests = []
         self.rebuild_flag = False
         self.last_run = None
+        self.idle_waitobject = gevent.event.AsyncResult()
 
         super(HttpFT, self).__init__(name, chassis, config)
 
@@ -33,8 +35,7 @@ class HttpFT(base.BaseFT):
         self.split_char = self.config.get('split_char', None)
         self.split_pos = self.config.get('split_pos', 0)
         self.attributes = self.config.get('attributes', {})
-        self.interval = self.config.get('interval', 86400)
-        self.force_updates = self.config.get('force_updates', False)
+        self.interval = self.config.get('interval', 900)
         self.polling_timeout = self.config.get('polling_timeout', 20)
         self.num_retries = self.config.get('num_retries', 2)
 
@@ -47,8 +48,9 @@ class HttpFT(base.BaseFT):
         self.table = table.Table(self.name, truncate=True)
         self.table.create_index('_updated')
 
-    def _values_compare(self, d1, d2):
-        return True
+    def emit_checkpoint(self, value):
+        LOG.debug("%s - checkpoint set to %s", self.name, value)
+        self.idle_waitobject.set(value)
 
     def _process_line(self, line):
         attributes = copy.deepcopy(self.attributes)
@@ -93,24 +95,20 @@ class HttpFT(base.BaseFT):
             if ev is not None:
                 attributes['first_seen'] = ev['first_seen']
             else:
+                self.statistics['added'] += 1
                 attributes['first_seen'] = utc_millisec()
             attributes['last_seen'] = utc_millisec()
-
-            send_update = True
-            if ev is not None and not self.force_updates:
-                if self._values_compare(ev, attributes):
-                    send_update = False
 
             LOG.debug("%s - Updating %s %s", self.name, indicator, attributes)
             self.table.put(indicator, attributes)
 
-            if send_update:
-                LOG.debug("%s - Emitting update for %s", self.name, indicator)
-                self.emit_update(indicator, attributes)
+            LOG.debug("%s - Emitting update for %s", self.name, indicator)
+            self.emit_update(indicator, attributes)
 
         for i, v in self.table.query('_updated', from_key=0, to_key=now-1,
                                      include_value=True):
             LOG.debug("%s - Removing old %s - %s", self.name, i, v)
+            self.statistics['removed'] += 1
             self.table.delete(i)
             self.emit_withdraw(i, value={'sources': [self.source_name]})
 
@@ -155,7 +153,17 @@ class HttpFT(base.BaseFT):
                             self.name)
                 deltat += self.interval*1000
 
-            gevent.sleep(deltat/1000.0)
+            checkpoint = None
+            try:
+                LOG.debug("%s - start waiting", self.name)
+                checkpoint = self.idle_waitobject.get(timeout=deltat/1000.0)
+            except gevent.Timeout:
+                pass
+            LOG.debug('%s - waiting result: %s', self.name, checkpoint)
+
+            if checkpoint is not None:
+                super(HttpFT, self).emit_checkpoint(checkpoint)
+                return
 
     def mgmtbus_status(self):
         result = super(HttpFT, self).mgmtbus_status()

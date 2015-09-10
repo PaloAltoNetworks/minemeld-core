@@ -20,19 +20,6 @@ class DshieldBlockList(http.HttpFT):
             config
         )
 
-    def _values_compare(self, d1, d2):
-        kd1 = set([k for k in d1.keys() if k.startswith('dshield_')])
-        kd2 = set([k for k in d2.keys() if k.startswith('dshield_')])
-
-        if len(kd1 ^ kd2) != 0:
-            return False
-
-        for k in kd1:
-            if d1[k] != d2[k]:
-                return False
-
-        return True
-
     def _process_line(self, line):
         toks = line.split('\t')
         if toks[0] == 'Start':
