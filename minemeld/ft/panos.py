@@ -1,7 +1,9 @@
 import logging
 import gevent
 import gevent.event
-import minemeld.packages.panforest
+import minemeld.packages.panforest.forest
+import random
+import pan.xapi
 
 from . import base
 from . import table
@@ -9,6 +11,13 @@ from .utils import utc_millisec
 
 LOG = logging.getLogger(__name__)
 
+def _sleeper(slot, maxretries):
+    c = 0
+    while c < maxretries:
+        yield slot*random.uniform(0, (2**c-1))
+        c = c+1
+
+    yield maxretries*slot
 
 class PanOSLogsAPIFT(base.BaseFT):
     def __init__(self, name, chassis, config):
@@ -21,10 +30,10 @@ class PanOSLogsAPIFT(base.BaseFT):
         self.last_log = None
         self.idle_waitobject = gevent.event.AsyncResult()
 
-        super(PanOSLogsAPIFT, super).__init__(self, name, chassis, config)
+        super(PanOSLogsAPIFT, self).__init__(name, chassis, config)
 
     def configure(self):
-        super(HttpFT, self).configure()
+        super(PanOSLogsAPIFT, self).configure()
 
         self.source_name = self.config.get('source_name', self.name)
         self.tag = self.config.get('tag', None)
@@ -34,6 +43,8 @@ class PanOSLogsAPIFT(base.BaseFT):
         self.api_password = self.config.get('api_password', None)
         self.log_type = self.config.get('log_type', None)
         self.filter = self.config.get('filter', None)
+        self.sleeper_slot = int(self.config.get('sleeper_slot', '10'))
+        self.maxretries = int(self.config.get('maxretries', '16'))
 
     def rebuild(self):
         self.rebuild_flag = True
@@ -55,6 +66,8 @@ class PanOSLogsAPIFT(base.BaseFT):
             for i, v in self.table.query('_updated', include_value=True):
                 self.emit_update(i, v)
 
+        sleeper = _sleeper(self.sleeper_slot, self.maxretries)
+        checkpoint = None
         while True:
             try:
                 xapi = pan.xapi.PanXapi(
@@ -65,17 +78,38 @@ class PanOSLogsAPIFT(base.BaseFT):
                     tag=self.tag,
                     timeout=60
                 )
-                pf = minemeld.packages.panforest.PanForest(
+                pf = minemeld.packages.panforest.forest.PanForest(
                     xapi=xapi,
                     log_type=self.log_type,
                     filter=self.filter,
-                    format='xml'
+                    format='xml',
+                    debug=1
                 )
 
                 for log in pf.follow():
+                    sleeper = _sleeper(self.sleeper_slot, self.maxretries)
                     LOG.debug('log %s', log)
+
+                checkpoint = None
+                try:
+                    checkpoint = self.idle_waitobject.get(block=False)
+                except gevent.Timeout:
+                    break
+
+            except gevent.GreenletExit:
+                pass
+
             except:
-                LOG.exception("%s - exception in log loop")
+                LOG.exception("%s - exception in log loop", self.name)
+
+            try:
+                checkpoint = self.idle_waitobject.get(timeout=next(sleeper))
+            except gevent.Timeout:
+                break
+    
+            if checkpoint is not None:
+                super(PanOSLogsAPIFT, self).emit_checkpoint(checkpoint)
+                return
 
     def start(self):
         super(PanOSLogsAPIFT, self).start()
