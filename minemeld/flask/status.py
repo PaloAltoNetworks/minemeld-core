@@ -53,4 +53,16 @@ def get_system_status():
 @app.route('/status/minemeld', methods=['GET'])
 @flask.ext.login.login_required
 def get_minemeld_status():
-    return jsonify(result=MMMaster.status())
+    status = MMMaster.status()
+
+    tr = status.get('result', None)
+    if tr is None:
+        return jsonify(error={'message': status.get('error', 'error')})
+
+    result = []
+    for f, v in tr.iteritems():
+        LOG.debug(f)
+        _, _, v['name'] = f.split(':', 2)
+        result.append(v)
+
+    return jsonify(result=result)
