@@ -82,19 +82,21 @@ class PanOSLogsAPIFT(base.BaseFT):
                     xapi=xapi,
                     log_type=self.log_type,
                     filter=self.filter,
-                    format='xml',
-                    debug=1
+                    format='python'
                 )
 
                 for log in pf.follow():
                     sleeper = _sleeper(self.sleeper_slot, self.maxretries)
-                    LOG.debug('log %s', log)
 
-                checkpoint = None
-                try:
-                    checkpoint = self.idle_waitobject.get(block=False)
-                except gevent.Timeout:
-                    break
+                    LOG.debug('%s', log)
+
+                    try:
+                        checkpoint = self.idle_waitobject.get(block=False)
+                    except gevent.Timeout:
+                        pass
+    
+                    if checkpoint is not None:
+                        break
 
             except gevent.GreenletExit:
                 pass
@@ -105,11 +107,14 @@ class PanOSLogsAPIFT(base.BaseFT):
             try:
                 checkpoint = self.idle_waitobject.get(timeout=next(sleeper))
             except gevent.Timeout:
-                break
+                pass
     
             if checkpoint is not None:
                 super(PanOSLogsAPIFT, self).emit_checkpoint(checkpoint)
-                return
+                break
+
+    def length(self, source=None):
+        return self.table.num_indicators
 
     def start(self):
         super(PanOSLogsAPIFT, self).start()
