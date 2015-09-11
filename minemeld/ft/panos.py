@@ -3,6 +3,8 @@ import gevent
 import gevent.event
 import minemeld.packages.panforest.forest
 import random
+import copy
+
 import pan.xapi
 
 from . import base
@@ -23,8 +25,7 @@ class PanOSLogsAPIFT(base.BaseFT):
     def __init__(self, name, chassis, config):
         self.glet = None
 
-        self.table = table.Table(name)
-        self.table.create_index('_updated')
+        self.tables = []
         self.active_requests = []
         self.rebuild_flag = False
         self.last_log = None
@@ -45,15 +46,26 @@ class PanOSLogsAPIFT(base.BaseFT):
         self.filter = self.config.get('filter', None)
         self.sleeper_slot = int(self.config.get('sleeper_slot', '10'))
         self.maxretries = int(self.config.get('maxretries', '16'))
+        self.fields = self.config.get('fields', [])
+
+    def _initialize_tables(self, truncate=False):
+        for idx, field in enumerate(self.fields):
+            t = table.Table(
+                self.name+'_%d' % idx,
+                truncate=truncate
+            )
+            t.create_index('last_seen')
+            self.tables.append(t)
+
+    def initialize(self):
+        self._initialize_tables()
 
     def rebuild(self):
+        self._initialize_tables()
         self.rebuild_flag = True
 
     def reset(self):
-        self.table.close()
-
-        self.table = table.Table(self.name, truncate=True)
-        self.table.create_index('_updated')
+        self._initialize_tables(truncate=True)
 
     def emit_checkpoint(self, value):
         LOG.debug("%s - checkpoint set to %s", self.name, value)
@@ -63,8 +75,9 @@ class PanOSLogsAPIFT(base.BaseFT):
         if self.rebuild_flag:
             LOG.debug("rebuild flag set, resending current indicators")
             # reinit flag is set, emit update for all the known indicators
-            for i, v in self.table.query('_updated', include_value=True):
-                self.emit_update(i, v)
+            for t in self.tables:
+                for i, v in t.query('last_seen', include_value=True):
+                    self.emit_update(i, v)
 
         sleeper = _sleeper(self.sleeper_slot, self.maxretries)
         checkpoint = None
@@ -88,7 +101,16 @@ class PanOSLogsAPIFT(base.BaseFT):
                 for log in pf.follow():
                     sleeper = _sleeper(self.sleeper_slot, self.maxretries)
 
-                    LOG.debug('%s', log)
+                    now = utc_millisec()
+
+                    for idx, field in enumerate(self.fields):
+                        if field['name'] in log:
+                            v = copy.copy(field['attributes'])
+                            v['last_seen'] = now
+                            self.tables[idx].put(log[field['name']], v)
+                            self.emit_update(indicator=log[field['name']], value=v)
+                        else:
+                            LOG.debug('%s - field %s not found', self.name, field['name'])
 
                     try:
                         checkpoint = self.idle_waitobject.get(block=False)
@@ -114,7 +136,7 @@ class PanOSLogsAPIFT(base.BaseFT):
                 break
 
     def length(self, source=None):
-        return self.table.num_indicators
+        return sum([t.num_indicators for t in self.tables])
 
     def start(self):
         super(PanOSLogsAPIFT, self).start()
