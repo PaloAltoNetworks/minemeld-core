@@ -244,7 +244,7 @@ class AggregateIPv4FT(base.BaseFT):
         rangesb = set(self._calc_ipranges(rangestart, rangestop))
         LOG.debug('%s - ranges before update: %s', self.name, rangesb)
 
-        if not newindicator:
+        if not newindicator and source not in self.whitelists:
             for u in rangesb:
                 self.emit_update(
                     u.indicator(),
