@@ -10,7 +10,8 @@ Contents:
 
 .. toctree::
    :maxdepth: 1
-   
+
+   architecture   
    scripts
    schema
    statusapi
