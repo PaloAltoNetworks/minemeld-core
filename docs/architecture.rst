@@ -35,4 +35,49 @@ the downstream nodes are subscribers of this topic.
 
 .. image:: images/topics.png
 
+Node messages
+-------------
 
+Each node can send downstream the following messages.
+
+update
+******
+
+update(indicator, value)
+
+:indicator: string
+:value: a dictionary of attributes for the indicator
+
+Notifies a new indicator or an update of the attributes associated to an
+indicator.
+
+withdraw
+********
+
+withdraw(indicator[, value])
+
+:indicator: string
+:value: (optional) a dictionary of attributes for the indicator
+
+Notifies a withdraw of the indicator
+
+checkpoint
+**********
+
+checkpoint(id)
+
+Used as a processing barrier for the graph when the graph is being stopped.
+
+Node statistics
+---------------
+
+Each node keeps a variable number of statistics to track its internal
+operations:
+
+:update.tx: number of update messages transmitted downstream
+:update.rx: number of update messages received from upstream
+:withdraw.tx: number of withdraw messages transmitted downstream
+:withdraw.rx: number of withdraw messages received from upstream
+:length: number of indicators in node table
+
+If a statistic is not present its value is 0.
