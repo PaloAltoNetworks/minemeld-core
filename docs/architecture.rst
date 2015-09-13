@@ -76,8 +76,14 @@ operations:
 
 :update.tx: number of update messages transmitted downstream
 :update.rx: number of update messages received from upstream
+:update.processed: number of update messages recevied and processed
+    (not dropped by filters)
 :withdraw.tx: number of withdraw messages transmitted downstream
 :withdraw.rx: number of withdraw messages received from upstream
+:withdraw.processed: number of withdraw messages received from upstream
+    and processed (not dropped by filters)
+:added: number of indicators added to the node table
+:removed: number of indicators removed from the node table
 :length: number of indicators in node table
 
 If a statistic is not present its value is 0.
