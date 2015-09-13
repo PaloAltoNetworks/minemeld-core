@@ -1,7 +1,7 @@
 import logging
 import gevent
 import gevent.event
-import minemeld.packages.panforest.forest
+import minemeld.packages.panforest
 import random
 import copy
 
@@ -12,6 +12,27 @@ from . import table
 from .utils import utc_millisec
 
 LOG = logging.getLogger(__name__)
+
+class CheckpointSet(Exception):
+    pass
+
+class InterruptablePanForest(minemeld.packages.panforest.PanForest):
+    def __init__(self, wobject, xapi=None, log_type=None, filter=None,
+                 nlogs=None, format=None):
+        super(InterruptablePanForest, self).__init__(
+            xapi=xapi,
+            log_type=log_type,
+            filter=filter,
+            nlogs=nlogs,
+            format=format
+        )
+        self.wobject = wobject
+
+    def sleep(self, t):
+        value = self.wobject.wait(timeout=t)
+        LOG.debug('value %s', value)
+        if value is not None:
+            raise CheckpointSet()
 
 def _sleeper(slot, maxretries):
     c = 0
@@ -91,7 +112,8 @@ class PanOSLogsAPIFT(base.BaseFT):
                     tag=self.tag,
                     timeout=60
                 )
-                pf = minemeld.packages.panforest.forest.PanForest(
+                pf = InterruptablePanForest(
+                    self.idle_waitobject,
                     xapi=xapi,
                     log_type=self.log_type,
                     filter=self.filter,
@@ -112,15 +134,14 @@ class PanOSLogsAPIFT(base.BaseFT):
                         else:
                             LOG.debug('%s - field %s not found', self.name, field['name'])
 
-                    try:
-                        checkpoint = self.idle_waitobject.get(block=False)
-                    except gevent.Timeout:
-                        pass
-    
-                    if checkpoint is not None:
+                    if self.idle_waitobject.read():
                         break
 
             except gevent.GreenletExit:
+                pass
+
+            except CheckpointSet:
+                LOG.debug('%s - CheckpointSet catched')
                 pass
 
             except:
@@ -130,7 +151,8 @@ class PanOSLogsAPIFT(base.BaseFT):
                 checkpoint = self.idle_waitobject.get(timeout=next(sleeper))
             except gevent.Timeout:
                 pass
-    
+
+            LOG.debug('%s - checkpoint: %s', self.name, checkpoint)
             if checkpoint is not None:
                 super(PanOSLogsAPIFT, self).emit_checkpoint(checkpoint)
                 break
@@ -157,4 +179,5 @@ class PanOSLogsAPIFT(base.BaseFT):
 
         self.glet.kill()
 
-        LOG.info("%s - # indicators: %d", self.name, self.table.num_indicators)
+        for t in self.tables:
+            LOG.info("%s - # indicators: %d", self.name, t.num_indicators)

@@ -14,15 +14,17 @@
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #
 
-from __future__ import print_function
 import pprint
 import random
 import sys
 import time
+import logging
 
 import pan.config
 
 _NLOGS = 100
+
+LOG = logging.getLogger(__name__)
 
 
 class PanForestError(Exception):
@@ -35,14 +37,13 @@ class PanForestError(Exception):
         return self.msg
 
 
-class PanForest:
+class PanForest(object):
     def __init__(self,
                  xapi=None,
                  log_type=None,
                  filter=None,
                  nlogs=None,
-                 format=None,
-                 debug=0):
+                 format=None):
         self.xapi = xapi
         self.log_type = log_type
         self.filter = filter
@@ -50,10 +51,12 @@ class PanForest:
         if format not in ['xml', 'python', None]:
             raise PanForestError('Invalid format: %s' % format)
         self.format = 'python' if format is None else format
-        self.debug = debug
 
     def __iter__(self):
         return self.follow()
+
+    def sleep(self, t):
+        time.sleep(t)
 
     def follow(self):
         """\
@@ -64,8 +67,7 @@ class PanForest:
         # filter time < now so we start at logs in current second
         now = int(time.time()) - 1
         filter = '(receive_time leq %d)' % now
-        if self.debug > 0:
-            print('filter:', filter, file=sys.stderr)
+        LOG.debug('filter: %s', filter)
         _, obj = self._log_get(nlogs=1,
                                filter=filter)
         if not obj:
@@ -78,8 +80,7 @@ class PanForest:
         else:
             seqno = self._log_seqno(obj)
 
-        if self.debug > 0:
-            print('starting seqno:', seqno, file=sys.stderr)
+        LOG.debug('starting seqno: %s', seqno)
 
         filter = self._filter(seqno)
         nlogs = self.nlogs
@@ -88,9 +89,8 @@ class PanForest:
         sleeper = self._sleeper()
 
         while True:
-            if self.debug > 0:
-                print('skip: %d nlogs: %d filter: "%s"' %
-                      (skip, nlogs, filter), file=sys.stderr)
+            LOG.debug('skip: %d nlogs: %d filter: "%s"' %
+                      (skip, nlogs, filter))
             elem, obj = self._log_get(nlogs=nlogs,
                                       filter=filter,
                                       skip=skip)
@@ -109,10 +109,9 @@ class PanForest:
                 except StopIteration:
                     pass
                 x = random.uniform(0, 0.5)
-                if self.debug > 0:
-                    print('sleep:', wait, x, file=sys.stderr)
+                LOG.debug('sleep: %d %d', wait, x)
 
-                time.sleep(wait+x)
+                self.sleep(wait+x)
                 continue
 
             elif count == nlogs:
@@ -122,6 +121,7 @@ class PanForest:
                 if t > seqno:
                     seqno = t
                 # don't update filter
+                self.sleep(0)
 
             elif count < nlogs:
                 sleeper = self._sleeper()
@@ -129,6 +129,7 @@ class PanForest:
                 if t > seqno:
                     seqno = t
                 filter = self._filter(seqno)
+                self.sleep(0)
 
             else:
                 assert False, 'NOTREACHED'
@@ -172,8 +173,7 @@ class PanForest:
 
         obj = self._xml_python(elem)
 
-        if self.debug > 2:
-            print(pprint.pformat(obj), file=sys.stderr)
+        LOG.debug(pprint.pformat(obj))
 
         return elem, obj
 
@@ -211,8 +211,7 @@ class PanForest:
             raise PanForestError('count not numeric: %s' %
                                  obj['logs']['count'])
 
-        if self.debug > 0:
-            print('count: %d' % count, file=sys.stderr)
+        LOG.debug('count: %d' % count)
 
         return count
 
