@@ -118,3 +118,8 @@ Example 2
 :inputs: list of nodes this node should receive indicators from
 :output: yes, this node should emit indicators
 :config: specific configuration for this node class
+
+Architecture
+------------
+
+.. image:: images/chassis-architecture.png
