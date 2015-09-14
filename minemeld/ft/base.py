@@ -335,7 +335,7 @@ class BaseFT(object):
 
         return 'OK'
 
-    def initalize(self):
+    def initialize(self):
         pass
 
     def rebuild(self):
