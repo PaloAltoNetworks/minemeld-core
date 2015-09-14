@@ -4,6 +4,7 @@ import gevent.event
 import minemeld.packages.panforest
 import random
 import copy
+import re
 
 import pan.xapi
 
@@ -34,6 +35,20 @@ class InterruptablePanForest(minemeld.packages.panforest.PanForest):
         if value is not None:
             raise CheckpointSet()
 
+def _age_out_in_usecs(val):
+    multipliers = {
+        '': 1000,
+        'm': 60000,
+        'h': 3600000,
+        'd': 86400000
+    }
+
+    mo = re.match("([0-9]+)([dmh]?)", val)
+    if mo is None:
+        return None
+
+    return int(mo.group(1))*multipliers[mo.group(2)]
+
 def _sleeper(slot, maxretries):
     c = 0
     while c < maxretries:
@@ -45,6 +60,8 @@ def _sleeper(slot, maxretries):
 class PanOSLogsAPIFT(base.BaseFT):
     def __init__(self, name, chassis, config):
         self.glet = None
+
+        self.age_out_glets = []
 
         self.tables = []
         self.active_requests = []
@@ -68,6 +85,7 @@ class PanOSLogsAPIFT(base.BaseFT):
         self.sleeper_slot = int(self.config.get('sleeper_slot', '10'))
         self.maxretries = int(self.config.get('maxretries', '16'))
         self.fields = self.config.get('fields', [])
+        self.age_out_interval = int(self.config.get('age_out_interval', '3600'))
 
     def _initialize_tables(self, truncate=False):
         for idx, field in enumerate(self.fields):
@@ -91,6 +109,28 @@ class PanOSLogsAPIFT(base.BaseFT):
     def emit_checkpoint(self, value):
         LOG.debug("%s - checkpoint set to %s", self.name, value)
         self.idle_waitobject.set(value)
+
+    def _age_out_loop(self, fieldidx):
+        interval = self.fields[fieldidx].get('age_out', '30d')
+        interval = _age_out_in_usecs(interval)
+        t = self.tables[fieldidx]
+
+        while True:
+            try:
+                now = utc_millisec()
+                for i, v in t.query(index='last_seen', to_key=now-interval,
+                                    include_value=True):
+                    LOG.debug('%s - %s %s aged out', self.name, i, v)
+                    self.emit_withdraw(indicator=i)
+                    t.delete(i)
+
+            except gevent.GreenletExit:
+                break
+
+            except:
+                LOG.exception('Exception in _age_out_loop')
+
+            gevent.sleep(self.age_out_interval)
 
     def _run(self):
         if self.rebuild_flag:
@@ -123,6 +163,8 @@ class PanOSLogsAPIFT(base.BaseFT):
                 for log in pf.follow():
                     sleeper = _sleeper(self.sleeper_slot, self.maxretries)
 
+                    self.statistics['log.processed'] += 1
+
                     now = utc_millisec()
 
                     for idx, field in enumerate(self.fields):
@@ -134,7 +176,7 @@ class PanOSLogsAPIFT(base.BaseFT):
                         else:
                             LOG.debug('%s - field %s not found', self.name, field['name'])
 
-                    if self.idle_waitobject.read():
+                    if self.idle_waitobject.ready():
                         break
 
             except gevent.GreenletExit:
@@ -168,6 +210,11 @@ class PanOSLogsAPIFT(base.BaseFT):
 
         self.glet = gevent.spawn_later(random.randint(0, 2), self._run)
 
+        for idx in range(len(self.fields)):
+            self.age_out_glets.append(
+                gevent.spawn(self._age_out_loop, idx)
+            )
+
     def stop(self):
         super(PanOSLogsAPIFT, self).stop()
 
@@ -178,6 +225,9 @@ class PanOSLogsAPIFT(base.BaseFT):
             g.kill()
 
         self.glet.kill()
+        for g in self.age_out_glets:
+            g.kill()
+        self.age_out_glets = None
 
         for t in self.tables:
             LOG.info("%s - # indicators: %d", self.name, t.num_indicators)
