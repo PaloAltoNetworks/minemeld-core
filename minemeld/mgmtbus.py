@@ -119,6 +119,8 @@ class MgmtbusMaster(object):
             gevent.sleep(5)
             ntries += 1
 
+        LOG.debug('checkpoint_graph done')
+
     def _send_collectd_metrics(self, answers, interval):
         collectd_socket = self.config.get(
             'COLLECTD_SOCKET',

@@ -10,4 +10,5 @@ netaddr==0.7.15
 antlr4-python2-runtime==4.5.2
 jmespath==0.7.1
 click==4.1
+pan-python==0.7.0
 

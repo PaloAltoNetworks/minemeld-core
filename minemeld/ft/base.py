@@ -299,6 +299,7 @@ class BaseFT(object):
 
     def mgmtbus_initialize(self):
         self.state = ft_states.INIT
+        self.initialize()
         return 'OK'
 
     def mgmtbus_rebuild(self):
@@ -333,6 +334,9 @@ class BaseFT(object):
         self.emit_checkpoint(value)
 
         return 'OK'
+
+    def initialize(self):
+        pass
 
     def rebuild(self):
         pass
