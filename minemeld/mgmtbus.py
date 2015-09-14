@@ -133,6 +133,8 @@ class MgmtbusMaster(object):
             stats = a.get('statistics', {})
             length = a.get('length', None)
 
+            _, _, source = source.split(':', 2)
+
             for m, v in stats.iteritems():
                 cc.putval(source+'.'+m, v, interval=interval)
             if length is not None:
