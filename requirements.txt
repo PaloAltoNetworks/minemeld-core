@@ -11,4 +11,6 @@ antlr4-python2-runtime==4.5.2
 jmespath==0.7.1
 click==4.1
 pan-python==0.7.0
+stix==1.1.1.0
+libtaxii==1.1.107
 
