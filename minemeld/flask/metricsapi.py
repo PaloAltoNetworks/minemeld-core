@@ -9,11 +9,14 @@ from flask import jsonify
 
 import flask.ext.login
 
+import minemeld.collectd
+
 from . import app
 from . import config
 
 LOG = logging.getLogger(__name__)
 RRD_PATH = config.get('RRD_PATH', '/var/lib/collectd/rrd/minemeld/')
+RRD_SOCKET_PATH = config.get('RRD_SOCKET_PATH', '/var/run/collectd.sock')
 ALLOWED_CF = ['MAX', 'MIN', 'AVERAGE']
 
 
@@ -27,7 +30,7 @@ def get_metrics():
 @app.route('/metrics/<metric>', methods=['GET'])
 @flask.ext.login.login_required
 def get_metric(metric):
-    cf = request.args.get('cf', 'MAX').upper()
+    cf = str(request.args.get('cf', 'MAX')).upper()
     if cf not in ALLOWED_CF:
         return jsonify(error={'message': 'Unknown function'}), 400
 
@@ -54,6 +57,9 @@ def get_metric(metric):
     rrdname = type_+'.rrd'
     if rrdname not in os.listdir(dirname):
         return jsonify(error={'message': 'Unknown metric type'}), 400
+
+    cc = minemeld.collectd.CollectdClient(RRD_SOCKET_PATH)
+    cc.flush(identifier='minemeld/%s/%s' % (metric, type_))
 
     (start, end, step), metrics, data = rrdtool.fetch(
         str(os.path.join(dirname, rrdname)),

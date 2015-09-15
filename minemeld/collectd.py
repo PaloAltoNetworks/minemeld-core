@@ -49,9 +49,15 @@ class CollectdClient(object):
 
         return status, '\n'.join(message)
 
-    def flush(self, timeout=None):
+    def flush(self, identifier=None, timeout=None):
+        cmd = 'FLUSH'
+        if timeout is not None:
+            cmd += ' timeout=%d' % timeout
+        if identifier is not None:
+            cmd += ' identifier=%s' % identifier
+
         self._send_cmd(
-            'FLUSH'+('' if timeout is None else ' timeout=%d' % timeout)
+            cmd
         )
 
     def putval(self, identifier, value, timestamp='N',
