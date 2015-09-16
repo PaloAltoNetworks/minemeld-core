@@ -149,7 +149,7 @@ class MgmtbusMaster(object):
                 cc.putval(source+'.'+m, v, interval=interval)
 
             if length is not None:
-                gstats[ntype+'.'+'length'] += v
+                gstats[ntype+'.length'] += length
                 cc.putval(
                     source+'.length',
                     length,
