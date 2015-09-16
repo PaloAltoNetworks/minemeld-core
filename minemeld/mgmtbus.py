@@ -4,6 +4,7 @@ import gevent
 import gevent.event
 import logging
 import uuid
+import collections
 
 import minemeld.comm
 
@@ -129,20 +130,34 @@ class MgmtbusMaster(object):
 
         cc = CollectdClient(collectd_socket)
 
+        gstats = collections.defaultdict(lambda: 0)
+
         for source, a in answers.iteritems():
+            ntype = 'transits'
+            if len(a.get('inputs', [])) == 0:
+                ntype = 'sources'
+            elif not a.get('output', False):
+                ntype = 'outputs'
+
             stats = a.get('statistics', {})
             length = a.get('length', None)
 
             _, _, source = source.split(':', 2)
 
             for m, v in stats.iteritems():
+                gstats[ntype+'.'+m] += v
                 cc.putval(source+'.'+m, v, interval=interval)
+
             if length is not None:
+                gstats[ntype+'.'+'length'] += v
                 cc.putval(
                     source+'.length',
                     length,
                     interval=interval
                 )
+
+        for gs, v in gstats.iteritems():
+            cc.putval('minemeld.'+gs, v, interval=interval)
 
     def _status_loop(self):
         loop_interval = self.config.get('STATUS_INTERVAL', '60')

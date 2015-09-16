@@ -64,6 +64,47 @@ def get_metrics():
     return jsonify(result=_list_metrics())
 
 
+@app.route('/metrics/minemeld/<nodetype>')
+@flask.ext.login.login_required
+def get_global_metrics(nodetype):
+    cf = str(request.args.get('cf', 'MAX')).upper()
+    if cf not in ALLOWED_CF:
+        return jsonify(error={'message': 'Unknown function'}), 400
+
+    try:
+        dt = int(request.args.get('dt', '86400'))
+    except ValueError:
+        return jsonify(error={'message': 'Invalid delta'}), 400
+    if dt < 0:
+        return jsonify(error={'message': 'Invalid delta'}), 400
+
+    try:
+        resolution = int(request.args.get('r', '1800'))
+    except ValueError:
+        return jsonify(error={'message': 'Invalid resolution'})
+    if resolution < 0:
+        return jsonify(error={'message': 'Invalid resolution'}), 400
+
+    type_ = request.args.get('t', 'minemeld_counter')
+
+    metrics = _list_metrics(prefix='minemeld.'+nodetype+'.')
+
+    cc = minemeld.collectd.CollectdClient(RRD_SOCKET_PATH)
+
+    result = []
+    for m in metrics:
+        v = _fetch_metric(cc, m, cf=cf, dt=dt, r=resolution)
+
+        _, _, mname = m.split('.', 2)
+
+        result.append({
+            'metric': mname,
+            'values': v
+        })
+
+    return jsonify(result=result)
+
+
 @app.route('/metrics/<node>')
 @flask.ext.login.login_required
 def get_node_metrics(node):
