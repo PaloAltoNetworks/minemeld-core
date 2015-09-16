@@ -12,6 +12,8 @@ import libtaxii
 import libtaxii.clients
 import libtaxii.messages_11
 
+import stix.core
+
 from . import base
 from . import table
 from . import ft_states
@@ -160,6 +162,29 @@ class TaxiiClient(base.BaseFT):
         LOG.debug('%s - poll service: %s',
                   self.name, self.poll_service)
 
+    def _poll_fulfillment_request(self, result_id, result_part_number):
+        msg_id = libtaxii.messages_11.generate_message_id()
+        request = libtaxii.messages_11.PollFulfillmentRequest(
+            message_id=msg_id,
+            result_id=result_id,
+            result_part_number=result_part_number,
+            collection_name=self.collection
+        )
+        request = request.to_xml()
+
+        up = urlparse.urlparse(self.poll_service)
+        hostname = up.hostname
+        path = up.path
+
+        resp = tc.call_taxii_service2(
+            hostname,
+            path,
+            libtaxii.constants.VID_TAXII_XML_11,
+            request
+        )
+
+        return libtaxii.get_message_from_http_response(resp, msg_id)
+
     def _poll_collection(self, tc, begin=None, end=None):
         msg_id = libtaxii.messages_11.generate_message_id()
         pps = libtaxii.messages_11.PollParameters(
@@ -191,7 +216,28 @@ class TaxiiClient(base.BaseFT):
         LOG.debug('Poll_Response {%s} %s',
                   type(tm), tm.to_xml(pretty_print=True))
 
-        gevent.sleep(300)
+        self._handle_content_blocks(tm.content_blocks)
+
+        while tm.more:
+            tm = self._poll_fulfillment_request(
+                result_id=tm.result_id,
+                result_part_number=tm.result_part_number+1
+            )
+            self._handle_content_blocks(tm.content_blocks)
+
+    def _handle_content_blocks(self, content_blocks):
+        for cb in content_blocks:
+            if cb.content_binding.binding_id != \
+                libtaxii.constants.CB_STIX_XML_111:
+                LOG.error('Unsupported contenti binding: %s',
+                          cb.content_binding.binding_id)
+                continue
+
+            stixpackage = stix.core.stix_package.STIXPackage.from_xml(
+                cb.content
+            )
+
+            LOG.debug('observables: %s', stixpackage.observables)
 
     def _run(self):
         if self.rebuild_flag:
@@ -227,6 +273,8 @@ class TaxiiClient(base.BaseFT):
                     )
 
                     self.last_run = now
+
+                    gevent.sleep(self.interval)
 
             except:
                 LOG.exception('%s - exception in main loop', self.name)
