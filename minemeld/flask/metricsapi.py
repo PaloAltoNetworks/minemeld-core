@@ -88,13 +88,17 @@ def get_node_metrics(node):
     type_ = request.args.get('t', 'minemeld_counter')
 
     metrics = _list_metrics(prefix=node+'.')
+
     cc = minemeld.collectd.CollectdClient(RRD_SOCKET_PATH)
 
     result = []
     for m in metrics:
-        v = _fetch_metric(cc, m, cf=cf, dt=dt, r=r)
+        v = _fetch_metric(cc, m, cf=cf, dt=dt, r=resolution)
+
+        _, mname = m.split('.', 1)
+
         result.append({
-            'metric': m,
+            'metric': mname,
             'values': v
         })
 
