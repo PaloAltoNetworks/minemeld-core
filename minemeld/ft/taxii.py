@@ -7,17 +7,19 @@ import random
 import urlparse
 import datetime
 import pytz
+import lxml.etree
 
 import libtaxii
 import libtaxii.clients
 import libtaxii.messages_11
 
-import stix.core
+import stix.core.stix_package
 
 from . import base
 from . import table
 from . import ft_states
 from .utils import utc_millisec
+from .utils import RWLock
 
 LOG = logging.getLogger(__name__)
 
@@ -33,6 +35,8 @@ class TaxiiClient(base.BaseFT):
 
         self.poll_service = None
         self.collection_mgmt_service = None
+
+        self.emit_lock = RWLock()
 
         super(TaxiiClient, self).__init__(name, chassis, config)
 
@@ -198,6 +202,10 @@ class TaxiiClient(base.BaseFT):
             inclusive_end_timestamp_label=end,
             poll_parameters=pps
         )
+
+        LOG.debug('%s - first poll request %s',
+                  self.name, request.to_xml(pretty_print=True))
+
         request = request.to_xml()
 
         up = urlparse.urlparse(self.poll_service)
@@ -213,8 +221,8 @@ class TaxiiClient(base.BaseFT):
 
         tm = libtaxii.get_message_from_http_response(resp, msg_id)
 
-        LOG.debug('Poll_Response {%s} %s',
-                  type(tm), tm.to_xml(pretty_print=True))
+        LOG.debug('%s - Poll_Response {%s} %s',
+                  self.name, type(tm), tm.to_xml(pretty_print=True))
 
         self._handle_content_blocks(tm.content_blocks)
 
@@ -229,12 +237,13 @@ class TaxiiClient(base.BaseFT):
         for cb in content_blocks:
             if cb.content_binding.binding_id != \
                 libtaxii.constants.CB_STIX_XML_111:
-                LOG.error('Unsupported contenti binding: %s',
-                          cb.content_binding.binding_id)
+                LOG.error('%s - Unsupported contenti binding: %s',
+                          self.name, cb.content_binding.binding_id)
                 continue
 
+
             stixpackage = stix.core.stix_package.STIXPackage.from_xml(
-                cb.content
+                lxml.etree.fromstring(cb.content)
             )
 
             LOG.debug('observables: %s', stixpackage.observables)
@@ -258,7 +267,7 @@ class TaxiiClient(base.BaseFT):
 
                     last_run = self.last_run
                     if last_run is None:
-                        last_run = now-3600000
+                        last_run = now-86400000
 
                     begin = datetime.datetime.fromtimestamp(last_run/1000)
                     begin = begin.replace(tzinfo=pytz.UTC)
@@ -275,6 +284,9 @@ class TaxiiClient(base.BaseFT):
                     self.last_run = now
 
                     gevent.sleep(self.interval)
+
+            except gevent.GreenletExit:
+                break
 
             except:
                 LOG.exception('%s - exception in main loop', self.name)
