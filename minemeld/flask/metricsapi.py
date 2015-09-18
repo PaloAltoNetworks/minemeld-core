@@ -41,6 +41,8 @@ def _fetch_metric(cc, metric, type_=None, cf='MAX', dt=86400, r=1800):
 
     cc.flush(identifier='minemeld/%s/%s' % (metric, type_))
 
+    LOG.debug('rrd file: %s', str(os.path.join(dirname, rrdname)))
+
     (start, end, step), metrics, data = rrdtool.fetch(
         str(os.path.join(dirname, rrdname)),
         cf,
@@ -56,6 +58,11 @@ def _fetch_metric(cc, metric, type_=None, cf='MAX', dt=86400, r=1800):
         curts += step
 
     return result
+
+
+@app.route('/metrics')
+def get_metrics():
+    return jsonify(result=_list_metrics())
 
 
 @app.route('/metrics/minemeld/<nodetype>')
