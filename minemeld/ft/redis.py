@@ -53,10 +53,12 @@ class RedisSet(base.BaseFT):
         self.SR.delete(self.redis_skey)
 
     def _add_indicator(self, score, indicator, value):
-        self.SR.zadd(self.redis_skey, score, indicator)
+        result = self.SR.zadd(self.redis_skey, score, indicator)
+        self.statistics['added'] += result
 
     def _delete_indicator(self, indicator):
         self.SR.zrem(self.redis_skey, indicator)
+        self.statistics['removed'] += 1
 
     @base._counting('update.processed')
     def filtered_update(self, source=None, indicator=None, value=None):
