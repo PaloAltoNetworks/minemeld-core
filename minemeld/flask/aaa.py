@@ -44,6 +44,9 @@ class MMAuthenticatedUser(object):
 
 @LOGIN_MANAGER.request_loader
 def request_loader(request):
+    # AAA on API temporarly disabled
+    return MMAuthenticatedUser(id='auth_disabled')
+
     api_key = request.headers.get('Authorization')
     if api_key is not None:
         api_key = api_key.replace('Basic', '', 1)
