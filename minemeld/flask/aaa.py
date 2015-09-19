@@ -23,6 +23,7 @@ else:
 
 LOGIN_MANAGER = flask.ext.login.LoginManager()
 LOGIN_MANAGER.session_protection = None
+API_AUTH_ENABLED = config.get('API_AUTH_ENABLED', True)
 
 
 class MMAuthenticatedUser(object):
@@ -44,8 +45,8 @@ class MMAuthenticatedUser(object):
 
 @LOGIN_MANAGER.request_loader
 def request_loader(request):
-    # AAA on API temporarly disabled
-    return MMAuthenticatedUser(id='auth_disabled')
+    if not API_AUTH_ENABLED:
+        return MMAuthenticatedUser(id='api_auth_disabled')
 
     api_key = request.headers.get('Authorization')
     if api_key is not None:
