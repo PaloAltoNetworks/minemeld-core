@@ -20,6 +20,7 @@ from . import table
 from . import ft_states
 from .utils import utc_millisec
 from .utils import dt_to_millisec
+from .utils import age_out_in_millisec
 from .utils import RWLock
 
 LOG = logging.getLogger(__name__)
@@ -32,11 +33,12 @@ class FtStateChanged(Exception):
 class TaxiiClient(base.BaseFT):
     def __init__(self, name, chassis, config):
         self.glet = None
+        self.ageout_glet = None
 
         self.active_requests = []
         self.rebuild_flag = False
         self.last_run = None
-        self.idle_waitobject = gevent.event.AsyncResult()
+        self.last_ageout_run = None
 
         self.poll_service = None
         self.collection_mgmt_service = None
@@ -58,6 +60,8 @@ class TaxiiClient(base.BaseFT):
         self.polling_timeout = self.config.get('polling_timeout', 20)
         self.num_retries = self.config.get('num_retries', 2)
         self.prefix = self.config.get('prefix', self.name+'_')
+        self.age_out_interval = int(self.config.get('age_out_interval', '3600'))
+        self.age_out = self.config.get('age_out', '30d')
 
     def _initialize_table(self, truncate=False):
         self.table = table.Table(self.name, truncate=truncate)
@@ -473,7 +477,41 @@ class TaxiiClient(base.BaseFT):
         finally:
             self.state_lock.runlock()
 
+    def _age_out_run(self):
+        interval = age_out_in_millisec(self.age_out)
+
+        while True:
+            self.state_lock.rlock()
+            if self.state != ft_states.STARTED:
+                self.state_lock.runlock()
+                return
+
+            try:
+                now = utc_millisec()
+
+                for i, v in self.table.query(index='last_seen', to_key=now-interval,
+                                             include_value=True):
+                    LOG.debug('%s - %s %s aged out', self.name, i, v)
+                    self.emit_withdraw(indicator=i)
+                    self.table.delete(i)
+
+                self.last_ageout_run = now
+
+            except gevent.GreenletExit:
+                break
+
+            except:
+                LOG.exception('Exception in _age_out_loop')
+
+            finally:
+                self.state_lock.runlock()
+
+            gevent.sleep(self.age_out_interval)
+
     def _run(self):
+        while self.last_ageout_run is None:
+            gevent.sleep(1)
+
         if self.rebuild_flag:
             LOG.debug("rebuild flag set, resending current indicators")
             # reinit flag is set, emit update for all the known indicators
@@ -536,6 +574,7 @@ class TaxiiClient(base.BaseFT):
             return
 
         self.glet = gevent.spawn_later(random.randint(0, 2), self._run)
+        self.ageout_glet = gevent.spawn(self._age_out_run)
 
     def stop(self):
         super(TaxiiClient, self).stop()
@@ -547,5 +586,6 @@ class TaxiiClient(base.BaseFT):
             g.kill()
 
         self.glet.kill()
+        self.ageout_glet.kill()
 
         LOG.info("%s - # indicators: %d", self.name, self.table.num_indicators)
