@@ -4,6 +4,7 @@ import operator
 import functools
 import datetime
 import pytz
+import re
 
 import gevent.lock
 import gevent.event
@@ -19,6 +20,21 @@ def utc_millisec():
 def dt_to_millisec(dt):
     delta = dt - EPOCH
     return int(delta.total_seconds()*1000)
+
+
+def age_out_in_millisec(val):
+    multipliers = {
+        '': 1000,
+        'm': 60000,
+        'h': 3600000,
+        'd': 86400000
+    }
+
+    mo = re.match("([0-9]+)([dmh]?)", val)
+    if mo is None:
+        return None
+
+    return int(mo.group(1))*multipliers[mo.group(2)]
 
 
 def _merge_atomic_values(op, v1, v2):
