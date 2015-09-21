@@ -2,13 +2,23 @@ import time
 import calendar
 import operator
 import functools
+import datetime
+import pytz
 
 import gevent.lock
 import gevent.event
 
 
+EPOCH = datetime.datetime.utcfromtimestamp(0).replace(tzinfo=pytz.UTC)
+
+
 def utc_millisec():
     return int(calendar.timegm(time.gmtime())*1000)
+
+
+def dt_to_millisec(dt):
+    delta = dt - EPOCH
+    return int(delta.total_seconds()*1000)
 
 
 def _merge_atomic_values(op, v1, v2):
@@ -38,34 +48,53 @@ RESERVED_ATTRIBUTES = {
 
 class RWLock(object):
     def __init__(self):
-        self.mwrite = gevent.lock.Semaphore(1)
-        self.mread = gevent.lock.Semaphore(1)
         self.num_readers = 0
-        self.waitableobject = gevent.event.Event()
+        self.num_writers = 0
+
+        self.m1 = gevent.lock.Semaphore(1)
+        self.m2 = gevent.lock.Semaphore(1)
+        self.m3 = gevent.lock.Semaphore(1)
+        self.w = gevent.lock.Semaphore(1)
+        self.r = gevent.lock.Semaphore(1)
 
     def lock(self):
-        self.mwrite.acquire()
-        self.waitableobject.wait()
+        self.m2.acquire()
+
+        self.num_writers += 1
+        if self.num_writers == 1:
+            self.r.acquire()
+
+        self.m2.release()
+        self.w.acquire()
 
     def unlock(self):
-        self.mwrite.release()
+        self.w.release()
+        self.m2.acquire()
+
+        self.num_writers -= 1
+        if self.num_writers == 0:
+            self.r.release()
+
+        self.m2.release()
 
     def rlock(self):
-        self.mwrite.acquire()
-        self.mread.acquire()
+        self.m3.acquire()
+        self.r.acquire()
+        self.m1.acquire()
 
         self.num_readers += 1
         if self.num_readers == 1:
-            self.waitableobject.clear()
+            self.w.acquire()
 
-        self.mread.release()
-        self.mwrite.release()
+        self.m1.release()
+        self.r.release()
+        self.m3.release()
 
     def runlock(self):
-        self.mread.acquire()
+        self.m1.acquire()
 
         self.num_readers -= 1
         if self.num_readers == 0:
-            self.waitableobject.set()
+            self.w.release()
 
-        self.mread.release()
+        self.m1.release()

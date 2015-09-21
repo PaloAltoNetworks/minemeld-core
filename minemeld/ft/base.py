@@ -94,7 +94,16 @@ class BaseFT(object):
 
         self.chassis.request_mgmtbus_channel(self)
 
-        self.state = ft_states.READY
+        self._state = ft_states.READY
+
+    @property
+    def state(self):
+        return self._state
+
+    @state.setter
+    def state(self, value):
+        LOG.debug("%s - transitioning to state %d", self.name, value)
+        self._state = value
 
     def read_checkpoint(self):
         self.last_checkpoint = None

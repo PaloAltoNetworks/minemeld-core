@@ -19,9 +19,14 @@ from . import base
 from . import table
 from . import ft_states
 from .utils import utc_millisec
+from .utils import dt_to_millisec
 from .utils import RWLock
 
 LOG = logging.getLogger(__name__)
+
+
+class FtStateChanged(Exception):
+    pass
 
 
 class TaxiiClient(base.BaseFT):
@@ -36,7 +41,7 @@ class TaxiiClient(base.BaseFT):
         self.poll_service = None
         self.collection_mgmt_service = None
 
-        self.emit_lock = RWLock()
+        self.state_lock = RWLock()
 
         super(TaxiiClient, self).__init__(name, chassis, config)
 
@@ -52,6 +57,7 @@ class TaxiiClient(base.BaseFT):
         self.interval = self.config.get('interval', 900)
         self.polling_timeout = self.config.get('polling_timeout', 20)
         self.num_retries = self.config.get('num_retries', 2)
+        self.prefix = self.config.get('prefix', self.name+'_')
 
     def _initialize_table(self, truncate=False):
         self.table = table.Table(self.name, truncate=truncate)
@@ -66,6 +72,15 @@ class TaxiiClient(base.BaseFT):
 
     def reset(self):
         self._initialize_table(truncate=True)
+
+    @base.BaseFT.state.setter
+    def state(self, value):
+        LOG.debug("%s - acquiring state write lock", self.name)
+        self.state_lock.lock()
+        #  this is weird ! from stackoverflow 10810369
+        super(TaxiiClient, self.__class__).state.fset(self, value)
+        self.state_lock.unlock()
+        LOG.debug("%s - releasing state write lock", self.name)
 
     def _build_taxii_client(self):
         result = libtaxii.clients.HttpClient()
@@ -224,29 +239,239 @@ class TaxiiClient(base.BaseFT):
         LOG.debug('%s - Poll_Response {%s} %s',
                   self.name, type(tm), tm.to_xml(pretty_print=True))
 
-        self._handle_content_blocks(tm.content_blocks)
+        stix_objects = {
+            'observables': {},
+            'indicators': {},
+            'ttps': {}
+        }
+
+        self._handle_content_blocks(
+            tm.content_blocks,
+            stix_objects
+        )
 
         while tm.more:
             tm = self._poll_fulfillment_request(
                 result_id=tm.result_id,
                 result_part_number=tm.result_part_number+1
             )
-            self._handle_content_blocks(tm.content_blocks)
-
-    def _handle_content_blocks(self, content_blocks):
-        for cb in content_blocks:
-            if cb.content_binding.binding_id != \
-                libtaxii.constants.CB_STIX_XML_111:
-                LOG.error('%s - Unsupported contenti binding: %s',
-                          self.name, cb.content_binding.binding_id)
-                continue
-
-
-            stixpackage = stix.core.stix_package.STIXPackage.from_xml(
-                lxml.etree.fromstring(cb.content)
+            self._handle_content_blocks(
+                tm.content_blocks,
+                stix_objects
             )
 
-            LOG.debug('observables: %s', stixpackage.observables)
+        LOG.debug('%s - stix_objects: %s', self.name, stix_objects)
+
+        self._handle_indicators(stix_objects)
+
+    def _handle_content_blocks(self, content_blocks, objects):
+        try:
+            for cb in content_blocks:
+                if cb.content_binding.binding_id != \
+                    libtaxii.constants.CB_STIX_XML_111:
+                    LOG.error('%s - Unsupported content binding: %s',
+                              self.name, cb.content_binding.binding_id)
+                    continue
+    
+                stixpackage = stix.core.stix_package.STIXPackage.from_xml(
+                    lxml.etree.fromstring(cb.content)
+                )
+
+                if stixpackage.indicators:
+                    for i in stixpackage.indicators:
+                        ci = {
+                            'timestamp': dt_to_millisec(i.timestamp),
+                        }
+
+                        os = []
+                        ttps = []
+
+                        if i.observable:
+                            os.append(self._decode_observable(i.observable))
+                        if i.observables:
+                            for o in i.observables:
+                                os.append(self._decode_observable(o))
+                        if i.indicated_ttps:
+                            for t in i.indicated_ttps:
+                                ttps.append(self._decode_ttp(t))
+
+                        ci['observables'] = os
+                        ci['ttps'] = ttps
+
+                        objects['indicators'][i.id_] = ci
+
+                if stixpackage.observables:
+                    for o in stixpackage.observables:
+                        co = self._decode_observable(o)
+                        objects['observables'][o.id_] = co
+
+                if stixpackage.ttps:
+                    for t in stixpackage.ttps:
+                        ct = self._decode_ttp(t)
+                        objects['ttps'][t.id_] = ct
+    
+        except:
+            LOG.exception("%s - exception in _handle_content_blocks" % self.name)
+            raise
+
+    def _decode_observable(self, o):
+        LOG.debug('observable: %s', o.to_dict())
+
+        if o.idref:
+            return {'idref': o.idref}
+
+        odict = o.to_dict()
+
+        oc = odict.get('observable_composition', None)
+        if oc:
+            LOG.error('%s - Observable composition not supported yet: %s',
+                      self.name, odict)
+            return None
+
+        oo = odict.get('object', None)
+        if oo is None:
+            LOG.error('%s - no object in observable', self.name)
+            return None
+
+        op = oo.get('properties', None)
+        if op is None:
+            LOG.error('%s - no properties in observable object', self.name)
+            return None
+
+        ot = op.get('xsi:type', None)
+        if ot is None:
+            LOG.error('%s - no type in observable props', self.name)
+            return None
+
+        result = {}
+
+        if ot == 'DomainNameObjectType':
+            result['type'] = 'domain'
+
+            ov = op.get('value', None)
+            if ov is None:
+                LOG.error('%s - no value in observable props', self.name)
+                return None
+            ov = ov.get('value', None)
+            if ov is None:
+                LOG.error('%s - no value in observable value', self.name)
+                return None
+
+        elif ot == 'AddressObjectType':
+            addrcat = op.get('category', None)
+            if addrcat == 'ipv6-addr':
+                result['type'] = 'IPv6'
+            result['type'] = 'IPv4'
+
+            source = op.get('is_source', None)
+            if source is True:
+                result['direction'] = 'inbound'
+            elif source is False:
+                result['direction'] = 'outbound'
+
+            ov = op.get('address_value', None)
+            if ov is None:
+                LOG.error('%s - no value in observable props', self.name)
+                return None
+            ov = ov.get('value', None)
+            if ov is None:
+                LOG.error('%s - no value in observable value', self.name)
+                return None
+
+        elif ot == 'URIObjectType':
+            result['type'] = 'URL'
+
+            ov = op.get('value', None)
+            if ov is None:
+                LOG.error('%s - no value in observable props', self.name)
+                return None
+            ov = ov.get('value', None)
+            if ov is None:
+                LOG.error('%s - no value in observable value', self.name)
+                return None
+        else:
+            LOG.error('%s - unknown type %s', self.name, ot)
+            return None
+
+        result['indicator'] = ov
+
+        return result
+
+    def _decode_ttp(self, t):
+        tdict = t.to_dict()
+
+        LOG.debug('ttp: %s', tdict)
+
+        if 'ttp' in tdict:
+            tdict = tdict['ttp']
+
+        if 'idref' in tdict:
+            return {'idref': tdict['idref']}
+
+        if 'description' in tdict:
+            return {'description': tdict['description']}
+
+        if 'title' in tdict:
+            return {'description': tdict['title']}
+
+        return {'description': ''}
+
+    def _add_indicator(self, indicator, value):
+        result = True
+
+        v = self.table.get(indicator)
+        if v is not None:
+            if len(v) == len(value):
+
+                ceq = 0
+                for k in v:
+                    if v[k] != value.get(k, None):
+                        break
+                    ceq += 1
+
+                result = ceq == len(v)
+
+        self.table.put(indicator, value)
+
+        return result
+
+    def _handle_indicators(self, stix_objects):
+        self.state_lock.rlock()
+        if self.state != ft_states.STARTED:
+            self.state_lock.runlock()
+            raise FtSateChanged('no more STARTED')
+
+        try:
+            for i in stix_objects['indicators'].values():
+                value = {}
+    
+                value['last_seen'] = i.get('timestamp', utc_millisec())
+    
+                if len(i['ttps']) != 0:
+                    ttp = i['ttps'][0]
+                    if 'idref' in ttp:
+                        ttp = stix_objects['ttps'][ttp['idref']]
+    
+                    value['%s_ttp' % self.prefix] = ttp['description']
+    
+                for o in i['observables']:
+                    ob = o
+                    if 'idref' in o:
+                        ob = stix_objects['observables'][o['idref']]
+    
+                    if ob is None:
+                        continue
+    
+                    indicator = ob['indicator']
+                    value['type'] = ob['type']
+    
+                    if self._add_indicator(indicator, value):
+                        self.emit_update(indicator, value)
+    
+                    value.pop('type')
+
+        finally:
+            self.state_lock.runlock()
 
     def _run(self):
         if self.rebuild_flag:
@@ -286,6 +511,9 @@ class TaxiiClient(base.BaseFT):
                     gevent.sleep(self.interval)
 
             except gevent.GreenletExit:
+                break
+
+            except FtStateChanged:
                 break
 
             except:
