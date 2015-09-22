@@ -7,7 +7,7 @@ from flask import stream_with_context
 
 from . import app
 from . import SR
-from . import config
+from . import MMMaster
 
 LOG = logging.getLogger(__name__)
 FEED_INTERVAL = 100
@@ -38,9 +38,17 @@ def generate_feed(feed, start, num, desc):
 
 @app.route('/feeds/<feed>', methods=['GET'])
 def get_feed_content(feed):
-    if feed not in config.get('FEEDS', []):
-        LOG.error("Invalid request, unknown feed: %s", feed)
-        return jsonify(error="Unknown feed %s" % feed), 400
+    status = MMMaster.status()
+    tr = status.get('result', None)
+    if tr is None:
+        return jsonify(error={'message': status.get('error', 'error')})
+
+    nname = 'mbus:slave:'+feed
+    if nname not in tr:
+        return jsonify(error={'message': 'Unknown feed'}), 404
+    nclass = tr[nname].get('class', None)
+    if nclass != 'RedisSet':
+        return jsonify(error={'message': 'Unknown feed'}), 404
 
     start = request.values.get('s')
     if start is None:
