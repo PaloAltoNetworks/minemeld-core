@@ -86,7 +86,7 @@ def get_node_type_metrics(nodetype):
     if resolution < 0:
         return jsonify(error={'message': 'Invalid resolution'}), 400
 
-    type_ = request.args.get('t', 'minemeld_counter')
+    type_ = request.args.get('t', None)
 
     metrics = _list_metrics(prefix='minemeld.'+nodetype+'.')
 
@@ -94,7 +94,7 @@ def get_node_type_metrics(nodetype):
 
     result = []
     for m in metrics:
-        v = _fetch_metric(cc, m, cf=cf, dt=dt, r=resolution)
+        v = _fetch_metric(cc, m, cf=cf, dt=dt, r=resolution, type_=type_)
 
         _, _, mname = m.split('.', 2)
 
@@ -127,7 +127,7 @@ def get_global_metrics():
     if resolution < 0:
         return jsonify(error={'message': 'Invalid resolution'}), 400
 
-    type_ = request.args.get('t', 'minemeld_counter')
+    type_ = request.args.get('t', None)
 
     metrics = _list_metrics(prefix='minemeld.')
     metrics = [m for m in metrics if 'minemeld.sources' not in m]
@@ -138,7 +138,7 @@ def get_global_metrics():
 
     result = []
     for m in metrics:
-        v = _fetch_metric(cc, m, cf=cf, dt=dt, r=resolution)
+        v = _fetch_metric(cc, m, cf=cf, dt=dt, r=resolution, type_=type_)
 
         _, mname = m.split('.', 1)
 
@@ -171,7 +171,7 @@ def get_node_metrics(node):
     if resolution < 0:
         return jsonify(error={'message': 'Invalid resolution'}), 400
 
-    type_ = request.args.get('t', 'minemeld_counter')
+    type_ = request.args.get('t', None)
 
     metrics = _list_metrics(prefix=node+'.')
 
@@ -179,7 +179,7 @@ def get_node_metrics(node):
 
     result = []
     for m in metrics:
-        v = _fetch_metric(cc, m, cf=cf, dt=dt, r=resolution)
+        v = _fetch_metric(cc, m, cf=cf, dt=dt, r=resolution, type_=type_)
 
         _, mname = m.split('.', 1)
 
@@ -222,7 +222,8 @@ def get_metric(node, metric):
     cc = minemeld.collectd.CollectdClient(RRD_SOCKET_PATH)
 
     try:
-        result = _fetch_metric(cc, metric, type_=type_, cf=cf, dt=dt, r=r)
+        result = _fetch_metric(cc, metric, type_=type_, cf=cf,
+                               dt=dt, r=resolution)
     except RuntimeError as e:
         return jsonify(error={'message': str(e)}), 400
 
