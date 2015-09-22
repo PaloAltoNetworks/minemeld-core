@@ -290,7 +290,8 @@ class AMQPSubChannel(object):
             try:
                 m(**params)
             except:
-                LOG.exception('Exception in handling %s', method)
+                LOG.exception('Exception in handling %s on topic %s '
+                              'with params %s', method, topic, params)
 
     def connect(self, conn):
         if self.channel is not None:
