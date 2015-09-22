@@ -523,11 +523,19 @@ class TaxiiClient(base.BaseFT):
         while self.last_ageout_run is None:
             gevent.sleep(1)
 
-        if self.rebuild_flag:
-            LOG.debug("rebuild flag set, resending current indicators")
-            # reinit flag is set, emit update for all the known indicators
-            for i, v in self.table.query('last_seen', include_value=True):
-                self.emit_update(i, v)
+        self.state_lock.rlock()
+        if self.state != ft_states.STARTED:
+            self.state_lock.runlock()
+            return
+
+        try:
+            if self.rebuild_flag:
+                LOG.debug("rebuild flag set, resending current indicators")
+                # reinit flag is set, emit update for all the known indicators
+                for i, v in self.table.query('last_seen', include_value=True):
+                    self.emit_update(i, v)
+        finally:
+            self.state_lock.unlock()
 
         tc = self._build_taxii_client()
 
