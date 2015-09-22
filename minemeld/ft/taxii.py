@@ -1,4 +1,3 @@
-import requests
 import logging
 import copy
 import gevent
@@ -60,8 +59,13 @@ class TaxiiClient(base.BaseFT):
         self.polling_timeout = self.config.get('polling_timeout', 20)
         self.num_retries = self.config.get('num_retries', 2)
         self.prefix = self.config.get('prefix', self.name+'_')
-        self.age_out_interval = int(self.config.get('age_out_interval', '3600'))
+        self.age_out_interval = int(self.config.get(
+            'age_out_interval',
+            '3600'
+        ))
         self.age_out = self.config.get('age_out', '30d')
+        self.ca_file = self.config.get('ca_file', None)
+        self.attributes = self.config.get('attributes', {})
 
     def _initialize_table(self, truncate=False):
         self.table = table.Table(self.name, truncate=truncate)
@@ -100,6 +104,12 @@ class TaxiiClient(base.BaseFT):
                 'username': self.username,
                 'password': self.password
             })
+
+        if self.ca_file is not None:
+            result.set_verify_server(
+                verify_server=True,
+                ca_file=self.ca_file
+            )
 
         return result
 
@@ -173,8 +183,8 @@ class TaxiiClient(base.BaseFT):
 
         if tci.polling_service_instances is None or \
            len(tci.polling_service_instances) == 0:
-           raise RuntimeError('%s - collection %s doesn\'t support polling',
-                              self.name, self.collection)
+            raise RuntimeError('%s - collection %s doesn\'t support polling',
+                               self.name, self.collection)
 
         if tci.collection_type != libtaxii.constants.CT_DATA_FEED:
             raise RuntimeError('%s - collection %s is not a data feed (%s)',
@@ -185,7 +195,7 @@ class TaxiiClient(base.BaseFT):
         LOG.debug('%s - poll service: %s',
                   self.name, self.poll_service)
 
-    def _poll_fulfillment_request(self, result_id, result_part_number):
+    def _poll_fulfillment_request(self, tc, result_id, result_part_number):
         msg_id = libtaxii.messages_11.generate_message_id()
         request = libtaxii.messages_11.PollFulfillmentRequest(
             message_id=msg_id,
@@ -256,6 +266,7 @@ class TaxiiClient(base.BaseFT):
 
         while tm.more:
             tm = self._poll_fulfillment_request(
+                tc,
                 result_id=tm.result_id,
                 result_part_number=tm.result_part_number+1
             )
@@ -272,11 +283,11 @@ class TaxiiClient(base.BaseFT):
         try:
             for cb in content_blocks:
                 if cb.content_binding.binding_id != \
-                    libtaxii.constants.CB_STIX_XML_111:
+                   libtaxii.constants.CB_STIX_XML_111:
                     LOG.error('%s - Unsupported content binding: %s',
                               self.name, cb.content_binding.binding_id)
                     continue
-    
+
                 stixpackage = stix.core.stix_package.STIXPackage.from_xml(
                     lxml.etree.fromstring(cb.content)
                 )
@@ -313,9 +324,10 @@ class TaxiiClient(base.BaseFT):
                     for t in stixpackage.ttps:
                         ct = self._decode_ttp(t)
                         objects['ttps'][t.id_] = ct
-    
+
         except:
-            LOG.exception("%s - exception in _handle_content_blocks" % self.name)
+            LOG.exception("%s - exception in _handle_content_blocks" %
+                          self.name)
             raise
 
     def _decode_observable(self, o):
@@ -443,36 +455,34 @@ class TaxiiClient(base.BaseFT):
         self.state_lock.rlock()
         if self.state != ft_states.STARTED:
             self.state_lock.runlock()
-            raise FtSateChanged('no more STARTED')
+            raise FtStateChanged('no more STARTED')
 
         try:
             for i in stix_objects['indicators'].values():
-                value = {}
-    
+                value = copy.copy(self.attributes)
+
                 value['last_seen'] = i.get('timestamp', utc_millisec())
-    
+
                 if len(i['ttps']) != 0:
                     ttp = i['ttps'][0]
                     if 'idref' in ttp:
                         ttp = stix_objects['ttps'][ttp['idref']]
-    
+
                     value['%s_ttp' % self.prefix] = ttp['description']
-    
+
                 for o in i['observables']:
                     ob = o
                     if 'idref' in o:
                         ob = stix_objects['observables'][o['idref']]
-    
+
                     if ob is None:
                         continue
-    
+
                     indicator = ob['indicator']
                     value['type'] = ob['type']
-    
+
                     if self._add_indicator(indicator, value):
                         self.emit_update(indicator, value)
-    
-                    value.pop('type')
 
         finally:
             self.state_lock.runlock()
@@ -489,7 +499,8 @@ class TaxiiClient(base.BaseFT):
             try:
                 now = utc_millisec()
 
-                for i, v in self.table.query(index='last_seen', to_key=now-interval,
+                for i, v in self.table.query(index='last_seen',
+                                             to_key=now-interval,
                                              include_value=True):
                     LOG.debug('%s - %s %s aged out', self.name, i, v)
                     self.emit_withdraw(indicator=i)
