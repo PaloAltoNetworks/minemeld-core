@@ -22,34 +22,6 @@ else:
 aaa.LOGIN_MANAGER.init_app(app)
 
 
-# redis connections
-try:
-    import redis
-
-    def get_SR():
-        SR = getattr(g, '_redis_client', None)
-        if SR is None:
-            redis_url = config.get('REDIS_URL', 'redis://localhost:6379/0')
-            SR = redis.StrictRedis.from_url(redis_url)
-            g._redis_client = SR
-        return SR
-
-    @app.teardown_appcontext
-    def teardown_redis(exception):
-        SR = getattr(g, '_redis_client', None)
-        if SR is not None:
-            g._redis_client = None
-
-    SR = werkzeug.local.LocalProxy(get_SR)
-
-    # load entry points
-    from . import feedredis  # noqa
-    from . import configapi  # noqa
-
-except ImportError:
-    LOG.exception("redis is needed for feed and config entrypoint")
-
-
 try:
     # amqp connection
     import minemeld.comm
@@ -212,3 +184,31 @@ try:
 
 except ImportError:
     LOG.exception("rrdtool needed for metrics endpoint")
+
+
+# redis connections
+try:
+    import redis
+
+    def get_SR():
+        SR = getattr(g, '_redis_client', None)
+        if SR is None:
+            redis_url = config.get('REDIS_URL', 'redis://localhost:6379/0')
+            SR = redis.StrictRedis.from_url(redis_url)
+            g._redis_client = SR
+        return SR
+
+    @app.teardown_appcontext
+    def teardown_redis(exception):
+        SR = getattr(g, '_redis_client', None)
+        if SR is not None:
+            g._redis_client = None
+
+    SR = werkzeug.local.LocalProxy(get_SR)
+
+    # load entry points
+    from . import feedredis  # noqa
+    from . import configapi  # noqa
+
+except ImportError:
+    LOG.exception("redis is needed for feed and config entrypoint")
