@@ -45,6 +45,8 @@ class AMQPPubChannel(object):
             exchange=self.topic
         )
 
+        gevent.sleep(0)
+
 
 class AMQPRpcFanoutClientChannel(object):
     def __init__(self, fanout):
@@ -91,6 +93,8 @@ class AMQPRpcFanoutClientChannel(object):
             })
             self.active_rpcs.pop(id_)
 
+        gevent.sleep(0)
+
     def send_rpc(self, method, params={}, num_results=0, and_discard=False):
         if self._in_channel is None:
             raise RuntimeError('Not connected')
@@ -120,6 +124,8 @@ class AMQPRpcFanoutClientChannel(object):
         }
 
         self._out_channel.basic_publish(msg, exchange=self.fanout)
+
+        gevent.sleep(0)
 
         return self.active_rpcs[id_]['event']
 
@@ -216,6 +222,8 @@ class AMQPRpcServerChannel(object):
     def _g_callback(self, msg):
         gevent.spawn(self._callback, msg)
 
+        gevent.sleep(0)
+
     def connect(self, conn):
         if self.channel is not None:
             return
@@ -292,6 +300,8 @@ class AMQPSubChannel(object):
             except:
                 LOG.exception('Exception in handling %s on topic %s '
                               'with params %s', method, self.topic, params)
+
+            gevent.sleep(0)
 
     def connect(self, conn):
         if self.channel is not None:
