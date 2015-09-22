@@ -12,7 +12,6 @@ class AggregateFT(base.BaseFT):
     _ftclass = 'AggregateFT'
 
     def __init__(self, name, chassis, config):
-        self.table = table.Table(name)
         self.active_requests = []
 
         super(AggregateFT, self).__init__(name, chassis, config)
@@ -22,13 +21,17 @@ class AggregateFT(base.BaseFT):
 
         self.whitelists = self.config.get('whitelists', [])
 
+    def _initialize_table(self, truncate=False):
+        self.table = table.Table(self.name, truncate=truncate)
+
+    def initialize(self):
+        self._initialize_table()
+
     def rebuild(self):
-        self.table.close()
-        self.table = table.Table(self.name, truncate=True)
+        self._initialize_table(truncate=True)
 
     def reset(self):
-        self.table.close()
-        self.table = table.Table(self.name, truncate=True)
+        self._initialize_table(truncate=True)
 
     def _indicator_key(self, indicator, source):
         return indicator+'\x00'+source
@@ -117,8 +120,8 @@ class AggregateFT(base.BaseFT):
                 ewl += v
             else:
                 ebl += v
-        e = self.table.exists(self._indicator_key(indicator, source))
 
+        e = self.table.exists(self._indicator_key(indicator, source))
         self.table.delete(self._indicator_key(indicator, source))
 
         if source in self.whitelists:
