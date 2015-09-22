@@ -39,9 +39,6 @@ class MWUpdate(object):
 
 class AggregateIPv4FT(base.BaseFT):
     def __init__(self, name, chassis, config):
-        self.table = table.Table(name)
-        self.table.create_index('_id')
-        self.st = st.ST(name+'_st', 32)
         self.active_requests = []
 
         super(AggregateIPv4FT, self).__init__(name, chassis, config)
@@ -51,21 +48,22 @@ class AggregateIPv4FT(base.BaseFT):
 
         self.whitelists = self.config.get('whitelists', [])
 
-    def rebuild(self):
-        self.table.close()
-        self.st.close()
-
-        self.table = table.Table(self.name, truncate=True)
+    def _initialize_tables(self, truncate=False):
+        self.table = table.Table(self.name, truncate=truncate)
         self.table.create_index('_id')
-        self.st = st.ST(self.name+'_st', 32, truncate=True)
+        self.st = st.ST(self.name+'_st', 32, truncate=truncate)
+
+    def initialize(self):
+        self._initialize_tables()
+
+    def rebuild(self):
+        self._initialize_tables(truncate=True)
 
     def reset(self):
-        self.table.close()
-        self.st.close()
+        self._initialize_tables(truncate=True)
 
-        self.table = table.Table(self.name, truncate=True)
-        self.table.create_index('_id')
-        self.st = st.ST(self.name+'_st', 32, truncate=True)
+    def _indicator_key(self, indicator, source):
+        return indicator+'\x00'+source
 
     def _calc_indicator_value(self, uuids):
         mv = {'sources': []}
@@ -102,8 +100,9 @@ class AggregateIPv4FT(base.BaseFT):
         added = False
 
         now = utc_millisec()
+        ik = self._indicator_key(indicator, origin)
 
-        v = self.table.get(indicator+origin)
+        v = self.table.get(ik)
         if v is None:
             v = {
                 '_id': str(uuid.uuid4()),
@@ -115,7 +114,7 @@ class AggregateIPv4FT(base.BaseFT):
         v = self._merge_values(origin, v, value)
         v['_updated'] = now
 
-        self.table.put(indicator+origin, v)
+        self.table.put(ik, v)
 
         return v, added
 
@@ -285,12 +284,14 @@ class AggregateIPv4FT(base.BaseFT):
     def filtered_withdraw(self, source=None, indicator=None, value=None):
         LOG.debug("%s - withdraw from %s - %s", self.name, source, indicator)
 
-        v = self.table.get(indicator+source)
+        ik = self._indicator_key(indicator, source)
+
+        v = self.table.get(ik)
         LOG.debug("%s - v: %s", self.name, v)
         if v is None:
             return
 
-        self.table.delete(indicator+source)
+        self.table.delete(ik)
         self.statistics['removed'] += 1
 
         start, end = self._range_from_indicator(indicator)
