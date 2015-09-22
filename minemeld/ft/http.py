@@ -38,6 +38,7 @@ class HttpFT(base.BaseFT):
         self.interval = self.config.get('interval', 900)
         self.polling_timeout = self.config.get('polling_timeout', 20)
         self.num_retries = self.config.get('num_retries', 2)
+        self.verify_cert = self.config.get('verify_cert', True)
 
     def rebuild(self):
         self.rebuild_flag = True
@@ -61,11 +62,15 @@ class HttpFT(base.BaseFT):
 
         now = utc_millisec()
 
+        rkwargs = dict(
+            stream=True,
+            verify=self.verify_cert,
+            timeout=self.polling_timeout
+        )
+
         r = requests.get(
             self.url,
-            stream=True,
-            verify=True,
-            timeout=self.polling_timeout
+            **rkwargs
         )
         r.raise_for_status()
 

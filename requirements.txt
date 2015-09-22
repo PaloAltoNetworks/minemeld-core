@@ -14,4 +14,5 @@ pan-python==0.7.0
 stix==1.1.1.5
 libtaxii==1.1.107
 pytz==2015.4
+certifi>=2015.9.6.2
 
