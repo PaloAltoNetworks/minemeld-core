@@ -827,6 +827,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         a.table.db.close()
         a.st.db.close()
         a = None
+
     @attr('slow')
     def test_stress_1(self):
         num_intervals = 100000
@@ -853,7 +854,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         t1 = time.time()
         for j in xrange(num_intervals):
             start = random.randint(0, 0xFFFFFFFF)
-            if random.randint(0,4) == 0:
+            if random.randint(0, 4) == 0:
                 end = start + 255
             else:
                 end = start
@@ -866,7 +867,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         t1 = time.time()
         for j in xrange(num_intervals):
             start = random.randint(0, 0xFFFFFFFF)
-            if random.randint(0,4) == 0:
+            if random.randint(0, 4) == 0:
                 end = start + 255
             else:
                 end = start
