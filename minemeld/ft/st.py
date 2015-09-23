@@ -35,7 +35,9 @@ class ST(object):
 
         self.db = plyvel.DB(
             name,
-            create_if_missing=True
+            create_if_missing=True,
+            bloom_filter_bits=10,
+            write_buffer_size=24*1024
         )
         self.epsize = epsize
         self.max_endpoint = (1 << epsize)
