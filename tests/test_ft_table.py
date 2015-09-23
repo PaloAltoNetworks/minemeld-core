@@ -7,6 +7,7 @@ import unittest
 import tempfile
 import shutil
 import random
+import time
 
 import minemeld.ft.table
 
@@ -203,3 +204,26 @@ class MineMeldFTTableTests(unittest.TestCase):
             de = flatdict[j]
             self.assertEqual(de[1]['a'], v['a'])
             j = j+1
+
+    @attr('slow')
+    def test_write(self):
+        # create table
+        table = minemeld.ft.table.Table(TABLENAME)
+
+        # local dict
+        d = {}
+
+        t1 = time.time()
+        for i in xrange(100000):
+            value = {'a': random.randint(0, 500)}
+            key = 'i%d' % i
+            d[key] = value
+            table.put(key, value)
+        t2 = time.time()
+        print 'TIME: Written %d elements in %s secs' % (100000, t2-t1)
+
+        # check number of indicators added
+        self.assertEqual(table.num_indicators, len(d.keys()))
+
+        table.close()
+        table = None

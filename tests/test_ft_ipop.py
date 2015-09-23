@@ -827,9 +827,77 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         a.table.db.close()
         a.st.db.close()
         a = None
-
     @attr('slow')
     def test_stress_1(self):
+        num_intervals = 100000
+
+        config = {}
+        chassis = mock.Mock()
+
+        ochannel = mock.Mock()
+        chassis.request_pub_channel.return_value = ochannel
+
+        rpcmock = mock.Mock()
+        rpcmock.get.return_value = {'error': None, 'result': 'OK'}
+        chassis.send_rpc.return_value = rpcmock
+
+        a = minemeld.ft.ipop.AggregateIPv4FT(FTNAME, chassis, config)
+
+        inputs = ['s1', 's2']
+        output = True
+
+        a.connect(inputs, output)
+        a.mgmtbus_initialize()
+        a.start()
+
+        t1 = time.time()
+        for j in xrange(num_intervals):
+            start = random.randint(0, 0xFFFFFFFF)
+            if random.randint(0,4) == 0:
+                end = start + 255
+            else:
+                end = start
+            end = netaddr.IPAddress(end)
+            start = netaddr.IPAddress(start)
+            ochannel.publish.reset_mock()
+        t2 = time.time()
+        dt = t2-t1
+
+        t1 = time.time()
+        for j in xrange(num_intervals):
+            start = random.randint(0, 0xFFFFFFFF)
+            if random.randint(0,4) == 0:
+                end = start + 255
+            else:
+                end = start
+            end = netaddr.IPAddress(end)
+            start = netaddr.IPAddress(start)
+            ochannel.publish.reset_mock()
+            a.update('s1', indicator='%s-%s' % (start, end), value={
+                'type': 'IPv4',
+                'sources': ['s1s']
+            })
+        t2 = time.time()
+        print "TIME: Inserted %d intervals in %d" % (num_intervals, (t2-t1-dt))
+
+        t1 = time.time()
+        for j in xrange(num_intervals):
+            ochannel.publish.reset_mock()
+            a.update('s1', indicator='%s' % (start), value={
+                'type': 'IPv4',
+                'sources': ['s1s'],
+                'count': j
+            })
+        t2 = time.time()
+        print "TIME: Updated %d intervals in %d" % (num_intervals, (t2-t1-dt))
+
+        a.stop()
+        a.table.db.close()
+        a.st.db.close()
+        a = None
+
+    @attr('slow')
+    def test_stress_2(self):
         num_intervals = 200
 
         config = {}
