@@ -77,17 +77,6 @@ class ST(object):
                 for c in uuid_:
                     res.append(ord(c))
 
-        # res2 = struct.pack(">BQQ", 1, start, end)
-        # if level is not None:
-        #     res2 += struct.pack("B", level)
-        #     if uuid_ is not None:
-        #         res2 += uuid_
-
-        # LOG.debug('%s', map(ord, res2))
-        # LOG.debug('%s', map(ord, res.tostring()))
-
-        # assert res2 == res.tostring()
-
         return res.tostring()
 
     def _split_segment_key(self, key):
@@ -110,14 +99,6 @@ class ST(object):
                 if uuid_ is not None:
                     for c in uuid_:
                         res.append(ord(c))
-
-        # res2 = struct.pack(">BQ", 2, endpoint)
-        # if level is not None:
-        #     res2 += struct.pack("B", level)
-        #     if type_ is not None:
-        #         res2 += struct.pack("B", type_)
-        #         if uuid_ is not None:
-        #             res2 += map(ord, uuid_)
 
         return res.tostring()
 
