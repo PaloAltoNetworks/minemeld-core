@@ -78,7 +78,7 @@ class InvalidTableException(Exception):
 
 
 class Table(object):
-    def __init__(self, name, truncate=False):
+    def __init__(self, name, truncate=False, bloom_filter_bits=0):
         if truncate:
             try:
                 shutil.rmtree(name)
@@ -87,7 +87,8 @@ class Table(object):
 
         self.db = plyvel.DB(
             name,
-            create_if_missing=True
+            create_if_missing=True,
+            bloom_filter_bits=bloom_filter_bits
         )
         self._read_metadata()
 
