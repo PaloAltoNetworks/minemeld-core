@@ -4,7 +4,7 @@ import amqp.connection
 import amqp
 import gevent
 import gevent.event
-import json
+import ujson as json
 import logging
 import uuid
 
