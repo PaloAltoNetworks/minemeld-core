@@ -49,7 +49,11 @@ class AggregateIPv4FT(base.BaseFT):
         self.whitelists = self.config.get('whitelists', [])
 
     def _initialize_tables(self, truncate=False):
-        self.table = table.Table(self.name, truncate=truncate)
+        self.table = table.Table(
+            self.name,
+            bloom_filter_bits=10,
+            truncate=truncate
+        )
         self.table.create_index('_id')
         self.st = st.ST(self.name+'_st', 32, truncate=truncate)
 
@@ -68,7 +72,7 @@ class AggregateIPv4FT(base.BaseFT):
     def _calc_indicator_value(self, uuids):
         mv = {'sources': []}
         for uuid_ in uuids:
-            uuid_ = str(uuid.UUID(bytes=uuid_))
+            # uuid_ = str(uuid.UUID(bytes=uuid_))
             k, v = next(
                 self.table.query('_id', from_key=uuid_, to_key=uuid_,
                                  include_value=True),
@@ -249,8 +253,9 @@ class AggregateIPv4FT(base.BaseFT):
                     u.indicator(),
                     self._calc_indicator_value(u.uuids)
                 )
+            return
 
-        uuidbytes = uuid.UUID(v['_id']).bytes
+        uuidbytes = v['_id']
         self.st.put(uuidbytes, start, end, level=level)
 
         rangesa = set(self._calc_ipranges(rangestart, rangestop))
@@ -305,7 +310,7 @@ class AggregateIPv4FT(base.BaseFT):
         rangesb = set(self._calc_ipranges(rangestart, rangestop))
         LOG.debug("ranges before: %s", rangesb)
 
-        uuidbytes = uuid.UUID(v['_id']).bytes
+        uuidbytes = v['_id']
         self.st.delete(uuidbytes, start, end, level=level)
 
         rangesa = set(self._calc_ipranges(rangestart, rangestop))

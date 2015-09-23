@@ -17,6 +17,7 @@ import plyvel
 import struct
 import logging
 import shutil
+import array
 
 LOG = logging.getLogger(__name__)
 
@@ -26,7 +27,8 @@ TYPE_END = 0x1
 
 
 class ST(object):
-    def __init__(self, name, epsize, truncate=False):
+    def __init__(self, name, epsize, truncate=False,
+                 bloom_filter_bits=10, write_buffer_size=20*1024):
         if truncate:
             try:
                 shutil.rmtree(name)
@@ -35,7 +37,9 @@ class ST(object):
 
         self.db = plyvel.DB(
             name,
-            create_if_missing=True
+            create_if_missing=True,
+            write_buffer_size=bloom_filter_bits,
+            bloom_filter_bits=write_buffer_size
         )
         self.epsize = epsize
         self.max_endpoint = (1 << epsize)
@@ -55,26 +59,67 @@ class ST(object):
         return result
 
     def _segment_key(self, start, end, uuid_=None, level=None):
-        res = struct.pack(">BQQ", 1, start, end)
+        res = array.array('B', [
+            1,
+            (start >> 56) & 0xFF, (start >> 48) & 0xFF,
+            (start >> 40) & 0xFF, (start >> 32) & 0xFF,
+            (start >> 24) & 0xFF, (start >> 16) & 0xFF,
+            (start >> 8) & 0xFF, start & 0xFF,
+            (end >> 56) & 0xFF, (end >> 48) & 0xFF,
+            (end >> 40) & 0xFF, (end >> 32) & 0xFF,
+            (end >> 24) & 0xFF, (end >> 16) & 0xFF,
+            (end >> 8) & 0xFF, end & 0xFF,
+        ])
+
         if level is not None:
-            res += struct.pack("B", level)
+            res.append(level)
             if uuid_ is not None:
-                res += uuid_
-        return res
+                for c in uuid_:
+                    res.append(ord(c))
+
+        # res2 = struct.pack(">BQQ", 1, start, end)
+        # if level is not None:
+        #     res2 += struct.pack("B", level)
+        #     if uuid_ is not None:
+        #         res2 += uuid_
+
+        # LOG.debug('%s', map(ord, res2))
+        # LOG.debug('%s', map(ord, res.tostring()))
+
+        # assert res2 == res.tostring()
+
+        return res.tostring()
 
     def _split_segment_key(self, key):
         _, start, end, level = struct.unpack(">BQQB", key[:18])
         return start, end, level, key[18:]
 
     def _endpoint_key(self, endpoint, level=None, type_=None, uuid_=None):
-        res = struct.pack(">BQ", 2, endpoint)
+        res = array.array('B', [
+            2,
+            (endpoint >> 56) & 0xFF, (endpoint >> 48) & 0xFF,
+            (endpoint >> 40) & 0xFF, (endpoint >> 32) & 0xFF,
+            (endpoint >> 24) & 0xFF, (endpoint >> 16) & 0xFF,
+            (endpoint >> 8) & 0xFF, endpoint & 0xFF
+        ])
+
         if level is not None:
-            res += struct.pack("B", level)
+            res.append(level)
             if type_ is not None:
-                res += struct.pack("B", type_)
+                res.append(type_)
                 if uuid_ is not None:
-                    res += uuid_
-        return res
+                    for c in uuid_:
+                        res.append(ord(c))
+
+        # res2 = struct.pack(">BQ", 2, endpoint)
+        # if level is not None:
+        #     res2 += struct.pack("B", level)
+        #     if type_ is not None:
+        #         res2 += struct.pack("B", type_)
+        #         if uuid_ is not None:
+        #             res2 += map(ord, uuid_)
+
+        return res.tostring()
 
     def _split_endpoint_key(self, k):
         _, endpoint, level, type_ = struct.unpack(">BQBB", k[:11])

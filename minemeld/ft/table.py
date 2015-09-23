@@ -58,7 +58,7 @@ over the keys (2,<index id>,0xF0,<encoded value>) and
 
 import plyvel
 import struct
-import json
+import ujson
 import time
 import logging
 import shutil
@@ -78,7 +78,7 @@ class InvalidTableException(Exception):
 
 
 class Table(object):
-    def __init__(self, name, truncate=False):
+    def __init__(self, name, truncate=False, bloom_filter_bits=0):
         if truncate:
             try:
                 shutil.rmtree(name)
@@ -87,7 +87,8 @@ class Table(object):
 
         self.db = plyvel.DB(
             name,
-            create_if_missing=True
+            create_if_missing=True,
+            bloom_filter_bits=bloom_filter_bits
         )
         self._read_metadata()
 
@@ -168,7 +169,7 @@ class Table(object):
             return None
 
         # skip version
-        return json.loads(value[8:])
+        return ujson.loads(value[8:])
 
     def delete(self, key):
         if type(key) == unicode:
@@ -253,7 +254,7 @@ class Table(object):
         cversion = cversion+1
 
         batch = self.db.write_batch()
-        batch.put(ikey, struct.pack(">Q", cversion)+json.dumps(value))
+        batch.put(ikey, struct.pack(">Q", cversion)+ujson.dumps(value))
         batch.put(ikeyv, struct.pack(">Q", cversion))
         batch.put(LAST_UPDATE_KEY, struct.pack(">Q", self.last_update))
 
