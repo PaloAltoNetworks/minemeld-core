@@ -63,6 +63,8 @@ class AMQPRpcFanoutClientChannel(object):
             LOG.error("Invalid JSON in msg body")
             return
 
+        LOG.debug('AMQPRpcFanoutClientChannel - received result %s', msg)
+
         id_ = msg.get('id', None)
         if id_ is None:
             LOG.error("No id field in RPC reply")
@@ -176,6 +178,10 @@ class AMQPRpcServerChannel(object):
         ans = json.dumps(ans)
         msg = amqp.Message(body=ans)
         self.channel.basic_publish(msg, routing_key=replyq)
+
+        LOG.debug('AMQPRpcServerChannel - sent result %s', ans)
+
+        gevent.sleep(0)
 
     def _callback(self, msg):
         try:
@@ -462,27 +468,33 @@ class AMQP(object):
                 l()
 
     def start(self):
-        for j in range(self.num_connections):
+        num_conns_total = sum([
+            self.num_connections,
+            len(self.rpc_fanout_clients_channels),
+            len(self.pub_channels)
+        ])
+
+        for j in range(num_conns_total):
             self._connections.append(
                 amqp.connection.Connection(**self.amqp_config)
             )
 
         csel = 0
-
         for rpcc in self.rpc_server_channels.values():
             rpcc.connect(self._connections[csel % self.num_connections])
-            csel += 1
-
-        for pc in self.pub_channels.values():
-            pc.connect(self._connections[csel % self.num_connections])
             csel += 1
 
         for sc in self.sub_channels.values():
             sc.connect(self._connections[csel % self.num_connections])
             csel += 1
 
+        csel = 0
+        for pc in self.pub_channels.values():
+            pc.connect(self._connections[self.num_connections + csel])
+            csel += 1
+
         for rfc in self.rpc_fanout_clients_channels:
-            rfc.connect(self._connections[csel % self.num_connections])
+            rfc.connect(self._connections[self.num_connections + csel])
             csel += 1
 
         # create rpc out channel
@@ -497,14 +509,20 @@ class AMQP(object):
             exclusive=True
         )
 
-        for j in range(self.num_connections):
+        for j in range(num_conns_total):
             g = gevent.spawn(self._ioloop, j)
             self.ioloops.append(g)
             g.link_exception(self._ioloop_failure)
 
     def stop(self):
+        num_conns_total = sum([
+            self.num_connections,
+            len(self.rpc_fanout_clients_channels),
+            len(self.pub_channels)
+        ])
+
         if len(self._connections) is 0 or \
-           self.num_connections == 0:
+           num_conns_total == 0:
             return
 
         for j in range(len(self.ioloops)):
