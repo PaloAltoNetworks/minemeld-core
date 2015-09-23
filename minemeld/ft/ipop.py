@@ -253,6 +253,7 @@ class AggregateIPv4FT(base.BaseFT):
                     u.indicator(),
                     self._calc_indicator_value(u.uuids)
                 )
+            return
 
         uuidbytes = v['_id']
         self.st.put(uuidbytes, start, end, level=level)
