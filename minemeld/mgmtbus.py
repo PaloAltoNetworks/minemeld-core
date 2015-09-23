@@ -92,7 +92,7 @@ class MgmtbusMaster(object):
 
         self._send_cmd('reset', and_discard=True)
 
-    def checkpoint_graph(self):
+    def checkpoint_graph(self, max_tries=12, try_interval=5):
         chkp = str(uuid.uuid4())
 
         revt = self._send_cmd('checkpoint', params={'value': chkp})
@@ -102,7 +102,7 @@ class MgmtbusMaster(object):
             return
 
         ntries = 0
-        while ntries < 2:
+        while ntries < max_tries:
             revt = self._send_cmd('state_info')
             success = revt.wait(timeout=10)
             if success is None:
@@ -119,6 +119,10 @@ class MgmtbusMaster(object):
 
             gevent.sleep(5)
             ntries += 1
+
+        if ntries == max_tries:
+            LOG.error('checkpoint_graph: nodes still not in '
+                      'checkpoint state after max_tries')
 
         LOG.debug('checkpoint_graph done')
 
