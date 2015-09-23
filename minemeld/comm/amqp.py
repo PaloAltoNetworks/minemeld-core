@@ -48,7 +48,7 @@ class AMQPPubChannel(object):
         )
 
         self.num_publish += 1
-        if self.num_publish == 100:
+        if self.num_publish == 10:
             self.num_publish = 0
             gevent.sleep(0)
 
@@ -315,7 +315,7 @@ class AMQPSubChannel(object):
                               'with params %s', method, self.topic, params)
 
         self.num_callbacks += 1
-        if self.num_callbacks == 100:
+        if self.num_callbacks == 10:
             self.num_callbacks = 0
             gevent.sleep(0)
 
