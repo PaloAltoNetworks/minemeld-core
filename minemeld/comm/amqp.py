@@ -49,6 +49,7 @@ class AMQPPubChannel(object):
 
         self.num_publish += 1
         if self.num_publish == 100:
+            self.num_publish = 0
             gevent.sleep(0)
 
 
@@ -322,8 +323,6 @@ class AMQPSubChannel(object):
         if self.channel is not None:
             return
 
-        LOG.debug("Subscribing to %s", self.topic)
-
         self.channel = conn.channel()
         self.channel.exchange_declare(
             self.topic,
@@ -333,6 +332,10 @@ class AMQPSubChannel(object):
         q = self.channel.queue_declare(
             exclusive=False
         )
+
+        LOG.debug("Subscribing to %s with queue %s",
+                  self.topic, q.queue)
+
         self.channel.queue_bind(
             queue=q.queue,
             exchange=self.topic
