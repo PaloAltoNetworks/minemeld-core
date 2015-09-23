@@ -17,6 +17,8 @@ class AMQPPubChannel(object):
         self.channel = None
         self.ioloop = None
 
+        self.num_publish = 0
+
     def connect(self, conn):
         if self.channel is not None:
             return
@@ -45,7 +47,9 @@ class AMQPPubChannel(object):
             exchange=self.topic
         )
 
-        gevent.sleep(0)
+        self.num_publish += 1
+        if self.num_publish == 100:
+            gevent.sleep(0)
 
 
 class AMQPRpcFanoutClientChannel(object):
@@ -275,6 +279,8 @@ class AMQPSubChannel(object):
         self.channel = None
         self.listeners = listeners
 
+        self.num_callbacks = 0
+
     def add_listener(self, obj, allowed_methods=[]):
         self.listeners.append((obj, allowed_methods))
 
@@ -307,6 +313,9 @@ class AMQPSubChannel(object):
                 LOG.exception('Exception in handling %s on topic %s '
                               'with params %s', method, self.topic, params)
 
+        self.num_callbacks += 1
+        if self.num_callbacks == 100:
+            self.num_callbacks = 0
             gevent.sleep(0)
 
     def connect(self, conn):
