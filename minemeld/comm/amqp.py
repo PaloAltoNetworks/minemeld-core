@@ -114,18 +114,23 @@ class AMQPRpcFanoutClientChannel(object):
             'id': id_,
             'params': params
         }
-        LOG.debug('sending %s to %s', body, self.fanout)
+
+        LOG.debug('AMQPRpcFanoutClientChannel - sending %s to %s',
+                  body, self.fanout)
+
         msg = amqp.Message(
             body=json.dumps(body),
             reply_to=self._in_queue.queue,
             exchange=self.fanout
         )
 
+        event = gevent.event.AsyncResult()
+
         self.active_rpcs[id_] = {
             'cmd': method,
             'answers': {},
             'num_results': num_results,
-            'event': gevent.event.AsyncResult(),
+            'event': event,
             'errors': 0,
             'discard': and_discard
         }
@@ -134,7 +139,7 @@ class AMQPRpcFanoutClientChannel(object):
 
         gevent.sleep(0)
 
-        return self.active_rpcs[id_]['event']
+        return event
 
     def connect(self, conn):
         if self._in_channel is not None:
