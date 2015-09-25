@@ -1,6 +1,5 @@
 _KNOWN_CLASSES = {
     'HTTP': 'minemeld.ft.http.HttpFT',
-    'DshieldBlockList': 'minemeld.ft.dshield.DshieldBlockList',
     'AggregatorIPv4': 'minemeld.ft.ipop.AggregateIPv4FT',
     'Aggregator': 'minemeld.ft.op.AggregateFT',
     'RedisSet': 'minemeld.ft.redis.RedisSet'
