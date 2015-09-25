@@ -1,0 +1,6 @@
+prototypes:
+    test:
+        config:
+            useless1: 1
+        class: A
+

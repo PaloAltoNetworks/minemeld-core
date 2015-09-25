@@ -6,27 +6,20 @@ import gevent
 import gevent.monkey
 gevent.monkey.patch_all(thread=False, select=False)
 
-import sys
 import os.path
 import logging
-import time
 import signal
 import multiprocessing
 import argparse
-import yaml
-import shutil
 import os
 
 import minemeld.chassis
 import minemeld.mgmtbus
+import minemeld.run.config
 
 from minemeld import __version__
 
 LOG = logging.getLogger(__name__)
-
-COMMITTED_CONFIG = 'committed-config.yml'
-
-RUNNING_CONFIG = 'running-config.yml'
 
 
 def _run_chassis(fabricconfig, mgmtbusconfig, fts):
@@ -99,61 +92,6 @@ def _parse_args():
     return parser.parse_args()
 
 
-def _load_config(path):
-    if os.path.isdir(path):
-        ccpath = os.path.join(
-            path,
-            COMMITTED_CONFIG
-        )
-        rcpath = os.path.join(
-            path,
-            RUNNING_CONFIG
-        )
-
-        cconfig = None
-        if os.path.exists(ccpath):
-            with open(ccpath, 'r') as cf:
-                cconfig = yaml.safe_load(cf)
-
-        rcconfig = None
-        if os.path.exists(rcpath):
-            with open(rcpath, 'r') as cf:
-                rcconfig = yaml.safe_load(cf)
-
-        if rcconfig is None and cconfig is None:
-            print(
-                "At least one of", RUNNING_CONFIG,
-                "or", COMMITTED_CONFIG,
-                "should exist in", path,
-                file=sys.stderr
-            )
-            sys.exit(1)
-        elif rcconfig is not None and cconfig is None:
-            rcconfig['newconfig'] = False
-            return rcconfig
-        elif rcconfig is None and cconfig is not None:
-            shutil.copyfile(ccpath, rcpath)
-            cconfig['newconfig'] = True
-            return cconfig
-        elif rcconfig is not None and cconfig is not None:
-            # ugly
-            if yaml.dump(cconfig) != yaml.dump(rcconfig):
-                shutil.copyfile(rcpath, rcpath+'.%d' % int(time.time()))
-                shutil.copyfile(ccpath, rcpath)
-                cconfig['newconfig'] = True
-                return cconfig
-
-            rcconfig['newconfig'] = False
-            return rcconfig
-
-    with open(path, 'r') as cf:
-        config = yaml.safe_load(cf)
-
-    config['newconfig'] = True
-
-    return config
-
-
 def main():
     def _sigint_handler():
         mbusmaster.checkpoint_graph()
@@ -182,25 +120,7 @@ def main():
     LOG.info("Starting mm-run.py version %s", __version__)
     LOG.info("mm-run.py arguments: %s", args)
 
-    config = _load_config(args.config)
-
-    if 'fabric' not in config:
-        config['fabric'] = {
-            'class': 'AMQP',
-            'config': {
-                'num_connections': 5
-            }
-        }
-
-    if 'mgmtbus' not in config:
-        config['mgmtbus'] = {
-            'transport': {
-                'class': 'AMQP',
-                'config': {}
-            },
-            'master': {},
-            'slave': {}
-        }
+    config = minemeld.run.config.load_config(args.config)
 
     LOG.info("mm-run.py config: %s", config)
 
