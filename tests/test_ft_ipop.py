@@ -855,6 +855,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         for j in xrange(num_intervals):
             start = random.randint(0, 0xFFFFFFFF)
             if random.randint(0, 4) == 0:
+                start = start & 0xFFFFFF00
                 end = start + 255
             else:
                 end = start
@@ -868,6 +869,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         for j in xrange(num_intervals):
             start = random.randint(0, 0xFFFFFFFF)
             if random.randint(0, 4) == 0:
+                start = start & 0xFFFFFF00
                 end = start + 255
             else:
                 end = start
