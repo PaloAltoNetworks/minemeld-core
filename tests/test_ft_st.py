@@ -18,7 +18,7 @@ TABLENAME = tempfile.mktemp(prefix='minemeld.ftsttest')
 NUM_ELEMENTS = 10000
 
 
-class MineMeldFTTableTests(unittest.TestCase):
+class MineMeldFTSTTests(unittest.TestCase):
     def setUp(self):
         try:
             shutil.rmtree(TABLENAME)
@@ -211,7 +211,7 @@ class MineMeldFTTableTests(unittest.TestCase):
 
     @attr('slow')
     def test_stress_0(self):
-        num_intervals = 10
+        num_intervals = 100000
         st = minemeld.ft.st.ST(TABLENAME, 32, truncate=True)
 
         t1 = time.time()
@@ -239,12 +239,12 @@ class MineMeldFTTableTests(unittest.TestCase):
         t2 = time.time()
         print "TIME: Inserted %d intervals in %d" % (num_intervals, (t2-t1-dt))
 
-        self.assertEqual(st.num_segments, 10)
-        self.assertEqual(st.num_endpoints, 10*2)
+        self.assertEqual(st.num_segments, num_intervals)
+        self.assertEqual(st.num_endpoints, num_intervals*2)
 
     @attr('slow')
     def test_stress_1(self):
-        num_intervals = 10
+        num_intervals = 100000
         st = minemeld.ft.st.ST(TABLENAME, 32, truncate=True)
 
         t1 = time.time()
@@ -264,7 +264,7 @@ class MineMeldFTTableTests(unittest.TestCase):
             t2 = time.time()
         print "TIME: Inserted %d intervals in %d" % (num_intervals, (t2-t1-dt))
 
-        num_queries = 10
+        num_queries = 100000
 
         t1 = time.time()
         j = 0
