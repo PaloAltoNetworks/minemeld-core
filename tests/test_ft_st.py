@@ -119,14 +119,14 @@ class MineMeldFTTableTests(unittest.TestCase):
 
         intervals = [i for i in st.cover(3)]
         self.assertEqual(len(intervals), 2)
-        self.assertEqual(intervals[1][0], sid1)
-        self.assertEqual(intervals[1][1], 1)
-        self.assertEqual(intervals[1][2], 1)
-        self.assertEqual(intervals[1][3], 5)
-        self.assertEqual(intervals[0][0], sid2)
-        self.assertEqual(intervals[0][1], 2)
-        self.assertEqual(intervals[0][2], 3)
-        self.assertEqual(intervals[0][3], 7)
+        self.assertEqual(intervals[0][0], sid1)
+        self.assertEqual(intervals[0][1], 1)
+        self.assertEqual(intervals[0][2], 1)
+        self.assertEqual(intervals[0][3], 5)
+        self.assertEqual(intervals[1][0], sid2)
+        self.assertEqual(intervals[1][1], 2)
+        self.assertEqual(intervals[1][2], 3)
+        self.assertEqual(intervals[1][3], 7)
 
         ci = st.cover(7)
 
@@ -198,12 +198,53 @@ class MineMeldFTTableTests(unittest.TestCase):
     def test_random_map_fast(self):
         self._random_map()
 
+    @attr('slow')
     def test_random_map_fast2(self):
         self._random_map(nintervals=2000)
 
+    def test_255(self):
+        st = minemeld.ft.st.ST(TABLENAME, 32, truncate=True)
+        sid = uuid.uuid4().bytes
+        st.put(sid, 0, 0xFF)
+        self.assertEqual(st.num_segments, 1)
+        self.assertEqual(st.num_endpoints, 2)       
+
+    @attr('slow')
+    def test_stress_0(self):
+        num_intervals = 10
+        st = minemeld.ft.st.ST(TABLENAME, 32, truncate=True)
+
+        t1 = time.time()
+        for j in xrange(num_intervals):
+            end = random.randint(0, 0xFFFFFFFF)
+            if random.randint(0, 1) == 0:
+                end = end & 0xFFFFFF00
+                start = end + 0xFF
+            else:
+                start = end
+            sid = uuid.uuid4().bytes
+        t2 = time.time()
+        dt = t2-t1
+
+        t1 = time.time()
+        for j in xrange(num_intervals):
+            end = random.randint(0, 0xFFFFFFFF)
+            if random.randint(0, 1) == 0:
+                start = end & 0xFFFFFF00
+                end = start + 0xFF
+            else:
+                start = end
+            sid = uuid.uuid4().bytes
+            st.put(sid, start, end)
+        t2 = time.time()
+        print "TIME: Inserted %d intervals in %d" % (num_intervals, (t2-t1-dt))
+
+        self.assertEqual(st.num_segments, 10)
+        self.assertEqual(st.num_endpoints, 10*2)
+
     @attr('slow')
     def test_stress_1(self):
-        num_intervals = 100000
+        num_intervals = 10
         st = minemeld.ft.st.ST(TABLENAME, 32, truncate=True)
 
         t1 = time.time()
@@ -223,7 +264,7 @@ class MineMeldFTTableTests(unittest.TestCase):
             t2 = time.time()
         print "TIME: Inserted %d intervals in %d" % (num_intervals, (t2-t1-dt))
 
-        num_queries = 100000
+        num_queries = 10
 
         t1 = time.time()
         j = 0
