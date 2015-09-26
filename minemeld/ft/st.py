@@ -48,14 +48,10 @@ class ST(object):
         self.num_segments = 0
 
     def _split_interval(self, start, end, lower, upper):
-        LOG.info('split %d %d %d %d', start, end, lower, upper)
-
         if start <= lower and upper <= end:
             return [(lower, upper)]
 
         mid = (lower+upper)/2
-
-        LOG.info('mid: %d', mid-start)
 
         result = []
         if start <= mid:
@@ -119,8 +115,6 @@ class ST(object):
 
     def put(self, uuid_, start, end, level=0):
         si = self._split_interval(start, end, 0, self.max_endpoint)
-
-        LOG.info('intervals %d %d %s', start, end, si)
 
         value = struct.pack(">QQ", start, end)
 
