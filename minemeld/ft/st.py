@@ -42,13 +42,20 @@ class ST(object):
             bloom_filter_bits=write_buffer_size
         )
         self.epsize = epsize
-        self.max_endpoint = (1 << epsize)
+        self.max_endpoint = (1 << epsize)-1
+
+        self.num_endpoints = 0
+        self.num_segments = 0
 
     def _split_interval(self, start, end, lower, upper):
+        LOG.info('split %d %d %d %d', start, end, lower, upper)
+
         if start <= lower and upper <= end:
             return [(lower, upper)]
 
         mid = (lower+upper)/2
+
+        LOG.info('mid: %d', mid-start)
 
         result = []
         if start <= mid:
@@ -112,6 +119,9 @@ class ST(object):
 
     def put(self, uuid_, start, end, level=0):
         si = self._split_interval(start, end, 0, self.max_endpoint)
+
+        LOG.info('intervals %d %d %s', start, end, si)
+
         value = struct.pack(">QQ", start, end)
 
         batch = self.db.write_batch()
@@ -137,6 +147,9 @@ class ST(object):
 
         batch.write()
 
+        self.num_endpoints += 2
+        self.num_segments += len(si)
+
     def delete(self, uuid_, start, end, level=0):
         batch = self.db.write_batch()
 
@@ -161,6 +174,9 @@ class ST(object):
         batch.delete(ke)
 
         batch.write()
+
+        self.num_endpoints -= 2
+        self.num_segments -= len(si)
 
     def cover(self, value):
         lower = 0
