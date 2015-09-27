@@ -28,7 +28,7 @@ TYPE_END = 0x1
 
 class ST(object):
     def __init__(self, name, epsize, truncate=False,
-                 bloom_filter_bits=10, write_buffer_size=20*1024):
+                 bloom_filter_bits=10, write_buffer_size=(4<<20)):
         if truncate:
             try:
                 shutil.rmtree(name)
@@ -38,8 +38,8 @@ class ST(object):
         self.db = plyvel.DB(
             name,
             create_if_missing=True,
-            write_buffer_size=bloom_filter_bits,
-            bloom_filter_bits=write_buffer_size
+            write_buffer_size=write_buffer_size,
+            bloom_filter_bits=bloom_filter_bits
         )
         self.epsize = epsize
         self.max_endpoint = (1 << epsize)-1
