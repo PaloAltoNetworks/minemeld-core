@@ -71,14 +71,19 @@ class HttpFT(base.BaseFT):
                                 self.name, f)
                 fattrs['transform'] = '\g<0>'
 
+    def _create_table(self, truncate=False):
+        self.table = table.Table(name, truncate=truncate)
+        self.table.create_index('_updated')
+
+    def initialize(self):
+        _create_table()
+
     def rebuild(self):
         self.rebuild_flag = True
+        _create_table(truncate=(self.last_checkpoint is None))
 
     def reset(self):
-        self.table.close()
-
-        self.table = table.Table(self.name, truncate=True)
-        self.table.create_index('_updated')
+        _create_table(truncate=True)
 
     def emit_checkpoint(self, value):
         LOG.debug("%s - checkpoint set to %s", self.name, value)

@@ -76,7 +76,7 @@ class TaxiiClient(base.BaseFT):
 
     def rebuild(self):
         self.rebuild_flag = True
-        self._initialize_table()
+        self._initialize_table(truncate=(self.last_checkpoint is None))
 
     def reset(self):
         self._initialize_table(truncate=True)
