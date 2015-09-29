@@ -1,4 +1,5 @@
 import logging
+import cStringIO
 
 from flask import request
 from flask import jsonify
@@ -13,7 +14,7 @@ LOG = logging.getLogger(__name__)
 FEED_INTERVAL = 100
 
 
-def generate_feed(feed, start, num, desc):
+def generate_feed(feed, start, num, desc, value):
     zrange = SR.zrange
     if desc:
         zrange = SR.zrevrange
@@ -28,7 +29,26 @@ def generate_feed(feed, start, num, desc):
                   min(start+num - cstart, FEED_INTERVAL), desc)
         ilist = zrange(feed, cstart,
                        cstart-1+min(start+num - cstart, FEED_INTERVAL))
-        yield '\n'.join(ilist)+'\n'
+
+        if not value:
+            yield '\n'.join(ilist)+'\n'
+        else:
+            result = cStringIO.StringIO()
+
+            for i in ilist:
+                v = SR.hget(feed+'.value', i)
+                if v is None:
+                    v = 'null'
+
+                result.write('\x1E{"indicator":"')
+                result.write(i)
+                result.write('","value":')
+                result.write(v)
+                result.write('}\n')
+
+            yield result.getvalue()
+
+            result.close()
 
         if len(ilist) < 100:
             break
@@ -38,6 +58,7 @@ def generate_feed(feed, start, num, desc):
 
 @app.route('/feeds/<feed>', methods=['GET'])
 def get_feed_content(feed):
+    # check if feed exists
     status = MMMaster.status()
     tr = status.get('result', None)
     if tr is None:
@@ -76,5 +97,12 @@ def get_feed_content(feed):
     desc = request.values.get('d')
     desc = (False if desc is None else True)
 
-    return Response(stream_with_context(generate_feed(feed, start, num, desc)),
-                    mimetype="text/plain")
+    value = request.values.get('v')
+    value = (False if value is None else True)
+
+    return Response(
+        stream_with_context(
+            generate_feed(feed, start, num, desc, value)
+        ),
+        mimetype=("text/plain" if value is False else "application/json-seq")
+    )
