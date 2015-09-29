@@ -18,8 +18,6 @@ class HttpFT(base.BaseFT):
     def __init__(self, name, chassis, config):
         self.glet = None
 
-        self.table = table.Table(name)
-        self.table.create_index('_updated')
         self.active_requests = []
         self.rebuild_flag = False
         self.last_run = None
