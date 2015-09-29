@@ -18,8 +18,6 @@ class HttpFT(base.BaseFT):
     def __init__(self, name, chassis, config):
         self.glet = None
 
-        self.table = table.Table(name)
-        self.table.create_index('_updated')
         self.active_requests = []
         self.rebuild_flag = False
         self.last_run = None
@@ -64,7 +62,7 @@ class HttpFT(base.BaseFT):
             else:
                 raise ValueError('%s - %s field does not have a regex',
                                  self.name, f)
-            if not 'transform' in fattrs:
+            if 'transform' not in fattrs:
                 if fattrs['regex'].groups > 0:
                     LOG.warning('%s - no transform string for field %s'
                                 ' but pattern contains groups',
@@ -72,18 +70,18 @@ class HttpFT(base.BaseFT):
                 fattrs['transform'] = '\g<0>'
 
     def _create_table(self, truncate=False):
-        self.table = table.Table(name, truncate=truncate)
+        self.table = table.Table(self.name, truncate=truncate)
         self.table.create_index('_updated')
 
     def initialize(self):
-        _create_table()
+        self._create_table()
 
     def rebuild(self):
         self.rebuild_flag = True
-        _create_table(truncate=(self.last_checkpoint is None))
+        self._create_table(truncate=(self.last_checkpoint is None))
 
     def reset(self):
-        _create_table(truncate=True)
+        self._create_table(truncate=True)
 
     def emit_checkpoint(self, value):
         LOG.debug("%s - checkpoint set to %s", self.name, value)
