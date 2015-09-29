@@ -56,7 +56,10 @@ class CSVFT(base.BaseFT):
             'age_out_interval',
             '3600'
         ))
-        self.age_out = self.config.get('age_out', '30d')
+        self.age_out = self.config.get(
+            'age_out',
+            '%d' % self.interval*2
+        )
 
         self.ignore_regex = self.config.get('ignore_regex', None)
         if self.ignore_regex is not None:
@@ -96,42 +99,6 @@ class CSVFT(base.BaseFT):
         self.state_lock.unlock()
         LOG.debug("%s - releasing state write lock", self.name)
 
-    def _handle_indicators(self, stix_objects):
-        self.state_lock.rlock()
-        if self.state != ft_states.STARTED:
-            self.state_lock.runlock()
-            raise FtStateChanged('no more STARTED')
-
-        try:
-            for i in stix_objects['indicators'].values():
-                value = copy.copy(self.attributes)
-
-                value['last_seen'] = i.get('timestamp', utc_millisec())
-
-                if len(i['ttps']) != 0:
-                    ttp = i['ttps'][0]
-                    if 'idref' in ttp:
-                        ttp = stix_objects['ttps'][ttp['idref']]
-
-                    value['%s_ttp' % self.prefix] = ttp['description']
-
-                for o in i['observables']:
-                    ob = o
-                    if 'idref' in o:
-                        ob = stix_objects['observables'][o['idref']]
-
-                    if ob is None:
-                        continue
-
-                    indicator = ob['indicator']
-                    value['type'] = ob['type']
-
-                    if self._add_indicator(indicator, value):
-                        self.emit_update(indicator, value)
-
-        finally:
-            self.state_lock.runlock()
-
     def _age_out_run(self):
         while True:
             self.state_lock.rlock()
@@ -168,12 +135,10 @@ class CSVFT(base.BaseFT):
         indicator = row.pop('indicator', None)
         return [[indicator, row]]
 
-    def _polling_loop(self):
-        self.state_lock.rlock()
-        if self.state != ft_states.STARTED:
-            self.state_lock.runlock()
-            raise FtStateChanged()
+    def _build_url(self, now):
+        return self.url
 
+    def _polling_loop(self):
         age_out = age_out_in_millisec(self.age_out)
 
         LOG.info("Polling %s", self.name)
@@ -187,7 +152,7 @@ class CSVFT(base.BaseFT):
         )
 
         r = requests.get(
-            self.url,
+            self._build_url(now),
             **rkwargs
         )
 
@@ -221,6 +186,8 @@ class CSVFT(base.BaseFT):
                 value = copy.copy(self.attributes)
 
                 attributes['sources'] = [self.source_name]
+                attributes['last_seen'] = now
+                attributes['_age_out'] = now+age_out
 
                 ev = self.table.get(indicator)
                 if ev is not None:
@@ -228,9 +195,6 @@ class CSVFT(base.BaseFT):
                 else:
                     self.statistics['added'] += 1
                     attributes['first_seen'] = now
-
-                attributes['last_seen'] = now
-                attributes['_age_out'] = now+age_out
 
                 value.update(attributes)
 
@@ -267,6 +231,11 @@ class CSVFT(base.BaseFT):
         while True:
             lastrun = utc_millisec()
 
+            self.state_lock.rlock()
+            if self.state != ft_states.STARTED:
+                self.state_lock.runlock()
+                break
+
             try:
                 self._polling_loop()
             except gevent.GreenletExit:
@@ -281,6 +250,9 @@ class CSVFT(base.BaseFT):
                 if tryn < self.num_retries:
                     gevent.sleep(random.randint(1, 5))
                     continue
+
+            finally:
+                self.state_lock.runlock()
 
             self.last_run = lastrun
 
