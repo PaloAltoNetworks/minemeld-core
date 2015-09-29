@@ -66,7 +66,7 @@ class CSVFT(base.BaseFT):
             self.ignore_regex = re.compile(self.ignore_regex)
         self.attributes = self.config.get('attributes', {})
 
-        self.fieldnames = self.config.get('fieldnames', {})
+        self.fieldnames = self.config.get('fieldnames', None)
 
         self.dialect = {
             'delimiter': self.config.get('delimiter', ','),
@@ -161,6 +161,8 @@ class CSVFT(base.BaseFT):
         try:
             r.raise_for_status()
         except:
+            LOG.debug('%s - exception in request: %s %s',
+                      self.name, r.status_code, r.content)
             self.state_lock.unlock()
             raise
 
