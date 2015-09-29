@@ -135,8 +135,13 @@ class CSVFT(base.BaseFT):
         indicator = row.pop('indicator', None)
         return [[indicator, row]]
 
-    def _build_url(self, now):
-        return self.url
+    def _build_request(self, now):
+        r = requests.Request(
+            'GET',
+            self.url
+        )
+
+        return r.prepare()
 
     def _polling_loop(self):
         age_out = age_out_in_millisec(self.age_out)
@@ -150,11 +155,8 @@ class CSVFT(base.BaseFT):
             verify=self.verify_cert,
             timeout=self.polling_timeout
         )
-
-        r = requests.get(
-            self._build_url(now),
-            **rkwargs
-        )
+        prepreq = self._build_request(now)
+        r = self.session.send(prepreq, **rkwargs)
 
         try:
             r.raise_for_status()
@@ -225,6 +227,8 @@ class CSVFT(base.BaseFT):
                     self.emit_update(i, v)
         finally:
             self.state_lock.unlock()
+
+        self.session = requests.Session()
 
         tryn = 0
 
