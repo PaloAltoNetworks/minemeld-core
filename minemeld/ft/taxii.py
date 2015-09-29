@@ -65,7 +65,6 @@ class TaxiiClient(base.BaseFT):
         ))
         self.age_out = self.config.get('age_out', '30d')
         self.ca_file = self.config.get('ca_file', None)
-        self.attributes = self.config.get('attributes', {})
 
     def _initialize_table(self, truncate=False):
         self.table = table.Table(self.name, truncate=truncate)
