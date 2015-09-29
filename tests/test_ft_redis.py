@@ -130,3 +130,85 @@ class MineMeldFTRedisTests(unittest.TestCase):
 
         b.stop()
         self.assertNotEqual(b.SR, None)
+
+    def test_stats(self):
+        config = {}
+        chassis = mock.Mock()
+
+        chassis.request_sub_channel.return_value = None
+        ochannel = mock.Mock()
+        chassis.request_pub_channel.return_value = ochannel
+        chassis.request_rpc_channel.return_value = None
+        rpcmock = mock.Mock()
+        rpcmock.get.return_value = {'error': None, 'result': 'OK'}
+        chassis.send_rpc.return_value = rpcmock
+
+        b = minemeld.ft.redis.RedisSet(FTNAME, chassis, config)
+
+        inputs = ['a', 'b', 'c']
+        output = False
+
+        b.connect(inputs, output)
+        b.mgmtbus_reset()
+
+        b.start()
+        time.sleep(1)
+
+        b.update('a', indicator='testi', value={'test': 'v'})
+        self.assertEqual(b.length(), 1)
+        status = b.mgmtbus_status()
+        self.assertEqual(status['statistics']['added'], 1)
+
+        b.update('a', indicator='testi', value={'test': 'v2'})
+        self.assertEqual(b.length(), 1)
+        status = b.mgmtbus_status()
+        self.assertEqual(status['statistics']['added'], 1)
+        self.assertEqual(status['statistics']['removed'], 0)
+
+        b.withdraw('a', indicator='testi')
+        self.assertEqual(b.length(), 0)
+        status = b.mgmtbus_status()
+        self.assertEqual(status['statistics']['removed'], 1)
+
+        b.stop()
+
+    def test_store_value(self):
+        config = {'store_value': True}
+        chassis = mock.Mock()
+
+        chassis.request_sub_channel.return_value = None
+        ochannel = mock.Mock()
+        chassis.request_pub_channel.return_value = ochannel
+        chassis.request_rpc_channel.return_value = None
+        rpcmock = mock.Mock()
+        rpcmock.get.return_value = {'error': None, 'result': 'OK'}
+        chassis.send_rpc.return_value = rpcmock
+
+        b = minemeld.ft.redis.RedisSet(FTNAME, chassis, config)
+
+        inputs = ['a', 'b', 'c']
+        output = False
+
+        b.connect(inputs, output)
+        b.mgmtbus_reset()
+
+        b.start()
+        time.sleep(1)
+
+        SR = redis.StrictRedis()
+
+        b.update('a', indicator='testi', value={'test': 'v'})
+        sm = SR.zrange(FTNAME, 0, -1)
+        self.assertEqual(len(sm), 1)
+        self.assertIn('testi', sm)
+        sm = SR.hlen(FTNAME+'.value')
+        self.assertEqual(sm, 1)
+
+        b.withdraw('a', indicator='testi')
+        sm = SR.zrange(FTNAME, 0, -1)
+        self.assertEqual(len(sm), 0)
+        sm = SR.hlen(FTNAME+'.value')
+        self.assertEqual(sm, 0)
+
+        b.stop()
+        self.assertNotEqual(b.SR, None)
