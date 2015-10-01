@@ -28,7 +28,7 @@ TYPE_END = 0x1
 
 class ST(object):
     def __init__(self, name, epsize, truncate=False,
-                 bloom_filter_bits=10, write_buffer_size=(4<<20)):
+                 bloom_filter_bits=10, write_buffer_size=(4 << 20)):
         if truncate:
             try:
                 shutil.rmtree(name)

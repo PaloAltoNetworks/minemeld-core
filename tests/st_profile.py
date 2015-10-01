@@ -60,4 +60,3 @@ if __name__ == '__main__':
     print "TIME: Inserted %d intervals in %d" % (num_intervals, (t2-t1-dt))
 
     queries(st)
-
