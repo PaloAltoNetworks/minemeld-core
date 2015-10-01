@@ -202,7 +202,7 @@ class Table(object):
 
         if type(value) == str:
             key += struct.pack(">BL", 0x0, len(value))+value
-        elif type(value) == int:
+        elif type(value) == int or type(value) == long:
             key += struct.pack(">BQ", 0x1, value)
         else:
             raise ValueError("Unhandled value type: %s" % type(value))
