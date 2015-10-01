@@ -14,7 +14,7 @@ from .utils import RWLock
 LOG = logging.getLogger(__name__)
 
 _AGE_OUT_BASES = ['last_seen', 'first_seen']
-_MAX_AGE_OUT = (1 << 32)-1  # 2106-02-07 6:28:15
+_MAX_AGE_OUT = ((1 << 32)-1)*1000  # 2106-02-07 6:28:15
 
 
 def _parse_age_out(s):
@@ -33,15 +33,15 @@ def _parse_age_out(s):
             result['base'] = 'last_seen'
             result['offset'] = age_out_in_millisec(t)
             if result['offset'] is None:
-                raise ValueError('Invalid age out offset %s', t)
+                raise ValueError('Invalid age out offset %s' % t)
     else:
         base = toks[0].strip()
         if base not in _AGE_OUT_BASES:
-            raise ValueError('Invalid age out base %s', base)
+            raise ValueError('Invalid age out base %s' % base)
         result['base'] = base
         result['offset'] = age_out_in_millisec(toks[1].strip())
         if result['offset'] is None:
-            raise ValueError('Invalid age out offset %s', t)
+            raise ValueError('Invalid age out offset %s' % t)
 
     return result
 
@@ -239,6 +239,7 @@ class BasePollerFT(base.BaseFT):
                 if indicator is None:
                     LOG.debug('%s - indicator is None for item %s',
                               self.name, item)
+                    continue
 
                 in_feed_threshold = self.last_run
                 if in_feed_threshold is None:
@@ -290,12 +291,12 @@ class BasePollerFT(base.BaseFT):
                     v['_last_run'] = now
                     self.table.put(indicator, v)
 
-                elif istatus.state == [IndicatorStatus.XFXAXW,
+                elif istatus.state in [IndicatorStatus.XFXAXW,
                                        IndicatorStatus.XFNAXW]:
                     v = istatus.cv
                     v['_last_run'] = now
                     v['_withdrawn'] = now
-                    self.table.pu(indicator, v)
+                    self.table.put(indicator, v)
 
                 else:
                     LOG.error('%s - indicator state unhandled: %s',
