@@ -6,6 +6,7 @@ import hmac
 import hashlib
 import email.Utils
 import requests
+import os
 
 from . import csv
 
@@ -16,20 +17,22 @@ class Indicators(csv.CSVFT):
     def configure(self):
         super(Indicators, self).configure()
 
-        self.public_key = self.config.get('public_key', '@ISIGHT_PRIVATE_KEY')
+        self.public_key = self.config.get('public_key',
+                                          '@ISIGHT_PRIVATE_KEY')
         if self.public_key.startswith('@'):
             self.public_key = os.getenv(self.public_key[1:])
 
-        self.private_key = self.config.get('private_key', '@ISIGHT_PRIVATE_KEY')
+        self.private_key = self.config.get('private_key',
+                                           '@ISIGHT_PRIVATE_KEY')
         if self.private_key.startswith('@'):
             self.private_key = os.getenv(self.private_key[1:])
 
         self.starting_interval = self.config.get(
-            'starting_interval', 
+            'starting_interval',
             604800
         )
 
-    def _process_row(self, row):
+    def _process_item(self, row):
         row.pop(None, None)  # I love this
 
         LOG.debug('row: %s', row)
