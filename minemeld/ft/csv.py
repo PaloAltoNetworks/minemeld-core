@@ -39,7 +39,7 @@ class CSVFT(basepoller.BasePollerFT):
         indicator = item.pop('indicator', None)
         return [[indicator, item]]
 
-    def _build_request(self):
+    def _build_request(self, now):
         r = requests.Request(
             'GET',
             self.url
@@ -55,7 +55,7 @@ class CSVFT(basepoller.BasePollerFT):
             verify=self.verify_cert,
             timeout=self.polling_timeout
         )
-        prepreq = self._build_request()
+        prepreq = self._build_request(now)
         r = _session.send(prepreq, **rkwargs)
 
         try:
