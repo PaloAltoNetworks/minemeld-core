@@ -14,6 +14,7 @@ from .utils import RWLock
 LOG = logging.getLogger(__name__)
 
 _AGE_OUT_BASES = ['last_seen', 'first_seen']
+_MAX_AGE_OUT = (1 << 32)-1  # 2106-02-07 6:28:15
 
 
 def _parse_age_out(s):
@@ -61,7 +62,7 @@ class IndicatorStatus(object):
     NFXAXW = D_MASK | A_MASK | W_MASK
     XFXAXW = D_MASK | F_MASK | A_MASK | W_MASK
 
-    def __init__(self, indicator, attributes, table, now, last_run):
+    def __init__(self, indicator, attributes, table, now, in_feed_threshold):
         self.state = 0
 
         self.cv = table.get(indicator)
@@ -72,11 +73,13 @@ class IndicatorStatus(object):
         if self.cv['_age_out'] < now:
             self.state = self.state | IndicatorStatus.A_MASK
 
-        if self.cv['_last_run'] < last_run:
+        if self.cv['_last_run'] >= in_feed_threshold:
             self.state = self.state | IndicatorStatus.F_MASK
 
         if self.cv.get('_withdrawn', None) is not None:
             self.state = self.state | IndicatorStatus.W_MASK
+
+        LOG.debug('status %s %d', self.cv, self.state)
 
 
 class BasePollerFT(base.BaseFT):
@@ -148,6 +151,8 @@ class BasePollerFT(base.BaseFT):
             try:
                 now = utc_millisec()
 
+                LOG.debug('now: %s', now)
+
                 for i, v in self.table.query(index='_age_out',
                                              to_key=now-1,
                                              include_value=True):
@@ -173,7 +178,10 @@ class BasePollerFT(base.BaseFT):
             finally:
                 self.state_lock.runlock()
 
-            gevent.sleep(self.age_out_interval)
+            try:
+                gevent.sleep(self.age_out['interval'])
+            except gevent.GreenletExit:
+                break
 
     def _calc_age_out(self, indicator, attributes):
         t = attributes.get('type', None)
@@ -183,15 +191,20 @@ class BasePollerFT(base.BaseFT):
             sel = self.age_out[t]
 
         if sel is None:
-            return
+            return _MAX_AGE_OUT
 
         b = attributes[sel['base']]
 
-        return b + attributes[sel['offset']]
+        return b + sel['offset']
 
     def _sudden_death(self):
+        if self.last_run is None:
+            return
+
+        LOG.debug('checking sudden death')
+
         for i, v in self.table.query(index='_last_run',
-                                     to_key=self.last_run-1,
+                                     to_key=self.last_run,
                                      include_value=True):
             LOG.debug('%s - %s %s sudden death', self.name, i, v)
 
@@ -199,10 +212,10 @@ class BasePollerFT(base.BaseFT):
             self.table.put(i, v)
             self.statistics['removed'] += 1
 
-    def _collect_garbage(self):
-        for i, v in self.table.query(index='_withdrawn',
-                                     to_key=self.last_run-1,
-                                     include_value=False):
+    def _collect_garbage(self, t0):
+        for i in self.table.query(index='_withdrawn',
+                                  to_key=t0-1,
+                                  include_value=False):
             self.table.delete(i)
             self.statistics['garbage_collected'] += 1
 
@@ -227,12 +240,16 @@ class BasePollerFT(base.BaseFT):
                     LOG.debug('%s - indicator is None for item %s',
                               self.name, item)
 
+                in_feed_threshold = self.last_run
+                if in_feed_threshold is None:
+                    in_feed_threshold = now - self.interval*1000
+
                 istatus = IndicatorStatus(
                     indicator=indicator,
                     attributes=attributes,
                     table=self.table,
                     now=now,
-                    last_run=self.last_run
+                    in_feed_threshold=in_feed_threshold
                 )
 
                 if istatus.state in [IndicatorStatus.NX,
@@ -246,11 +263,13 @@ class BasePollerFT(base.BaseFT):
                     v['first_seen'] = now
                     v['_last_run'] = now
                     v.update(attributes)
-                    v['_age_out'] = self._calc_age_out(indicator, v, now)
+                    v['_age_out'] = self._calc_age_out(indicator, v)
 
                     self.statistics['added'] += 1
                     self.table.put(indicator, v)
                     self.emit_update(indicator, v)
+
+                    LOG.debug('%s - added %s %s', self.name, indicator, v)
 
                 elif istatus.state == IndicatorStatus.XFNANW:
                     v = istatus.cv
@@ -259,7 +278,7 @@ class BasePollerFT(base.BaseFT):
 
                     v['_last_run'] = now
                     v.update(attributes)
-                    v['_age_out'] = self._calc_age_out(indicator, v, now)
+                    v['_age_out'] = self._calc_age_out(indicator, v)
 
                     self.table.put(indicator, v)
 
@@ -314,10 +333,10 @@ class BasePollerFT(base.BaseFT):
             try:
                 self._polling_loop()
 
-                if self.age_out.sudden_death:
+                if self.age_out['sudden_death']:
                     self._sudden_death()
 
-                self._collect_garbage()
+                self._collect_garbage(lastrun)
 
             except gevent.GreenletExit:
                 break
