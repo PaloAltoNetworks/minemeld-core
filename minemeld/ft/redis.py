@@ -5,7 +5,6 @@ import redis
 import ujson
 
 from . import base
-from .utils import utc_millisec
 
 LOG = logging.getLogger(__name__)
 

@@ -207,7 +207,7 @@ class MineMeldFTSTTests(unittest.TestCase):
         sid = uuid.uuid4().bytes
         st.put(sid, 0, 0xFF)
         self.assertEqual(st.num_segments, 1)
-        self.assertEqual(st.num_endpoints, 2)       
+        self.assertEqual(st.num_endpoints, 2)
 
     @attr('slow')
     def test_stress_0(self):
