@@ -65,7 +65,7 @@ def _fetch_metric(cc, metric, type_=None,
         for v in data[1:]:
             cv = v[0]
             if cv is not None and ov is not None:
-                if cv > ov:
+                if cv >= ov:
                     cv = cv - ov
             result.append([curts, cv])
 
