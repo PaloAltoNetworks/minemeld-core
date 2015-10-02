@@ -101,7 +101,11 @@ class HttpFT(basepoller.BasePollerFT):
                       self.name, r.status_code, r.content)
             raise
 
-        return itertools.ifilter(
-            lambda x: self.ignore_regex.match(x) is None,
-            r.iter_lines()
-        )
+        result = r.iter_lines()
+        if self.ignore_regex is not None:
+            result = itertools.ifilter(
+                lambda x: self.ignore_regex.match(x) is None,
+                result
+            )
+
+        return result
