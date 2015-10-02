@@ -29,11 +29,13 @@ def _list_metrics(prefix=None):
     return result
 
 
-def _fetch_metric(cc, metric, type_=None, cf='MAX', dt=86400, r=1800):
+def _fetch_metric(cc, metric, type_=None,
+                  cf='MAX', dt=86400, r=1800):
     dirname = os.path.join(RRD_PATH, metric)
 
     if type_ is None:
         rrdname = os.listdir(dirname)[0]
+        type_ = rrdname.replace('.rrd', '')
     else:
         rrdname = type_+'.rrd'
         if rrdname not in os.listdir(dirname):
@@ -52,10 +54,23 @@ def _fetch_metric(cc, metric, type_=None, cf='MAX', dt=86400, r=1800):
 
     result = []
 
-    curts = start
-    for v in data:
-        result.append((curts, v[0]))
-        curts += step
+    if type_ != 'minemeld_delta':
+        curts = start
+        for v in data:
+            result.append([curts, v[0]])
+            curts += step
+    else:
+        curts = start+step
+        ov = data[0][0]
+        for v in data[1:]:
+            cv = v[0]
+            if cv is not None and ov is not None:
+                if cv > ov:
+                    cv = cv - ov
+            result.append([curts, cv])
+
+            ov = v[0]
+            curts += step
 
     return result
 
