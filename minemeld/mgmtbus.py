@@ -137,9 +137,9 @@ class MgmtbusMaster(object):
         gstats = collections.defaultdict(lambda: 0)
 
         for source, a in answers.iteritems():
-            ntype = 'transits'
+            ntype = 'processors'
             if len(a.get('inputs', [])) == 0:
-                ntype = 'sources'
+                ntype = 'miners'
             elif not a.get('output', False):
                 ntype = 'outputs'
 
@@ -150,7 +150,9 @@ class MgmtbusMaster(object):
 
             for m, v in stats.iteritems():
                 gstats[ntype+'.'+m] += v
-                cc.putval(source+'.'+m, v, interval=interval)
+                cc.putval(source+'.'+m, v,
+                          interval=interval,
+                          type_='minemeld_delta')
 
             if length is not None:
                 gstats['length'] += length
@@ -158,11 +160,16 @@ class MgmtbusMaster(object):
                 cc.putval(
                     source+'.length',
                     length,
+                    type_='minemeld_counter',
                     interval=interval
                 )
 
         for gs, v in gstats.iteritems():
-            cc.putval('minemeld.'+gs, v, interval=interval)
+            type_ = 'minemeld_delta'
+            if gs.endswith('length'):
+                type_ = 'minemeld_counter'
+
+            cc.putval('minemeld.'+gs, v, type_=type_, interval=interval)
 
     def _status_loop(self):
         loop_interval = self.config.get('STATUS_INTERVAL', '60')
