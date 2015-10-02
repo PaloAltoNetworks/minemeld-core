@@ -97,7 +97,7 @@ class RedisSet(base.BaseFT):
         score = 0
         if self.scoring_attribute is not None:
             av = value.get(self.scoring_attribute, None)
-            if type(av) == int:
+            if type(av) == int or type(av) == long:
                 score = av
             else:
                 LOG.error("scoring_attribute is not int: %s", type(av))
