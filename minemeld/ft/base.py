@@ -36,13 +36,13 @@ class _Filters(object):
             d = copy.copy(value)
 
         if indicator is not None:
-            d['$indicator'] = indicator
+            d['__indicator'] = indicator
 
         if method is not None:
-            d['$method'] = method
+            d['__method'] = method
 
         if origin is not None:
-            d['$origin'] = origin
+            d['__origin'] = origin
 
         for f in self.filters:
             LOG.debug("evaluating filter %s", f['name'])
@@ -59,7 +59,7 @@ class _Filters(object):
                     if value is None:
                         return indicator, None
 
-                    d.pop('_indicator')
+                    d.pop('__indicator')
                     return indicator, d
 
                 elif a == 'drop':
@@ -70,7 +70,7 @@ class _Filters(object):
         if value is None:
             return indicator, None
 
-        d.pop('_indicator')
+        d.pop('__indicator')
         return indicator, d
 
 
