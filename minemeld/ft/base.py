@@ -29,12 +29,20 @@ class _Filters(object):
 
             self.filters.append(cf)
 
-    def apply(self, indicator, value):
+    def apply(self, origin=None, method=None, indicator=None, value=None):
         if value is None:
             d = {}
         else:
-            d = copy.deepcopy(value)
-        d['_indicator'] = indicator
+            d = copy.copy(value)
+
+        if indicator is not None:
+            d['__indicator'] = indicator
+
+        if method is not None:
+            d['__method'] = method
+
+        if origin is not None:
+            d['__origin'] = origin
 
         for f in self.filters:
             LOG.debug("evaluating filter %s", f['name'])
@@ -51,7 +59,7 @@ class _Filters(object):
                     if value is None:
                         return indicator, None
 
-                    d.pop('_indicator')
+                    d.pop('__indicator')
                     return indicator, d
 
                 elif a == 'drop':
@@ -62,7 +70,7 @@ class _Filters(object):
         if value is None:
             return indicator, None
 
-        d.pop('_indicator')
+        d.pop('__indicator')
         return indicator, d
 
 
@@ -158,11 +166,21 @@ class BaseFT(object):
 
         self.state = ft_states.CONNECTED
 
-    def apply_infilters(self, indicator, value):
-        return self.infilters.apply(indicator, value)
+    def apply_infilters(self, origin, method, indicator, value):
+        return self.infilters.apply(
+            origin=origin,
+            method=method,
+            indicator=indicator,
+            value=value
+        )
 
-    def apply_outfilters(self, indicator, value):
-        return self.outfilters.apply(indicator, value)
+    def apply_outfilters(self, origin, method, indicator, value):
+        return self.outfilters.apply(
+            origin=origin,
+            method=method,
+            indicator=indicator,
+            value=value
+        )
 
     def do_rpc(self, dftname, method,  block=True, timeout=30, **kwargs):
         return self.chassis.send_rpc(self.name, dftname, method, kwargs,
@@ -173,9 +191,20 @@ class BaseFT(object):
         if self.output is None:
             return
 
-        indicator, value = self.apply_outfilters(indicator, value)
+        indicator, value = self.apply_outfilters(
+            origin=self.name,
+            method='update',
+            indicator=indicator,
+            value=value
+        )
+
         if indicator is None:
             return
+
+        if value is not None:
+            for k in value.keys():
+                if k[0] in ['_', '$']:
+                    value.pop(k)
 
         self.output.publish("update", {
             'source': self.name,
@@ -188,9 +217,20 @@ class BaseFT(object):
         if self.output is None:
             return
 
-        indicator, value = self.apply_outfilters(indicator, value)
+        indicator, value = self.apply_outfilters(
+            origin=self.name,
+            method='withdraw',
+            indicator=indicator,
+            value=value
+        )
+
         if indicator is None:
             return
+
+        if value is not None:
+            for k in value.keys():
+                if k[0] in ['_', '$']:
+                    value.pop(k)
 
         self.output.publish("withdraw", {
             'source': self.name,
@@ -225,7 +265,13 @@ class BaseFT(object):
                 if k.startswith("_"):
                     value.pop(k)
 
-        fltindicator, fltvalue = self.apply_infilters(indicator, value)
+        fltindicator, fltvalue = self.apply_infilters(
+            origin=source,
+            method='update',
+            indicator=indicator,
+            value=value
+        )
+
         if fltindicator is None:
             self.filtered_withdraw(
                 source=source,
@@ -256,10 +302,20 @@ class BaseFT(object):
             LOG.error("withdraw recevied from checkpointed source")
             raise AssertionError("withdraw recevied from checkpointed source")
 
-        if value is not None:
-            for k in value.keys():
+        fltindicator, fltvalue = self.apply_infilters(
+            origin=source,
+            method='withdraw',
+            indicator=indicator,
+            value=value
+        )
+
+        if fltindicator is None:
+            return
+
+        if fltvalue is not None:
+            for k in fltvalue.keys():
                 if k.startswith("_"):
-                    value.pop(k)
+                    fltvalue.pop(k)
 
         self.filtered_withdraw(
             source=source,
