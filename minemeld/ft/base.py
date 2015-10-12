@@ -60,6 +60,9 @@ class _Filters(object):
                         return indicator, None
 
                     d.pop('__indicator')
+                    d.pop('__origin', None)
+                    d.pop('__method', None)
+
                     return indicator, d
 
                 elif a == 'drop':
@@ -71,6 +74,9 @@ class _Filters(object):
             return indicator, None
 
         d.pop('__indicator')
+        d.pop('__origin', None)
+        d.pop('__method', None)
+
         return indicator, d
 
 
