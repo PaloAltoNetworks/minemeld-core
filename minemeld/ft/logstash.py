@@ -55,13 +55,25 @@ class LogstashOutput(base.BaseFT):
         }
 
         if indicator is not None:
-            fields['$indicator'] = indicator
+            fields['@indicator'] = indicator
 
         if source is not None:
-            fields['$origin'] = source
+            fields['@origin'] = source
 
         if value is not None:
             fields.update(value)
+
+        if 'last_seen' in fields:
+            last_seen = datetime.datetime.fromtimestamp(
+                float(fields['last_seen'])/1000.0
+            )
+            fields['last_seen'] = last_seen.isoformat()+'Z'
+
+        if 'first_seen' in fields:
+            first_seen = datetime.datetime.fromtimestamp(
+                float(fields['first_seen'])/1000.0
+            )
+            fields['first_seen'] = first_seen.isoformat()+'Z'
 
         try:
             self._connect_logstash()
