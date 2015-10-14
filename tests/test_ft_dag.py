@@ -35,15 +35,12 @@ def logical_millisec(*args):
     return CUR_LOGICAL_TIME
 
 
-def device_pusher_mock_factory(device, prefix, attributes):
+def device_pusher_mock_factory(device, prefix, watermark, attributes):
     def _start_se(x):
-        x._started = True
+        x.started = True
 
-    result = mock.MagicMock(_started=False, device=device, value=None)
+    result = mock.MagicMock(started=False, device=device, value=None)
     result.start = mock.Mock(side_effect=functools.partial(_start_se, result))
-    result.started = mock.Mock(
-        side_effect=functools.partial(lambda x: x._started, result)
-    )
 
     return result
 
@@ -112,7 +109,7 @@ class MineMeldFTDagPusherTests(unittest.TestCase):
         a.mgmtbus_initialize()
         a.start()
         self.assertEqual(spawnl_mock.call_count, 1)
-        self.assertEqual(spawn_mock.call_count, 1)
+        self.assertEqual(spawn_mock.call_count, 0)
 
         # 1st round
         try:
@@ -215,7 +212,7 @@ class MineMeldFTDagPusherTests(unittest.TestCase):
         a.mgmtbus_initialize()
         a.start()
         self.assertEqual(spawnl_mock.call_count, 1)
-        self.assertEqual(spawn_mock.call_count, 1)
+        self.assertEqual(spawn_mock.call_count, 0)
 
         try:
             a._device_list_monitor()
@@ -233,8 +230,7 @@ class MineMeldFTDagPusherTests(unittest.TestCase):
                 '127.0.0.1',
                 {
                     'type': 'IPv4',
-                    'confidence': 100,
-                    '_age_out': 3600000
+                    'confidence': 100
                 }
             )
 
@@ -248,8 +244,7 @@ class MineMeldFTDagPusherTests(unittest.TestCase):
                 '127.0.0.1',
                 {
                     'type': 'IPv4',
-                    'confidence': 100,
-                    '_age_out': 3600000
+                    'confidence': 100
                 }
             )
 
