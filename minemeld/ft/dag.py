@@ -39,11 +39,12 @@ class DevicePusher(gevent.Greenlet):
         self.q = gevent.queue.Queue()
 
     def put(self, op, address, value):
+        LOG.debug('adding %s:%s to device queue', op, address)
         self.q.put([op, address, value])
 
     def _get_all_registered_ips(self):
         self.xapi.op(
-            cmd='show object registered-address all',
+            cmd='show object registered-ip all',
             vsys=self.device.get('vsys', None),
             cmd_xml=True
         )
@@ -74,16 +75,17 @@ class DevicePusher(gevent.Greenlet):
         ]
         message.append('<%s>' % type_)
 
-        for a, tags in addresses.iteritems():
-            message.append('<entry ip="%s">' % a)
-
-            if tags is not None:
-                message.append('<tag>')
-                for t in tags:
-                    message.append('<member>%s</member>')
-                message.append('</tag>')
-
-            message.append('</entry>')
+        if addresses is not None and len(addresses) != 0:
+            for a, tags in addresses.iteritems():
+                message.append('<entry ip="%s">' % a)
+    
+                if tags is not None:
+                    message.append('<tag>')
+                    for t in tags:
+                        message.append('<member>%s</member>' % t)
+                    message.append('</tag>')
+    
+                message.append('</entry>')
 
         message.append('</%s>' % type_)
         message.append('</payload></uid-message>')
@@ -94,8 +96,6 @@ class DevicePusher(gevent.Greenlet):
         while True:
             try:
                 addresses = self._get_all_registered_ips()
-                LOG.debug('addresses: %s', addresses)
-
                 msg = self._dag_message('unregister', addresses)
                 self.xapi.user_id(cmd=msg)
 
@@ -136,7 +136,11 @@ class DevicePusher(gevent.Greenlet):
         while True:
             try:
                 op, address, value = self.q.get()
+                LOG.debug('got item')
                 self._push(op, address, value)
+
+            except gevent.GreenletExit:
+                break
 
             except:
                 LOG.exception('exception in pusher for device %s',
@@ -205,7 +209,7 @@ class DagPusher(base.BaseFT):
 
         value['_age_out'] = age_out
 
-        self.table.put(indicator, value)
+        self.table.put(str(address), value)
 
         for p in self.device_pushers:
             p.put('register', str(address), value)
@@ -224,12 +228,12 @@ class DagPusher(base.BaseFT):
                       self.name)
             return
 
-        current_value = self.table.get(indicator)
+        current_value = self.table.get(str(address))
         if current_value is None:
             LOG.debug('%s - unknown indicator received, ignored', self.name)
             return
 
-        self.table.delete(indicator)
+        self.table.delete(str(address))
         for p in self.device_pushers:
             p.put('unregister', str(indicator), current_value)
 
@@ -270,6 +274,9 @@ class DagPusher(base.BaseFT):
     def _spawn_device_pusher(self, device):
         dp = DevicePusher(device, self.tag_prefix, self.tag_attributes)
         dp.link_exception(self._device_puhser_died)
+
+        for i, v in self.table.query(include_value=True):
+            dp.put('register', i, v)
 
         return dp
 
@@ -313,7 +320,7 @@ class DagPusher(base.BaseFT):
         self.devices = dlist
 
         for g in self.device_pushers:
-            if g.value is None and not g.started():
+            if g.value is None and not g.started:
                 g.start()
 
     def _device_list_monitor(self):
