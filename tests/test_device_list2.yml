@@ -1,0 +1,6 @@
+- name: test2
+  tag: ngfw2
+- name: test
+  hostname: 192.168.55.152
+  api_username: admin
+  api_password: admin
