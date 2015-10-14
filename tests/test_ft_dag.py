@@ -16,7 +16,6 @@ import calendar
 import os
 import yaml
 import functools
-import pan.xapi
 
 import minemeld.ft.dag
 
@@ -42,7 +41,9 @@ def device_pusher_mock_factory(device, prefix, attributes):
 
     result = mock.MagicMock(_started=False, device=device, value=None)
     result.start = mock.Mock(side_effect=functools.partial(_start_se, result))
-    result.started = mock.Mock(side_effect=functools.partial(lambda x: x._started, result))
+    result.started = mock.Mock(
+        side_effect=functools.partial(lambda x: x._started, result)
+    )
 
     return result
 
@@ -189,9 +190,6 @@ class MineMeldFTDagPusherTests(unittest.TestCase):
     def test_uw(self, dp_mock, timegm_mock,
                 sleep_mock, spawnl_mock, spawn_mock):
         device_list_path = os.path.join(MYDIR, 'test_device_list.yml')
-
-        with open(device_list_path, 'r') as f:
-            dlist = yaml.safe_load(f)
 
         shutil.copyfile(device_list_path, DLIST_NAME)
 
