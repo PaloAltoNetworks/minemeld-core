@@ -258,6 +258,8 @@ class DagPusher(base.BaseFT):
             LOG.debug('%s - unknown indicator received, ignored', self.name)
             return
 
+        current_value.pop('_age_out', None)
+
         self.table.delete(str(address))
         for p in self.device_pushers:
             p.put('unregister', str(indicator), current_value)
