@@ -148,7 +148,7 @@ class DevicePusher(gevent.Greenlet):
                 break
 
             except pan.xapi.PanXapiError as e:
-                if not 'already exists, ignore' in e.message:
+                if 'already exists, ignore' not in e.message:
                     LOG.exception('exception in pusher for device %s',
                                   self.device)
                     gevent.sleep(60)
