@@ -20,7 +20,7 @@ SUBRE = re.compile("^[A-Za-z0-9_]")
 
 
 class DevicePusher(gevent.Greenlet):
-    def __init__(self, device, prefix, attributes):
+    def __init__(self, device, prefix, watermark, attributes):
         super(DevicePusher, self).__init__()
 
         self.device = device
@@ -35,6 +35,7 @@ class DevicePusher(gevent.Greenlet):
 
         self.prefix = prefix
         self.attributes = attributes
+        self.watermark = watermark
 
         self.q = gevent.queue.Queue()
 
@@ -62,7 +63,8 @@ class DevicePusher(gevent.Greenlet):
             tags = [member.text for member in members
                     if member.text and member.text.startswith(self.prefix)]
 
-            addresses[ip] = (tags if len(tags) != members else None)
+            if len(tags) > 0:
+                addresses[ip] = (tags if len(tags) != members else None)
 
         return addresses
 
@@ -78,13 +80,13 @@ class DevicePusher(gevent.Greenlet):
         if addresses is not None and len(addresses) != 0:
             for a, tags in addresses.iteritems():
                 message.append('<entry ip="%s">' % a)
-    
+
                 if tags is not None:
                     message.append('<tag>')
                     for t in tags:
                         message.append('<member>%s</member>' % t)
                     message.append('</tag>')
-    
+
                 message.append('</entry>')
 
         message.append('</%s>' % type_)
@@ -112,6 +114,9 @@ class DevicePusher(gevent.Greenlet):
 
     def _push(self, op, address, value):
         tags = []
+
+        tags.append('%s%s' % (self.prefix, self.watermark))
+
         for t in self.attributes:
             if t in value:
                 if type(value[t]) == unicode:
@@ -142,6 +147,12 @@ class DevicePusher(gevent.Greenlet):
             except gevent.GreenletExit:
                 break
 
+            except pan.xapi.PanXapiError as e:
+                if not 'already exists, ignore' in e.message:
+                    LOG.exception('exception in pusher for device %s',
+                                  self.device)
+                    gevent.sleep(60)
+
             except:
                 LOG.exception('exception in pusher for device %s',
                               self.device)
@@ -166,8 +177,9 @@ class DagPusher(base.BaseFT):
 
         self.device_list_path = self.config.get('device_list', None)
         self.age_out = self.config.get('age_out', 3600)
-        self.age_out_interval = self.config.get('age_out_interval', 600)
-        self.tag_prefix = self.config.get('tag_prefix', 'mm_')
+        self.age_out_interval = self.config.get('age_out_interval', None)
+        self.tag_prefix = self.config.get('tag_prefix', 'mmld_')
+        self.tag_watermark = self.config.get('tag_watermark', 'pushed')
         self.tag_attributes = self.config.get(
             'tag_attributes',
             ['confidence']
@@ -204,6 +216,8 @@ class DagPusher(base.BaseFT):
                       self.name)
             return
 
+        current_value = self.table.get(str(address))
+
         now = utc_millisec()
         age_out = now+self.age_out*1000
 
@@ -211,7 +225,18 @@ class DagPusher(base.BaseFT):
 
         self.table.put(str(address), value)
 
+        value.pop('_age_out')
+
+        uflag = False
+        if current_value is not None:
+            for t in self.tag_attributes:
+                cv = current_value.get(t, None)
+                nv = value.get(t, None)
+                uflag |= cv != nv
+
         for p in self.device_pushers:
+            if uflag:
+                p.put('unregister', str(address), current_value)
             p.put('register', str(address), value)
 
     @base._counting('withdraw.processed')
@@ -252,7 +277,7 @@ class DagPusher(base.BaseFT):
                     for dp in self.device_pushers:
                         dp.put(
                             op='unregister',
-                            ip=i,
+                            address=i,
                             value=v
                         )
 
@@ -272,7 +297,12 @@ class DagPusher(base.BaseFT):
                 break
 
     def _spawn_device_pusher(self, device):
-        dp = DevicePusher(device, self.tag_prefix, self.tag_attributes)
+        dp = DevicePusher(
+            device,
+            self.tag_prefix,
+            self.tag_watermark,
+            self.tag_attributes
+        )
         dp.link_exception(self._device_puhser_died)
 
         for i, v in self.table.query(include_value=True):
@@ -368,7 +398,9 @@ class DagPusher(base.BaseFT):
             2,
             self._device_list_monitor
         )
-        self.ageout_glet = gevent.spawn(self._age_out_run)
+
+        if self.age_out_interval is not None:
+            self.ageout_glet = gevent.spawn(self._age_out_run)
 
     def stop(self):
         super(DagPusher, self).stop()
@@ -380,4 +412,6 @@ class DagPusher(base.BaseFT):
             g.kill()
 
         self.device_list_glet.kill()
-        self.ageout_glet.kill()
+
+        if self.ageout_glet is not None:
+            self.ageout_glet.kill()
