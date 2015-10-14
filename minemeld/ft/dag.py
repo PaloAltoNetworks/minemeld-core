@@ -4,7 +4,9 @@ import logging
 import yaml
 import netaddr
 import gevent
+import gevent.queue
 import os
+import re
 
 import pan.xapi
 
@@ -13,6 +15,8 @@ from . import table
 from .utils import utc_millisec
 
 LOG = logging.getLogger(__name__)
+
+SUBRE = re.compile("^[A-Za-z0-9_]")
 
 
 class DevicePusher(gevent.Greenlet):
@@ -32,7 +36,7 @@ class DevicePusher(gevent.Greenlet):
         self.prefix = prefix
         self.attributes = attributes
 
-        self.q = gevent.Queue()
+        self.q = gevent.queue.Queue()
 
     def put(self, op, address, value):
         self.q.put([op, address, value])
@@ -90,6 +94,8 @@ class DevicePusher(gevent.Greenlet):
         while True:
             try:
                 addresses = self._get_all_registered_ips()
+                LOG.debug('addresses: %s', addresses)
+
                 msg = self._dag_message('unregister', addresses)
                 self.xapi.user_id(cmd=msg)
 
@@ -106,13 +112,13 @@ class DevicePusher(gevent.Greenlet):
 
     def _push(self, op, address, value):
         tags = []
-        for t in self.tag_attributes:
+        for t in self.attributes:
             if t in value:
                 if type(value[t]) == unicode:
                     v = value[t].encode('ascii', 'replace')
                 else:
                     v = str(value[t])
-                v = self.subre.sub('_', v)
+                v = SUBRE.sub('_', v)
 
                 tag = '%s%s_%s' % (self.prefix, t, str(value[t]))
                 tags.append(tag)
@@ -223,6 +229,7 @@ class DagPusher(base.BaseFT):
             LOG.debug('%s - unknown indicator received, ignored', self.name)
             return
 
+        self.table.delete(indicator)
         for p in self.device_pushers:
             p.put('unregister', str(indicator), current_value)
 

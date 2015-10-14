@@ -16,6 +16,7 @@ import calendar
 import os
 import yaml
 import functools
+import pan.xapi
 
 import minemeld.ft.dag
 
@@ -168,6 +169,98 @@ class MineMeldFTDagPusherTests(unittest.TestCase):
             self.assertEqual(a.devices[i], d)
             self.assertEqual(a.device_pushers[i].start.call_count, 1)
             self.assertEqual(a.device_pushers[i].device, d)
+
+        a.stop()
+        a.table.db.close()
+
+        a = None
+        chassis = None
+        rpcmock = None
+        ochannel = None
+
+        gc.collect()
+
+    @mock.patch.object(gevent, 'spawn')
+    @mock.patch.object(gevent, 'spawn_later')
+    @mock.patch.object(gevent, 'sleep', side_effect=gevent.GreenletExit())
+    @mock.patch.object(calendar, 'timegm', side_effect=logical_millisec)
+    @mock.patch('minemeld.ft.dag.DevicePusher',
+                side_effect=device_pusher_mock_factory)
+    def test_uw(self, dp_mock, timegm_mock,
+                sleep_mock, spawnl_mock, spawn_mock):
+        device_list_path = os.path.join(MYDIR, 'test_device_list.yml')
+
+        with open(device_list_path, 'r') as f:
+            dlist = yaml.safe_load(f)
+
+        shutil.copyfile(device_list_path, DLIST_NAME)
+
+        config = {
+            'device_list': DLIST_NAME
+        }
+
+        chassis = mock.Mock()
+
+        ochannel = mock.Mock()
+        chassis.request_pub_channel.return_value = ochannel
+
+        rpcmock = mock.Mock()
+        rpcmock.get.return_value = {'error': None, 'result': 'OK'}
+        chassis.send_rpc.return_value = rpcmock
+
+        a = minemeld.ft.dag.DagPusher(FTNAME, chassis, config)
+
+        inputs = ['a']
+        output = False
+
+        a.connect(inputs, output)
+        a.mgmtbus_initialize()
+        a.start()
+        self.assertEqual(spawnl_mock.call_count, 1)
+        self.assertEqual(spawn_mock.call_count, 1)
+
+        try:
+            a._device_list_monitor()
+        except gevent.GreenletExit:
+            pass
+
+        a.update('a', indicator='127.0.0.1', value={
+            'type': 'IPv4',
+            'confidence': 100
+        })
+
+        for d in a.device_pushers:
+            d.put.assert_called_with(
+                'register',
+                '127.0.0.1',
+                {
+                    'type': 'IPv4',
+                    'confidence': 100,
+                    '_age_out': 3600000
+                }
+            )
+
+        for d in a.device_pushers:
+            d.put.reset_mock()
+
+        a.withdraw('a', indicator='127.0.0.1')
+        for d in a.device_pushers:
+            d.put.assert_called_with(
+                'unregister',
+                '127.0.0.1',
+                {
+                    'type': 'IPv4',
+                    'confidence': 100,
+                    '_age_out': 3600000
+                }
+            )
+
+        for d in a.device_pushers:
+            d.put.reset_mock()
+
+        a.withdraw('a', indicator='127.0.0.1')
+        for d in a.device_pushers:
+            self.assertEqual(d.put.call_count, 0)
 
         a.stop()
         a.table.db.close()
