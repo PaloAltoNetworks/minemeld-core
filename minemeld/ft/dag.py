@@ -140,9 +140,9 @@ class DevicePusher(gevent.Greenlet):
 
         while True:
             try:
-                op, address, value = self.q.get()
-                LOG.debug('got item')
+                op, address, value = self.q.peek()
                 self._push(op, address, value)
+                self.q.get()  # discard processed message
 
             except gevent.GreenletExit:
                 break
@@ -152,6 +152,8 @@ class DevicePusher(gevent.Greenlet):
                     LOG.exception('exception in pusher for device %s',
                                   self.device)
                     gevent.sleep(60)
+                else:
+                    self.q.get()
 
             except:
                 LOG.exception('exception in pusher for device %s',
