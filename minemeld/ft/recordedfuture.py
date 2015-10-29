@@ -4,6 +4,8 @@ import logging
 import requests
 import os
 import ujson
+import netaddr
+import netaddr.core
 
 from . import csv
 
@@ -22,12 +24,24 @@ class ThreatFeed(csv.CSVFT):
     def _process_item(self, row):
         row.pop(None, None)  # I love this
 
-        LOG.debug('row: %s', row)
-
         result = {}
 
         indicator = row.get('Name', '')
         if indicator == '':
+            return []
+
+        try:
+            ip = netaddr.IPAddress(indicator)
+        except netaddr.core.AddrFormatError:
+            LOG.exception("%s - failed parsing indicator", self.name)
+            return []
+
+        if ip.version == 4:
+            result['type'] = 'IPv4'
+        elif ip.version == 6:
+            result['type'] = 'IPv6'
+        else:
+            LOG.debug("%s - unknon IP version %d", self.name, ip.version)
             return []
 
         risk = row.get('Risk', '')
@@ -53,6 +67,9 @@ class ThreatFeed(csv.CSVFT):
                 edetails = edetails.get('EvidenceDetails', [])
                 result['recordedfuture_evidencedetails'] = \
                     [ed['Rule'] for ed in edetails]
+
+        result['recordedfuture_entityurl'] = \
+            'https://www.recordedfuture.com/live/sc/entity/ip:'+indicator
 
         return [[indicator, result]]
 
