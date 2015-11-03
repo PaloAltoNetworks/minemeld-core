@@ -283,7 +283,8 @@ class Table(object):
         batch.write()
 
     def query(self, index=None, from_key=None, to_key=None,
-              include_value=False):
+              include_value=False, include_stop=True, include_start=True,
+              reverse=False):
         if type(from_key) is unicode:
             from_key = from_key.encode('ascii', 'replace')
         if type(to_key) is unicode:
@@ -293,31 +294,42 @@ class Table(object):
             return self._query_by_indicator(
                 from_key=from_key,
                 to_key=to_key,
-                include_value=include_value
+                include_value=include_value,
+                include_stop=include_stop,
+                include_start=include_start,
+                reverse=reverse
             )
         return self._query_by_index(
             index,
             from_key=from_key,
             to_key=to_key,
-            include_value=include_value
+            include_value=include_value,
+            include_stop=include_stop,
+            include_start=include_start,
+            reverse=reverse
         )
 
     def _query_by_indicator(self, from_key=None, to_key=None,
-                            include_value=False):
+                            include_value=False, include_stop=True, include_start=True,
+                            reverse=False):
         if from_key is None:
             from_key = struct.pack("BB", 1, 1)
+            include_stop = False
         else:
             from_key = self._indicator_key(from_key)
 
         if to_key is None:
             to_key = struct.pack("BB", 1, 2)
+            include_start = False
         else:
             to_key = self._indicator_key(to_key)
 
         ri = self.db.iterator(
             start=from_key,
             stop=to_key,
-            include_stop=False,
+            include_stop=include_stop,
+            include_start=include_start,
+            reverse=reverse,
             include_value=False
         )
         for ekey in ri:
@@ -328,7 +340,8 @@ class Table(object):
                 yield ekey
 
     def _query_by_index(self, index, from_key=None, to_key=None,
-                        include_value=False):
+                        include_value=False, include_stop=True, include_start=True,
+                        reverse=False):
         if index not in self.indexes:
             raise ValueError()
 
@@ -336,11 +349,13 @@ class Table(object):
 
         if from_key is None:
             from_key = struct.pack("BBB", 2, idxid, 0xF0)
+            include_start = False
         else:
             from_key = self._index_key(idxid, from_key)
 
         if to_key is None:
             to_key = struct.pack("BBB", 2, idxid, 0xF1)
+            include_stop = False
         else:
             to_key = self._index_key(
                 idxid,
@@ -351,7 +366,10 @@ class Table(object):
         ri = self.db.iterator(
             start=from_key,
             stop=to_key,
-            include_value=True
+            include_value=True,
+            include_start=include_start,
+            include_stop=include_stop,
+            reverse=reverse
         )
         for ikey, ekey in ri:
             iversion = struct.unpack(">Q", ekey[:8])[0]
