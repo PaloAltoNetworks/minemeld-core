@@ -6,10 +6,10 @@ import gevent.queue
 
 import amqp
 import ujson
+import netaddr
 
 from . import base
 from . import table
-from .utils import utc_millisec
 
 LOG = logging.getLogger(__name__)
 
@@ -31,11 +31,15 @@ class SyslogMatcher(base.BaseFT):
 
     def _initialize_tables(self, truncate=False):
         self.table_ipv4 = table.Table(self.name+'_ipv4', truncate=truncate)
-        self.table_ipv6 = table.Table(self.name+'_ipv6', truncate=truncate)
+        self.table_ipv4.create_index('_start')
+
         self.table_indicators = table.Table(
             self.name+'_indicators',
             truncate=truncate
         )
+
+        self.table = table.Table(self.name, truncate=truncate)
+        self.table.create_index('syslog_original_indicator')
 
     def initialize(self):
         self._initialize_tables()
@@ -67,9 +71,13 @@ class SyslogMatcher(base.BaseFT):
             return
 
         if type_ == 'IPv4':
+            start, end = map(netaddr.IPAddress, indicator.split('-', 1))
+
+            value['_start'] = start.value
+            value['_end'] = end.value
+
             self.table_ipv4.put(indicator, value)
-        elif type_ == 'IPv6':
-            self.table_ipv6.put(indicator, value)
+
         else:
             self.table_indicators.put(type_+indicator, value)
 
@@ -83,23 +91,70 @@ class SyslogMatcher(base.BaseFT):
             v = self.table_ipv4.get(indicator)
             if v is not None:
                 self.table_ipv4.delete(indicator)
-                if v.get('syslog_matched', None) is not None:
-                    self.emit_withdraw(indicator)
-        elif itype == 'IPv6':
-            v = self.table_ipv6.get(indicator)
-            if v is not None:
-                self.table_ipv6.delete(indicator)
-                if v.get('syslog_matched', None) is not None:
-                    self.emit_withdraw(indicator)
+
         else:
-            v = self.table_ipv6.get(itype+'\x00'+indicator)
+            v = self.table_indicators.get(itype+indicator)
             if v is not None:
-                self.table_indicators.delete(itype+'\x00'+indicator)
-                if v.get('syslog_matched', None) is not None:
-                    self.emit_withdraw(indicator)
+                self.table_indicators.delete(itype+indicator)
+
+        if v is not None:
+            for i in self.table.query(index='syslog_original_indicator',
+                                      from_key=itype+indicator,
+                                      to_key=itype+indicator,
+                                      include_value=False):
+                self.emit_withdraw(i)
+                self.table.delete(i)
+
+    def _handle_ip(self, ip, source=True):
+        try:
+            src_ip = netaddr.IPAddress(ip)
+        except:
+            return
+
+        if src_ip.version != 4:
+            return
+
+        src_ip = src_ip.value
+
+        iv = next(
+            (self.table_ipv4.query(index='_start',
+                                   from_key=src_ip,
+                                   include_value=True,
+                                   include_start=True,
+                                   reverse=True)),
+            None
+        )
+        if iv is None:
+            return
+
+        i, v = iv
+
+        v['syslog_original_indicator'] = 'IPv4'+i
+
+        self.table.put(ip, v)
+        self.emit_update(i, v)      
+
+    def _handle_syslog_message(self, message):
+        now = utc_millisec()
+
+        src_ip = message.get('src_ip', None)
+        if src_ip is not None:
+            self._handle_ip(src_ip)
+
+        dst_ip = message.get('dst_ip', None)
+        if src_ip is not None:
+            self._handle_ip(dst_ip, source=False)
 
     def _amqp_callback(self, msg):
-        LOG.debug('%s - recevied %s', self.name, ujson.loads(msg.body))
+        try:
+            message = ujson.loads(msg.body)
+            self._handle_syslog_message(message)
+
+        except gevent.GreenletExit:
+            raise
+
+        except:
+            LOG.exception("%s - exception handling syslog message")
 
     def _amqp_consumer(self):
         while True:
@@ -147,7 +202,6 @@ class SyslogMatcher(base.BaseFT):
 
     def length(self, source=None):
         return (self.table_ipv4.num_indicators +
-                self.table_ipv6.num_indicators +
                 self.table_indicators.num_indicators)
 
     def start(self):
