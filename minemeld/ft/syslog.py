@@ -4,6 +4,9 @@ import logging
 import gevent
 import gevent.queue
 
+import amqp
+import ujson
+
 from . import base
 from . import table
 from .utils import utc_millisec
@@ -58,7 +61,7 @@ class SyslogMatcher(base.BaseFT):
             itype = type_
 
         if itype != type_:
-            LOG.error("%s - indicator of type %s recevied from "
+            LOG.error("%s - indicator of type %s received from "
                       "source %s with type %s, ignored",
                       self.name, type_, source, itype)
             return
@@ -95,9 +98,47 @@ class SyslogMatcher(base.BaseFT):
                 if v.get('syslog_matched', None) is not None:
                     self.emit_withdraw(indicator)
 
+    def _amqp_callback(self, msg):
+        LOG.debug('%s - recevied %s', self.name, ujson.loads(msg.body))
+
     def _amqp_consumer(self):
         while True:
-            pass
+            try:
+                conn = amqp.connection.Connection(
+                    userid=self.rabbitmq_username,
+                    password=self.rabbitmq_password
+                )
+                channel = conn.channel()
+                channel.exchange_declare(
+                    self.exchange,
+                    'fanout',
+                    durable=False,
+                    auto_delete=True
+                )
+                q = channel.queue_declare(
+                    exclusive=False
+                )
+
+                channel.queue_bind(
+                    queue=q.queue,
+                    exchange=self.exchange,
+                )
+                channel.basic_consume(
+                    callback=self._amqp_callback,
+                    no_ack=True,
+                    exclusive=True
+                )
+
+                while True:
+                    conn.drain_events()
+
+            except gevent.GreenletExit:
+                break
+
+            except:
+                LOG.exception('%s - Exception in consumer glet', self.name)
+
+            gevent.sleep(30)
 
     def mgmtbus_status(self):
         result = super(SyslogMatcher, self).mgmtbus_status()
