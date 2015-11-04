@@ -86,6 +86,7 @@ class SyslogMatcher(base.BaseFT):
         itype = self.input_types.get(source, None)
         if itype is None:
             LOG.error('%s - withdraw from unknown source', self.name)
+            return
 
         if itype == 'IPv4':
             v = self.table_ipv4.get(indicator)
@@ -107,18 +108,18 @@ class SyslogMatcher(base.BaseFT):
 
     def _handle_ip(self, ip, source=True):
         try:
-            src_ip = netaddr.IPAddress(ip)
+            ipv = netaddr.IPAddress(ip)
         except:
             return
 
-        if src_ip.version != 4:
+        if ipv.version != 4:
             return
 
-        src_ip = src_ip.value
+        ipv = ipv.value
 
         iv = next(
             (self.table_ipv4.query(index='_start',
-                                   from_key=src_ip,
+                                   from_key=ipv,
                                    include_value=True,
                                    include_start=True,
                                    reverse=True)),
@@ -129,21 +130,46 @@ class SyslogMatcher(base.BaseFT):
 
         i, v = iv
 
+        if v['_end'] < ipv:
+            return
+
+        for s in v.get('sources', []):
+            self.statistics[s] += 1
+        self.statistics['total_matches'] += 1
+
         v['syslog_original_indicator'] = 'IPv4'+i
 
         self.table.put(ip, v)
-        self.emit_update(i, v)      
+        self.emit_update(ip, v)
+
+    def _handle_url(self, url):
+        domain = url.split('/', 1)[0]
+
+        v = self.table_indicators.get('domain'+domain)
+        if v is None:
+            return
+
+        v['syslog_original_indicator'] = 'domain'+domain
+
+        for s in v.get('sources', []):
+            self.statistics[s] += 1
+        self.statistics['total_matches'] += 1
+
+        self.table.put(domain, v)
+        self.emit_update(domain, v)
 
     def _handle_syslog_message(self, message):
-        now = utc_millisec()
-
         src_ip = message.get('src_ip', None)
         if src_ip is not None:
             self._handle_ip(src_ip)
 
         dst_ip = message.get('dst_ip', None)
-        if src_ip is not None:
+        if dst_ip is not None:
             self._handle_ip(dst_ip, source=False)
+
+        url = message.get('url', None)
+        if url is not None:
+            self._hanlde_url(url)
 
     def _amqp_callback(self, msg):
         try:

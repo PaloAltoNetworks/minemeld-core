@@ -310,8 +310,8 @@ class Table(object):
         )
 
     def _query_by_indicator(self, from_key=None, to_key=None,
-                            include_value=False, include_stop=True, include_start=True,
-                            reverse=False):
+                            include_value=False, include_stop=True,
+                            include_start=True, reverse=False):
         if from_key is None:
             from_key = struct.pack("BB", 1, 1)
             include_stop = False
@@ -340,8 +340,8 @@ class Table(object):
                 yield ekey
 
     def _query_by_index(self, index, from_key=None, to_key=None,
-                        include_value=False, include_stop=True, include_start=True,
-                        reverse=False):
+                        include_value=False, include_stop=True,
+                        include_start=True, reverse=False):
         if index not in self.indexes:
             raise ValueError()
 
