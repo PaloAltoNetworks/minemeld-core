@@ -73,6 +73,8 @@ class SyslogMatcher(base.BaseFT):
         if type_ == 'IPv4':
             start, end = map(netaddr.IPAddress, indicator.split('-', 1))
 
+            LOG.debug('start: %d', start.value)
+
             value['_start'] = start.value
             value['_end'] = end.value
 
@@ -119,7 +121,7 @@ class SyslogMatcher(base.BaseFT):
 
         iv = next(
             (self.table_ipv4.query(index='_start',
-                                   from_key=ipv,
+                                   to_key=ipv,
                                    include_value=True,
                                    include_start=True,
                                    reverse=True)),
@@ -158,12 +160,13 @@ class SyslogMatcher(base.BaseFT):
         self.table.put(domain, v)
         self.emit_update(domain, v)
 
+    @base._counting('syslog.processed')
     def _handle_syslog_message(self, message):
         src_ip = message.get('src_ip', None)
         if src_ip is not None:
             self._handle_ip(src_ip)
 
-        dst_ip = message.get('dst_ip', None)
+        dst_ip = message.get('dest_ip', None)
         if dst_ip is not None:
             self._handle_ip(dst_ip, source=False)
 
