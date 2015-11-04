@@ -172,7 +172,7 @@ class SyslogMatcher(base.BaseFT):
 
         url = message.get('url', None)
         if url is not None:
-            self._hanlde_url(url)
+            self._handle_url(url)
 
     def _amqp_callback(self, msg):
         try:
