@@ -224,6 +224,52 @@ class MineMeldFTSyslogMatcherests(unittest.TestCase):
         gc.collect()
 
     @mock.patch.object(gevent, 'spawn_later')
+    def test_handle_ip_03(self, spawnl_mock):
+        config = {
+        }
+
+        chassis = mock.Mock()
+
+        ochannel = mock.Mock()
+        chassis.request_pub_channel.return_value = ochannel
+
+        rpcmock = mock.Mock()
+        rpcmock.get.return_value = {'error': None, 'result': 'OK'}
+        chassis.send_rpc.return_value = rpcmock
+
+        a = minemeld.ft.syslog.SyslogMatcher(FTNAME, chassis, config)
+
+        inputs = ['a']
+        output = True
+
+        a.connect(inputs, output)
+        a.mgmtbus_initialize()
+        a.start()
+
+        a.update('a', indicator='1.1.1.1-1.1.1.2', value={
+            'type': 'IPv4',
+            'confidence': 100
+        })
+        a.update('a', indicator='1.1.1.4-1.1.1.5', value={
+            'type': 'IPv4',
+            'confidence': 100
+        })
+        a._handle_ip('1.1.1.3')
+        self.assertEqual(ochannel.publish.call_count, 0)
+
+        a.stop()
+        a.table.db.close()
+        a.table_ipv4.db.close()
+        a.table_indicators.db.close()
+
+        a = None
+        chassis = None
+        rpcmock = None
+        ochannel = None
+
+        gc.collect()
+
+    @mock.patch.object(gevent, 'spawn_later')
     def test_handle_url_01(self, spawnl_mock):
         config = {
         }
