@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import gevent
 import gevent.monkey
 gevent.monkey.patch_all(thread=False, select=False)
@@ -140,5 +138,5 @@ def status(ctx):
     ctx.obj['COMM'].stop()
 
 
-if __name__ == "__main__":
+def main():
     cli(obj={})
