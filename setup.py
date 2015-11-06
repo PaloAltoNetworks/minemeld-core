@@ -29,8 +29,10 @@ setup(
     long_description=_long_description,
     packages=find_packages(),
     install_requires=_requirements,
-    scripts=[
-        'mm-run.py',
-        'mm-console.py'
-    ]
+    entry_points={
+        'console_scripts': [
+            'mm-run = minemeld.run.launcher:main',
+            'mm-console = minemeld.run.console:main'
+        ]
+    }
 )
