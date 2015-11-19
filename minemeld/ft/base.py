@@ -116,7 +116,7 @@ class BaseFT(object):
 
     @state.setter
     def state(self, value):
-        LOG.debug("%s - transitioning to state %d", self.name, value)
+        LOG.info("%s - transitioning to state %d", self.name, value)
         self._state = value
 
     def read_checkpoint(self):
