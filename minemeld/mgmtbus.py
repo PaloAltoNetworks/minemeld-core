@@ -54,6 +54,7 @@ class MgmtbusMaster(object):
 
     def init_graph(self, newconfig):
         if newconfig:
+            LOG.info("new config: sending rebuild")
             self._send_cmd('rebuild', and_discard=True)
             return
 
@@ -90,6 +91,7 @@ class MgmtbusMaster(object):
                 self._send_cmd('rebuild', and_discard=True)
                 return
 
+        LOG.info("sending reset")
         self._send_cmd('reset', and_discard=True)
 
     def checkpoint_graph(self, max_tries=12, try_interval=5):
