@@ -198,6 +198,12 @@ class AggregateIPv4FT(base.BaseFT):
             start = int(netaddr.IPAddress(indicator))
             end = start
 
+        if (not (start >= 0 and start <= 0xFFFFFFFF)) or \
+           (not (end >= 0 and end <= 0xFFFFFFFF)):
+           LOG.error('%s - {%s} invalid IPv4 indicator',
+                     self.name, indicator)
+           return None, None
+
         return start, end
 
     def _endpoints_from_range(self, start, end):
@@ -234,6 +240,8 @@ class AggregateIPv4FT(base.BaseFT):
         v, newindicator = self._add_indicator(source, indicator, value)
 
         start, end = self._range_from_indicator(indicator)
+        if start is None or end is None:
+            return
 
         level = 1
         if source in self.whitelists:
@@ -300,6 +308,8 @@ class AggregateIPv4FT(base.BaseFT):
         self.statistics['removed'] += 1
 
         start, end = self._range_from_indicator(indicator)
+        if start is None or end is None:
+            return
 
         level = 1
         if source in self.whitelists:
