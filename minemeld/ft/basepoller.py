@@ -233,7 +233,12 @@ class BasePollerFT(base.BaseFT):
         iterator = self._build_iterator(now)
 
         for item in iterator:
-            ipairs = self._process_item(item)
+            try:
+                ipairs = self._process_item(item)
+
+            except:
+                LOG.exception('%s - Exception parsing %s', self.name, item)
+                continue
 
             for indicator, attributes in ipairs:
                 if indicator is None:
