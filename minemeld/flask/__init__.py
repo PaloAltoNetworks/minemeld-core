@@ -212,3 +212,6 @@ try:
 
 except ImportError:
     LOG.exception("redis is needed for feed and config entrypoint")
+
+# prototypes
+from . import prototypeapi  # noqa

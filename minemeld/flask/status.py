@@ -1,6 +1,8 @@
 import logging
 
 import psutil
+import os
+import yaml
 
 from flask import Response
 from flask import stream_with_context
@@ -66,3 +68,15 @@ def get_minemeld_status():
         result.append(v)
 
     return jsonify(result=result)
+
+@app.route('/status/config', methods=['GET'])
+@flask.ext.login.login_required
+def get_minemeld_running_config():
+    rcpath = os.path.join(
+        os.path.dirname(os.environ.get('MM_CONFIG')),
+        'running-config.yml'
+    )
+    with open(rcpath, 'r') as f:
+        rcconfig = yaml.safe_load(f)
+
+    return jsonify(result=rcconfig)
