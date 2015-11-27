@@ -39,3 +39,60 @@ class MineMeldRunConfigTests(unittest.TestCase):
             config['nodes']['testprototype']['config'],
             {'useless1': 1}
         )
+
+    def test_validate_config_1(self):
+        config = {
+            'nodes': {
+                'n1': {
+                    'inputs': ['n2', 'n3']
+                },
+                'n2': {
+                    'output': True
+                }
+            }
+        }
+
+        msgs = minemeld.run.config.validate_config(config)
+
+        self.assertEqual(len(msgs), 1)
+
+    def test_validate_config_2(self):
+        config = {
+            'nodes': {
+                'n1': {
+                    'inputs': ['n2']
+                },
+                'n2': {
+                    'output': False
+                }
+            }
+        }
+
+        msgs = minemeld.run.config.validate_config(config)
+
+        self.assertEqual(len(msgs), 1)
+
+    def test_validate_config_3(self):
+        config = {
+            'nodes': {
+                'n1': {
+                    'output': True,
+                    'inputs': ['n2', 'n4']
+                },
+                'n2': {
+                    'output': True
+                },
+                'n3': {
+                    'output': True,
+                    'inputs': ['n1']
+                },
+                'n4': {
+                    'output': True,
+                    'inputs': ['n3']
+                }
+            }
+        }
+
+        msgs = minemeld.run.config.validate_config(config)
+
+        self.assertEqual(len(msgs), 1)
