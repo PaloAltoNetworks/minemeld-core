@@ -144,6 +144,67 @@ def _load_config_from_dir(path):
         return rcconfig
 
 
+def _detect_cycles(nodes):
+    # using Topoligical Sorting to detect cycles in graph, see Wikipedia
+    graph = {}
+    S = set()
+    L = []
+
+    for n in nodes:
+        graph[n] = {
+            'inputs': [],
+            'outputs': []
+        }
+
+    for n, v in nodes.iteritems():
+        for i in v.get('inputs', []):
+            if i in graph:
+                graph[i]['outputs'].append(n)
+                graph[n]['inputs'].append(i)
+
+    for n, v in graph.iteritems():
+        if len(v['inputs']) == 0:
+            S.add(n)
+
+    while len(S) != 0:
+        n = S.pop()
+        L.append(n)
+
+        for m in graph[n]['outputs']:
+            graph[m]['inputs'].remove(n)
+            if len(graph[m]['inputs']) == 0:
+                S.add(m)
+        graph[n]['outputs'] = []
+
+    nedges = 0
+    for n, v in graph.iteritems():
+        nedges += len(v['inputs'])
+        nedges += len(v['outputs'])
+
+    return nedges == 0
+
+
+def validate_config(config):
+    result = []
+
+    nodes = config['nodes']
+
+    for n, v in nodes.iteritems():
+        for i in v.get('inputs', []):
+            if i not in nodes:
+                result.append('%s -> %s is unknown' % (n, i))
+                continue
+
+            if not nodes[i].get('output', False):
+                result.append('%s -> %s output disabled' %
+                              (n, i))
+
+    if not _detect_cycles(nodes):
+        result.append('loop detected')
+
+    return result
+
+
 def load_config(config_path):
     if os.path.isdir(config_path):
         return _load_config_from_dir(config_path)
