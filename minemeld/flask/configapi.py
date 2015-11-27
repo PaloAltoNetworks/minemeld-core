@@ -7,6 +7,8 @@ import uuid
 import time
 import json
 
+import minemeld.run.config
+
 from flask import request
 from flask import jsonify
 
@@ -162,6 +164,7 @@ def _load_running_config():
     tempconfigkey = REDIS_KEY_PREFIX+str(version)
 
     SR.hset(tempconfigkey, 'version', version.config)
+    SR.hset(tempconfigkey, 'changed', 0)
 
     if 'fabric' in rcconfig:
         _set_stanza(
@@ -187,6 +190,8 @@ def _load_running_config():
             config_key=tempconfigkey,
             version=version
         )
+
+    SR.hset(tempconfigkey, 'next_node_id', len(nodes))
 
     clock = _lock_timeout(REDIS_KEY_CONFIG)
     if clock is None:
@@ -227,8 +232,11 @@ def _commit_config(version):
         newconfig['mgmtbus'] = json.loads(mgmtbus)['properties']
 
     newconfig['nodes'] = {}
-    for n in range(config_info['num_nodes']):
+    for n in range(config_info['next_node_id']):
         node = _get_stanza('node%d' % n)
+        if node is None:
+            continue
+
         if node['name'] in newconfig:
             raise ValueError('Error in config: duplicate node name - %s' %
                              node['name'])
@@ -239,6 +247,10 @@ def _commit_config(version):
 
     _unlock(REDIS_KEY_CONFIG, clock)
 
+    messages = minemeld.run.config.validate_config(newconfig)
+    if len(messages) != 0:
+        return messages
+
     with open(ccpath, 'w') as f:
         yaml.safe_dump(
             newconfig,
@@ -246,6 +258,8 @@ def _commit_config(version):
             encoding='utf-8',
             default_flow_style=False
         )
+
+    SR.hset(REDIS_KEY_CONFIG, 'changed', 0)
 
     return 'OK'
 
@@ -258,18 +272,15 @@ def _config_info():
 
     fabric = SR.hget(REDIS_KEY_CONFIG, 'fabric') is not None
     mgmtbus = SR.hget(REDIS_KEY_CONFIG, 'mgmtbus') is not None
-
-    numnodes = (SR.hlen(REDIS_KEY_CONFIG)-1)/2
-    if fabric:
-        numnodes -= 1
-    if mgmtbus:
-        numnodes -= 1
+    changed = SR.hget(REDIS_KEY_CONFIG, 'changed') == "1"
+    next_node_id = int(SR.hget(REDIS_KEY_CONFIG, 'next_node_id'))
 
     return {
         'fabric': fabric,
         'mgmtbus': mgmtbus,
         'version': version,
-        'num_nodes': numnodes
+        'next_node_id': next_node_id,
+        'changed': changed
     }
 
 
@@ -284,14 +295,17 @@ def _create_node(nodebody):
     cversion = MMConfigVersion(version=info['version']+'+0')
 
     _set_stanza(
-        'node%d' % info['num_nodes'],
+        'node%d' % info['next_node_id'],
         nodebody,
         cversion
     )
 
+    SR.hset(REDIS_KEY_CONFIG, 'changed', 1)
+    SR.hset(REDIS_KEY_CONFIG, 'next_node_id', info['next_node_id']+1)
+
     return {
         'version': str(cversion),
-        'id': info['num_nodes']
+        'id': info['next_node_id']
     }
 
 
@@ -307,6 +321,8 @@ def _delete_node(nodenum, version):
     SR.hdel(REDIS_KEY_CONFIG, 'node%d' % nodenum)
     SR.hdel(REDIS_KEY_CONFIG, 'node%d:version' % nodenum)
 
+    SR.hset(REDIS_KEY_CONFIG, 'changed', 1)
+
     return 'OK'
 
 
@@ -321,6 +337,8 @@ def _set_node(nodenum, nodebody):
         nodebody,
         version,
     )
+
+    SR.hset(REDIS_KEY_CONFIG, 'changed', 1)
 
     return str(result)
 
@@ -352,12 +370,15 @@ def commit():
         return jsonify(error={'message': 'version required'}), 400
 
     try:
-        _commit_config(version)
+        result = _commit_config(version)
     except VersionMismatchError:
         return jsonify(error={'message': 'version mismatch'}), 409
     except Exception as e:
         LOG.exception('exception in commit')
         return jsonify(error={'message': str(e)}), 400
+
+    if result != 'OK':
+        return jsonify(error={'message': result}), 402
 
     return jsonify(result='OK')
 
@@ -471,12 +492,7 @@ def delete_node(nodenum):
     except ValueError:
         return jsonify(error='invalid node number'), 400
 
-    try:
-        body = request.get_json()
-    except Exception as e:
-        return jsonify(error={'message': str(e)}), 400
-
-    version = body.get('version', None)
+    version = request.args.get('version', None)
     if version is None:
         return jsonify(error={'message': 'version required'})
 
