@@ -149,7 +149,7 @@ class DevicePusher(gevent.Greenlet):
 
             except pan.xapi.PanXapiError as e:
                 if 'already exists, ignore' not in e.message:
-                    LOG.exception('exception in pusher for device %s',
+                    LOG.exception('XAPI exception in pusher for device %s',
                                   self.device)
                     gevent.sleep(60)
                 else:
@@ -184,7 +184,7 @@ class DagPusher(base.BaseFT):
         self.tag_watermark = self.config.get('tag_watermark', 'pushed')
         self.tag_attributes = self.config.get(
             'tag_attributes',
-            ['confidence']
+            ['confidence', 'direction']
         )
 
     def _initialize_table(self, truncate=False):
