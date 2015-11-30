@@ -106,7 +106,7 @@ def restart_minemeld_core():
     info = MMSupervisor.supervisor.getProcessInfo('minemeld-core')
     if info['statename'] != 'RUNNING':
         return jsonify(error={
-            'message': ('minemeld-core not in RUNNING state: %s' % 
+            'message': ('minemeld-core not in RUNNING state: %s' %
                         info['statename'])
         }), 400
 
