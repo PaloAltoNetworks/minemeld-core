@@ -213,5 +213,41 @@ try:
 except ImportError:
     LOG.exception("redis is needed for feed and config entrypoint")
 
+try:
+    import psutil
+    import xmlrpclib
+    import supervisor.xmlrpc
+
+    def get_Supervisor():
+        sserver = getattr(g, '_supervisor', None)
+        if sserver is None:
+            supervisorurl = config.get('SUPERVISOR_URL',
+                                       'unix:///var/run/supervisor.sock')
+            sserver = xmlrpclib.ServerProxy(
+                'http://127.0.0.1',
+                transport = supervisor.xmlrpc.SupervisorTransport(
+                    None,
+                    None,
+                    supervisorurl
+                )
+            )
+            g._supervisor = sserver
+
+        return sserver
+
+    @app.teardown_appcontext
+    def teardown_Supervisor(exception):
+        SR = getattr(g, '_supervisor', None)
+        if SR is not None:
+            g._supervisor = None
+
+    MMSupervisor = werkzeug.local.LocalProxy(get_Supervisor)
+
+    # load entry points
+    from . import supervisorapi  # noqa
+
+except ImportError:
+    LOG.exception("supervisor and psutil needed for supervisor entrypoint")
+
 # prototypes
 from . import prototypeapi  # noqa
