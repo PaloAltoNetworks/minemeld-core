@@ -1,9 +1,7 @@
 import logging
 
-import os
 import psutil
 
-from flask import Response
 from flask import jsonify
 
 import flask.ext.login
@@ -43,12 +41,14 @@ def service_status():
 
     return jsonify(result=supervisorstate)
 
+
 @app.route('/supervisor/minemeld-core/start', methods=['GET'])
 @flask.ext.login.login_required
 def start_minemeld_core():
     result = MMSupervisor.supervisor.startProcess('minemeld-core', False)
 
     return jsonify(result=result)
+
 
 @app.route('/supervisor/minemeld-core/stop', methods=['GET'])
 @flask.ext.login.login_required

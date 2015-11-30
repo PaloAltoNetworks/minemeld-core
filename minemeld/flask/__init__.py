@@ -214,7 +214,7 @@ except ImportError:
     LOG.exception("redis is needed for feed and config entrypoint")
 
 try:
-    import psutil
+    import psutil  # noqa
     import xmlrpclib
     import supervisor.xmlrpc
 
@@ -225,7 +225,7 @@ try:
                                        'unix:///var/run/supervisor.sock')
             sserver = xmlrpclib.ServerProxy(
                 'http://127.0.0.1',
-                transport = supervisor.xmlrpc.SupervisorTransport(
+                transport=supervisor.xmlrpc.SupervisorTransport(
                     None,
                     None,
                     supervisorurl

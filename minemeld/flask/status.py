@@ -69,6 +69,7 @@ def get_minemeld_status():
 
     return jsonify(result=result)
 
+
 @app.route('/status/config', methods=['GET'])
 @flask.ext.login.login_required
 def get_minemeld_running_config():
