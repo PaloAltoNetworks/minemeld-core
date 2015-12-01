@@ -68,3 +68,7 @@ def request_loader(request):
         return MMAuthenticatedUser(id=user)
 
     return None
+
+@LOGIN_MANAGER.unauthorized_handler
+def unauthorized():
+    return 'Unauthorized', 401
