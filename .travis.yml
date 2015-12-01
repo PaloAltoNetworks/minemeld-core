@@ -5,6 +5,9 @@ python:
 addons:
   apt:
     packages:
+    - libleveldb1
+    - libsnappy1
+    - libsnappy-dev
     - libleveldb-dev
     - librrd-dev
     - libxslt1-dev
