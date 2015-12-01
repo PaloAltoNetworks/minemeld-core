@@ -157,6 +157,16 @@ def _load_running_config():
         os.path.dirname(os.environ.get('MM_CONFIG')),
         'running-config.yml'
     )
+    return _load_config_from_file(rcpath)
+
+def _load_committed_config():
+    rcpath = os.path.join(
+        os.path.dirname(os.environ.get('MM_CONFIG')),
+        'committed-config.yml'
+    )
+    return _load_config_from_file(rcpath)
+
+def _load_config_from_file(rcpath):
     with open(rcpath, 'r') as f:
         rcconfig = yaml.safe_load(f)
 
@@ -209,7 +219,7 @@ def _load_running_config():
 def _commit_config(version):
     ccpath = os.path.join(
         os.path.dirname(os.environ.get('MM_CONFIG')),
-        'candidate-config.yml'
+        'committed-config.yml'
     )
 
     clock = _lock_timeout(REDIS_KEY_CONFIG)
@@ -346,12 +356,18 @@ def _set_node(nodenum, nodebody):
 @app.route('/config/reload', methods=['GET'])
 @flask.ext.login.login_required
 def reload_running_config():
-    LOG.error('current user: %s', flask.ext.login.current_user.get_id())
+    cname = request.args.get('c', 'running')
 
     try:
-        version = _load_running_config()
+        if cname == 'running':
+            version = _load_running_config()
+        elif cname == 'committed':
+            version = _load_committed_config()
+        else:
+            return jsonify(error={'message': 'Unknown config'}), 400
+
     except Exception as e:
-        LOG.exception('Error in _load_running_config')
+        LOG.exception('Error in loading config')
         return jsonify(error={'message': str(e)}), 500
 
     return jsonify(result=str(version))
