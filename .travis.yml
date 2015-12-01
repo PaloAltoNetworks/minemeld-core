@@ -4,6 +4,7 @@ python:
 
 addons:
   apt:
+    packages:
     - libleveldb-dev
     - librrd-dev
     - libxslt1-dev
