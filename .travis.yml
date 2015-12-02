@@ -8,7 +8,6 @@ dist: trusty
 addons:
   apt:
     packages:
-    - libleveldb1
     - libsnappy1
     - libsnappy-dev
     - libleveldb-dev
@@ -18,6 +17,8 @@ addons:
 install:
   - pip install -r requirements.txt
   - pip install -r requirements-web.txt
+  - pip install -r requirements-dev.txt
 
 script:
-  - true
+  - platter build
+
