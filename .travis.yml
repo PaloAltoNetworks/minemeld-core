@@ -20,5 +20,6 @@ install:
   - pip install -r requirements-dev.txt
 
 script:
-  - platter build
+  - platter build -r requirements-web.txt
+
 
