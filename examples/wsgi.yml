@@ -1,6 +1,0 @@
-# this should be commented in production !
-DEBUG: true
-
-FEEDS:
-  - inboundfeed
-  - outboundfeed
