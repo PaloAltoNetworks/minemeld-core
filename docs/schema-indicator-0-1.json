@@ -1,0 +1,66 @@
+{
+    "id": "https://www.paloaltonetworks.com/minemeld-indicator-schema-0-1#",
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "description": "schema for minemeld attributes",
+    "type": "object",
+    "required": [ "type" ],
+    "properties": {
+        "type": {
+            "description": "type of the indicator",
+            "type": "string",
+            "enum": ["IPv4", "IPv6", "domain", "URL"]
+        },
+        "direction": {
+            "description": "direction of the session, applies to IPv4",
+            "type": "string",
+            "enum": ["inbound", "outbound"]
+        },
+        "first_seen": {
+            "type": "integer",
+            "format": "utc-millisec",
+            "description": "time the indicator has been seen for the first time. <"
+        },
+        "last_seen": {
+            "type": "integer",
+            "format": "utc-millisec",
+            "description": "time the indicator has been seen for the last time. >"
+        },
+        "sources": {
+            "description": "list of sources for this indicator",
+            "type": "array",
+            "items": {
+                "type": "string",
+                "format": "uri"
+            }
+        },
+        "confidence": {
+            "type": "integer",
+            "description": "confidence in the indicator 0-100",
+            "minimum": 0,
+            "maximum": 100
+        },
+        "share_level": {
+            "description": "share level of indicator",
+            "type": "string",
+            "enum": ["green", "amber", "red"]
+        },
+        "country": {
+            "type": "string",
+            "description": "ISO country code (IPv4 and IPv6 only)",
+            "minLength": 2,
+            "maxLength": 2
+        },
+        "AS": {
+            "type": "string",
+            "description": "Autonmous system (IPv4 and IPv6 only)"
+        }
+    },
+    "patternProperties": {
+        "^_[a-zA-Z0-9$_]*$": {
+            "description": "private properties"
+        },
+        "^$[a-zA-Z0-9$_]*$": {
+            "description": "reserved, temporary properties"
+        }
+    }
+}

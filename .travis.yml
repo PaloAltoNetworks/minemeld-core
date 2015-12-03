@@ -1,0 +1,40 @@
+language: python
+python:
+  - "2.7"
+
+sudo: required
+dist: trusty
+
+addons:
+  apt:
+    packages:
+    - libsnappy1
+    - libsnappy-dev
+    - libleveldb-dev
+    - librrd-dev
+    - libxslt1-dev
+
+install:
+  - pip install -r requirements.txt
+  - pip install -r requirements-web.txt
+  - pip install -r requirements-dev.txt
+
+script:
+  - platter build -r requirements-web.txt
+
+deploy:
+  provider: s3
+  access_key_id: "$S3_ACCESS_KEY"
+  secret_access_key: "$S3_SECRET_ACCESS_KEY"
+  bucket: "minemeld"
+  skip_cleanup: true
+  local_dir: dist
+  acl: public_read
+  on:
+    tags: true
+
+after_deploy:
+    - "export FILENAME=minemeld-core-$TRAVIS_TAG.tar.gz"
+    - "export MD5SUM=$(md5sum dist/$FILENAME | awk '{ print $1 }')"
+    - "export SHA256SUM=$(sha256sum dist/$FILENAME | awk '{ print $1 }')"
+    - 'curl -i "https://$MINEMELD_AUTOUPDATE_API_HOST/beta/package?file=$FILENAME&version=$TRAVIS_TAG&md5=$MD5SUM&sha256=$SHA256SUM&package=minemeld-core" -H "x-api-key: $MINEMELD_AUTOUPDATE_API_KEY"'

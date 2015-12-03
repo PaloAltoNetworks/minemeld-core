@@ -1,0 +1,4 @@
+nodes:
+    testprototype:
+        prototype: testproto.test
+
