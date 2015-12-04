@@ -15,7 +15,7 @@ addons:
     - libxslt1-dev
 
 before_install:
-  - sudo apt-get install -qq python2.7==2.7.6-8ubuntu0.2 python2.7-dev==2.7.6-8ubuntu0.2 python2.7==python2.7-minimal
+  - sudo apt-get install -qq python2.7=2.7.6-8ubuntu0.2 python2.7-dev=2.7.6-8ubuntu0.2 python2.7=2.7.6-8ubuntu0.2
 
 install:
   - pip install -r requirements.txt
