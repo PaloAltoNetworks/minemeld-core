@@ -13,9 +13,9 @@ addons:
     - libxslt1-dev
 
 before_install:
-  - sudo apt-get install -qq python2.7=2.7.6-8ubuntu0.2 python2.7-dev=2.7.6-8ubuntu0.2 python2.7=2.7.6-8ubuntu0.2
+  - sudo apt-get install python2.7=2.7.6-8ubuntu0.2 python2.7-dev=2.7.6-8ubuntu0.2 python2.7=2.7.6-8ubuntu0.2
   - wget https://bootstrap.pypa.io/get-pip.py
-  - sudo python get-pip.py
+  - sudo -H python get-pip.py
 
 install:
   # - pip install -r requirements.txt
