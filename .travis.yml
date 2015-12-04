@@ -1,6 +1,4 @@
-language: python
-python:
-  - "2.7"
+language: c
 
 sudo: required
 dist: trusty
@@ -16,11 +14,13 @@ addons:
 
 before_install:
   - sudo apt-get install -qq python2.7=2.7.6-8ubuntu0.2 python2.7-dev=2.7.6-8ubuntu0.2 python2.7=2.7.6-8ubuntu0.2
+  - wget https://bootstrap.pypa.io/get-pip.py
+  - sudo python get-pip.py
 
 install:
-  - pip install -r requirements.txt
-  - pip install -r requirements-web.txt
-  - pip install -r requirements-dev.txt
+  # - pip install -r requirements.txt
+  # - pip install -r requirements-web.txt
+  - sudo -H pip install -r requirements-dev.txt
 
 script:
   - platter build -r requirements-web.txt
