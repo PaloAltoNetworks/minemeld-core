@@ -14,6 +14,9 @@ addons:
     - librrd-dev
     - libxslt1-dev
 
+before_install:
+  - sudo apt-get install -qq python2.7==2.7.6-8ubuntu0.2 python2.7-dev==2.7.6-8ubuntu0.2 python2.7==python2.7-minimal
+
 install:
   - pip install -r requirements.txt
   - pip install -r requirements-web.txt
@@ -37,4 +40,4 @@ after_deploy:
     - "export FILENAME=minemeld-core-$TRAVIS_TAG-linux-x86_64.tar.gz"
     - "export MD5SUM=$(md5sum dist/$FILENAME | awk '{ print $1 }')"
     - "export SHA256SUM=$(sha256sum dist/$FILENAME | awk '{ print $1 }')"
-    - 'curl -i "https://$MINEMELD_AUTOUPDATE_API_HOST/beta/package?file=$FILENAME&version=$TRAVIS_TAG&md5=$MD5SUM&sha256=$SHA256SUM&package=minemeld-core" -H "x-api-key: $MINEMELD_AUTOUPDATE_API_KEY"'
+    - 'curl -i -f "https://$MINEMELD_AUTOUPDATE_API_HOST/beta/package?file=$FILENAME&version=$TRAVIS_TAG&md5=$MD5SUM&sha256=$SHA256SUM&package=minemeld-core" -H "x-api-key: $MINEMELD_AUTOUPDATE_API_KEY"'
