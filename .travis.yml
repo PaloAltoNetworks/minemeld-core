@@ -23,6 +23,7 @@ install:
   - sudo -H pip install -r requirements-dev.txt
 
 script:
+  - /usr/bin/env python -V
   - platter build -r requirements-web.txt
 
 deploy:
