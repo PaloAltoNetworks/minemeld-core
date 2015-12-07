@@ -197,7 +197,7 @@ class SyslogMatcher(base.BaseFT):
                     self.exchange,
                     'fanout',
                     durable=False,
-                    auto_delete=True
+                    auto_delete=False
                 )
                 q = channel.queue_declare(
                     exclusive=False
