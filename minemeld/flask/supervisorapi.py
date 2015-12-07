@@ -17,8 +17,8 @@ from . import MMSupervisor
 LOG = logging.getLogger(__name__)
 
 
-def _restart_core():
-    LOG.info('Restarting minemeld-core')
+def _restart_engine():
+    LOG.info('Restarting minemeld-engine')
 
     supervisorurl = config.get('SUPERVISOR_URL',
                                'unix:///var/run/supervisor.sock')
@@ -31,26 +31,26 @@ def _restart_core():
         )
     )
 
-    result = sserver.supervisor.stopProcess('minemeld-core', False)
+    result = sserver.supervisor.stopProcess('minemeld-engine', False)
     if not result:
-        LOG.error('Stop minemeld-core returned False')
+        LOG.error('Stop minemeld-engine returned False')
         return
-    LOG.info('Stopped minemeld-core for API request')
+    LOG.info('Stopped minemeld-engine for API request')
 
     now = time.time()
     info = None
     while (time.time()-now) < 60*15*1000:
-        info = sserver.supervisor.getProcessInfo('minemeld-core')
+        info = sserver.supervisor.getProcessInfo('minemeld-engine')
         if info['statename'] == 'STOPPED':
             break
         gevent.sleep(5)
 
     if info is not None and info['statename'] != 'STOPPED':
-        LOG.error('Timeout during minemeld-core restart')
+        LOG.error('Timeout during minemeld-engine restart')
         return
 
-    sserver.supervisor.startProcess('minemeld-core', False)
-    LOG.info('Started minemeld-core')
+    sserver.supervisor.startProcess('minemeld-engine', False)
+    LOG.info('Started minemeld-engine')
 
 
 @app.route('/supervisor', methods=['GET'])
@@ -84,32 +84,32 @@ def service_status():
     return jsonify(result=supervisorstate)
 
 
-@app.route('/supervisor/minemeld-core/start', methods=['GET'])
+@app.route('/supervisor/minemeld-engine/start', methods=['GET'])
 @flask.ext.login.login_required
-def start_minemeld_core():
-    result = MMSupervisor.supervisor.startProcess('minemeld-core', False)
+def start_minemeld_engine():
+    result = MMSupervisor.supervisor.startProcess('minemeld-engine', False)
 
     return jsonify(result=result)
 
 
-@app.route('/supervisor/minemeld-core/stop', methods=['GET'])
+@app.route('/supervisor/minemeld-engine/stop', methods=['GET'])
 @flask.ext.login.login_required
-def stop_minemeld_core():
-    result = MMSupervisor.supervisor.stopProcess('minemeld-core', False)
+def stop_minemeld_engine():
+    result = MMSupervisor.supervisor.stopProcess('minemeld-engine', False)
 
     return jsonify(result=result)
 
 
-@app.route('/supervisor/minemeld-core/restart', methods=['GET'])
+@app.route('/supervisor/minemeld-engine/restart', methods=['GET'])
 @flask.ext.login.login_required
-def restart_minemeld_core():
-    info = MMSupervisor.supervisor.getProcessInfo('minemeld-core')
+def restart_minemeld_engine():
+    info = MMSupervisor.supervisor.getProcessInfo('minemeld-engine')
     if info['statename'] != 'RUNNING':
         return jsonify(error={
-            'message': ('minemeld-core not in RUNNING state: %s' %
+            'message': ('minemeld-engine not in RUNNING state: %s' %
                         info['statename'])
         }), 400
 
-    gevent.spawn(_restart_core)
+    gevent.spawn(_restart_engine)
 
     return jsonify(result='OK')
