@@ -520,3 +520,48 @@ def delete_node(nodenum):
         return jsonify(error={'message': str(e)}), 500
 
     return jsonify(result=result)
+
+
+@app.route('/config/data/<datafilename>', methods=['GET'])
+@flask.ext.login.login_required
+def get_config_data(datafilename):
+    cpath = os.path.dirname(os.environ.get('MM_CONFIG'))
+
+    fdfname = datafilename+'.yml'
+
+    os.listdir(cpath)
+    if fdfname not in os.listdir(cpath):
+        return jsonify(error={
+            'message': 'Unknown config data file'
+        }), 400
+
+    try:
+        with open(os.path.join(cpath, fdfname), 'r') as f:
+            result = yaml.safe_load(f)
+
+    except:
+        return jsonify(error='Error loading config data file'), 400
+
+    return jsonify(result=result)
+
+
+@app.route('/config/data/<datafilename>', methods=['PUT'])
+@flask.ext.login.login_required
+def save_config_data(datafilename):
+    cpath = os.path.dirname(os.environ.get('MM_CONFIG'))
+    tdir = os.path.dirname(os.path.join(cpath, datafilename))
+
+    if not os.samefile(cpath, tdir):
+        return jsonify(error={'msg': 'Wrong config data filename'}), 400
+
+    fdfname = os.path.join(cpath, datafilename+'.yml')
+
+    try:
+        body = request.get_json()
+    except Exception as e:
+        return jsonify(error={'message': str(e)}), 400
+
+    with open(fdfname, 'w') as f:
+        yaml.safe_dump(f)
+
+    return jsonify(result='ok'), 200
