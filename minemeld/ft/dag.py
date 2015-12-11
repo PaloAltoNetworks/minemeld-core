@@ -215,7 +215,11 @@ class DagPusher(base.BaseFT):
     def configure(self):
         super(DagPusher, self).configure()
 
-        self.device_list_path = self.config.get('device_list', None)
+        self.device_list_path = self.config.get(
+            'device_list',
+            os.path.join(os.environ['MM_CONFIG_DIR'],
+                         '%s_device_list.yml' % self.name)
+        )
         self.age_out = self.config.get('age_out', 3600)
         self.age_out_interval = self.config.get('age_out_interval', None)
         self.tag_prefix = self.config.get('tag_prefix', 'mmld_')
