@@ -7,6 +7,7 @@ import gevent
 import gevent.queue
 import os
 import re
+import collections
 
 import pan.xapi
 
@@ -94,39 +95,37 @@ class DevicePusher(gevent.Greenlet):
 
         return ''.join(message)
 
-    def _clear_registered_addresses(self):
-        while True:
-            try:
-                addresses = self._get_all_registered_ips()
-                msg = self._dag_message('unregister', addresses)
-                self.xapi.user_id(cmd=msg)
+    def _tags_from_value(self, value):
+        result = []
 
-            except gevent.GreenletExit:
-                raise
+        for t in self.attributes:
+            if t in value:
+                if t == 'confidence':
+                    confidence = value[t]
+                    if confidence < 50:
+                        tag = '%s%s_low' % (self.prefix, t)
+                    elif confidence < 75:
+                        tag = '%s%s_medium' % (self.prefix, t)
+                    else:
+                        tag = '%s%s_high' % (self.prefix, t)
 
-            except:
-                LOG.exception('exception clear registered ips in %s',
-                              self.device)
-                gevent.sleep(60)
+                else:
+                    if type(value[t]) == unicode:
+                        v = value[t].encode('ascii', 'replace')
+                    else:
+                        v = str(value[t])
+                    v = SUBRE.sub('_', v)
 
-            else:
-                break
+                    tag = '%s%s_%s' % (self.prefix, t, str(value[t]))
+
+                result.append(tag)
 
     def _push(self, op, address, value):
         tags = []
 
         tags.append('%s%s' % (self.prefix, self.watermark))
 
-        for t in self.attributes:
-            if t in value:
-                if type(value[t]) == unicode:
-                    v = value[t].encode('ascii', 'replace')
-                else:
-                    v = str(value[t])
-                v = SUBRE.sub('_', v)
-
-                tag = '%s%s_%s' % (self.prefix, t, str(value[t]))
-                tags.append(tag)
+        tags += self._tags_from_value(value)
 
         if len(tags) == 0:
             tags = None
@@ -135,8 +134,52 @@ class DevicePusher(gevent.Greenlet):
 
         self.xapi.user_id(cmd=msg)
 
+    def _init_resync(self):
+        ctags = set()
+        while True:
+            op, address, value = self.q.get()
+            if op == 'EOI':
+                break
+
+            if op != 'init':
+                raise RuntimeError(
+                    'DevicePusher %s - wrong op %s received in init phase' %
+                    (self.device, op)
+                )
+
+            ctags.add('%s@%s%s' % (address, self.prefix, self.watermark))
+            for t in self._tags_from_value(value):
+                ctags.add('%s@%s' % (address, t))
+
+        regtags = set()
+        regaddresses = self._get_all_registered_ips()
+        for a, atags in regaddresses.iteritems():
+            if atags is None:
+                continue
+            for t in atags:
+                regtags.add('%s@%s' % (a, t))
+
+        added = ctags - regtags
+        removed = regtags - ctags
+
+        register = collections.DefaultDict(list)
+        for t in added:
+            a, tag = t.split('@', 1)
+            register[a].push(t)
+
+        unregister = collections.DefaultDict(list)
+        for t in removed:
+            a, tag = t.split('@', 1)
+            unregister[a].push(tag)
+
+        rmsg = self._dag_message('register', register)
+        self.xapi.user_id(rmsg)
+
+        urmsg = self._dag_message('unregister', unregister)
+        self.xapi.user_id(urmsg)
+
     def _run(self):
-        self._clear_registered_addresses()
+        self._init_resync()
 
         while True:
             try:
@@ -151,14 +194,9 @@ class DevicePusher(gevent.Greenlet):
                 if 'already exists, ignore' not in e.message:
                     LOG.exception('XAPI exception in pusher for device %s',
                                   self.device)
-                    gevent.sleep(60)
+                    raise
                 else:
                     self.q.get()
-
-            except:
-                LOG.exception('exception in pusher for device %s',
-                              self.device)
-                gevent.sleep(60)
 
 
 class DagPusher(base.BaseFT):
@@ -310,7 +348,8 @@ class DagPusher(base.BaseFT):
         dp.link_exception(self._device_puhser_died)
 
         for i, v in self.table.query(include_value=True):
-            dp.put('register', i, v)
+            dp.put('init', i, v)
+        dp.put('EOI', None, None)
 
         return dp
 
