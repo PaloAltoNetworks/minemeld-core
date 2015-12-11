@@ -53,7 +53,7 @@ class DevicePusher(gevent.Greenlet):
 
         entries = self.xapi.element_root.findall('./result/entry')
         if not entries:
-            return None
+            return {}
 
         addresses = {}
         for entry in entries:
@@ -148,7 +148,7 @@ class DevicePusher(gevent.Greenlet):
             if op != 'init':
                 raise RuntimeError(
                     'DevicePusher %s - wrong op %s received in init phase' %
-                    (self.device, op)
+                    (self.device.get('hostname', None), op)
                 )
 
             ctags.add('%s@%s%s' % (address, self.prefix, self.watermark))
@@ -176,11 +176,13 @@ class DevicePusher(gevent.Greenlet):
             a, tag = t.split('@', 1)
             unregister[a].append(tag)
 
-        rmsg = self._dag_message('register', register)
-        self.xapi.user_id(cmd=rmsg)
+        if len(register) != 0:
+            rmsg = self._dag_message('register', register)
+            self.xapi.user_id(cmd=rmsg)
 
-        urmsg = self._dag_message('unregister', unregister)
-        self.xapi.user_id(cmd=urmsg)
+        if len(unregister) != 0:
+            urmsg = self._dag_message('unregister', unregister)
+            self.xapi.user_id(cmd=urmsg)
 
     def _run(self):
         self._init_resync()
@@ -197,7 +199,7 @@ class DevicePusher(gevent.Greenlet):
             except pan.xapi.PanXapiError as e:
                 if 'already exists, ignore' not in e.message:
                     LOG.exception('XAPI exception in pusher for device %s',
-                                  self.device)
+                                  self.device.get('hostname', None))
                     raise
                 else:
                     self.q.get()
@@ -272,6 +274,7 @@ class DagPusher(base.BaseFT):
 
         value['_age_out'] = age_out
 
+        self.statistics['added'] += 1
         self.table.put(str(address), value)
 
         value.pop('_age_out')
@@ -309,6 +312,7 @@ class DagPusher(base.BaseFT):
 
         current_value.pop('_age_out', None)
 
+        self.statistics['removed'] += 1
         self.table.delete(str(address))
         for p in self.device_pushers:
             p.put('unregister', str(indicator), current_value)
@@ -332,6 +336,7 @@ class DagPusher(base.BaseFT):
                             value=v
                         )
 
+                    self.statistics['aged_out'] += 1
                     self.table.delete(i)
 
                 self.last_ageout_run = now
@@ -357,6 +362,7 @@ class DagPusher(base.BaseFT):
         dp.link_exception(self._device_puhser_died)
 
         for i, v in self.table.query(include_value=True):
+            LOG.debug('%s - addding %s to init', self.name, i)
             dp.put('init', i, v)
         dp.put('EOI', None, None)
 
