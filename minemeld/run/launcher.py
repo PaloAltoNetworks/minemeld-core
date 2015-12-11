@@ -132,7 +132,7 @@ def main():
     cdir = args.config
     if not os.path.isdir(cdir):
         cdir = os.path.dirname(args.config)
-    os.environ['MM_CONFIG_PATH'] = cdir
+    os.environ['MM_CONFIG_DIR'] = cdir
 
     np = args.multiprocessing
     if np == 0:
