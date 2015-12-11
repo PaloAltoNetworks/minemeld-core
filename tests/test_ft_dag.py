@@ -16,6 +16,8 @@ import calendar
 import os
 import yaml
 import functools
+import pan.xapi
+import panos_mock
 
 import minemeld.ft.dag
 
@@ -264,3 +266,92 @@ class MineMeldFTDagPusherTests(unittest.TestCase):
         ochannel = None
 
         gc.collect()
+
+    @mock.patch.object(pan.xapi, 'PanXapi', side_effect=panos_mock.factory)
+    def test_devicepusher_dag_message(self, panxapi_mock):
+        RESULT_REG = '<uid-message><version>1.0</version><type>update</type><payload><register><entry ip="192.168.1.1"><tag><member>a</member><member>b</member></tag></entry></register></payload></uid-message>'
+        RESULT_UNREG = '<uid-message><version>1.0</version><type>update</type><payload><unregister><entry ip="192.168.1.1"><tag><member>a</member><member>b</member></tag></entry></unregister></payload></uid-message>'
+
+        dp = minemeld.ft.dag.DevicePusher(
+            {'tag': 'test'},
+            'mmeld_',
+            'test',
+            []
+        )
+
+        reg = dp._dag_message('register', {'192.168.1.1': ['a', 'b']})
+        self.assertEqual(reg, RESULT_REG)
+
+        unreg = dp._dag_message('unregister', {'192.168.1.1': ['a', 'b']})
+        self.assertEqual(unreg, RESULT_UNREG)
+
+    @mock.patch.object(pan.xapi, 'PanXapi', side_effect=panos_mock.factory)
+    def test_devicepusher_tags_from_value(self, panxapi_mock):
+        dp = minemeld.ft.dag.DevicePusher(
+            {'tag': 'test'},
+            'mmeld_',
+            'test',
+            ['confidence', 'direction']
+        )
+
+        tags = dp._tags_from_value({'confidence': 49, 'direction': 'inbound'})
+        self.assertEqual(tags, ['mmeld_confidence_low', 'mmeld_direction_inbound'])
+
+        tags = dp._tags_from_value({'confidence': 50})
+        self.assertEqual(tags, ['mmeld_confidence_medium'])
+
+        tags = dp._tags_from_value({'confidence': 75, 'direction': 'outbound'})
+        self.assertEqual(tags, ['mmeld_confidence_high', 'mmeld_direction_outbound'])
+
+    @mock.patch.object(pan.xapi, 'PanXapi', side_effect=panos_mock.factory)
+    def test_devicepusher_get_all_registered_ips(self, panxapi_mock):
+        dp = minemeld.ft.dag.DevicePusher(
+            {'hostname': 'test_ft_dag_devicepusher'},
+            'mmeld_',
+            'test',
+            ['confidence', 'direction']
+        )
+
+        result = dp._get_all_registered_ips()
+        self.assertEqual(result, {
+            '192.168.1.1': ['mmeld_pushed', 'mmeld_confidence_100'],
+            '192.168.1.2': ['mmeld_confidence_100']
+        })
+
+    @mock.patch.object(pan.xapi, 'PanXapi', side_effect=panos_mock.factory)
+    def test_devicepusher_push(self, panxapi_mock):
+        dp = minemeld.ft.dag.DevicePusher(
+            {'hostname': 'test_ft_dag_devicepusher'},
+            'mmeld_',
+            'test',
+            ['confidence', 'direction']
+        )
+
+        dp._push('register', '192.168.1.10', {'confidence': 40, 'direction': 'inbound'})
+        self.assertEqual(
+            dp.xapi.user_id_calls[0],
+            '<uid-message><version>1.0</version><type>update</type><payload><register><entry ip="192.168.1.10"><tag><member>mmeld_confidence_low</member><member>mmeld_direction_inbound</member><member>mmeld_test</member></tag></entry></register></payload></uid-message>'
+        )
+
+    @mock.patch.object(pan.xapi, 'PanXapi', side_effect=panos_mock.factory)
+    def test_devicepusher_init_resync(self, panxapi_mock):
+        dp = minemeld.ft.dag.DevicePusher(
+            {'hostname': 'test_ft_dag_devicepusher'},
+            'mmeld_',
+            'test',
+            ['confidence', 'direction']
+        )
+
+        dp.put('init', '192.168.1.1', {'confidence': 75, 'direction': 'inbound'})
+        dp.put('init', '192.168.1.10', {'confidence': 80})
+        dp.put('EOI', None, None)
+        dp._init_resync()
+
+        self.assertEqual(
+            dp.xapi.user_id_calls[0],
+            '<uid-message><version>1.0</version><type>update</type><payload><register><entry ip="192.168.1.1"><tag><member>mmeld_confidence_high</member><member>mmeld_direction_inbound</member><member>mmeld_test</member></tag></entry><entry ip="192.168.1.10"><tag><member>mmeld_confidence_high</member><member>mmeld_test</member></tag></entry></register></payload></uid-message>'
+        )
+        self.assertEqual(
+            dp.xapi.user_id_calls[1],
+            '<uid-message><version>1.0</version><type>update</type><payload><unregister><entry ip="192.168.1.1"><tag><member>mmeld_confidence_100</member><member>mmeld_pushed</member></tag></entry><entry ip="192.168.1.2"><tag><member>mmeld_confidence_100</member></tag></entry></unregister></payload></uid-message>'
+        )
