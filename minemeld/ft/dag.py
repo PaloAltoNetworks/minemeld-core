@@ -79,9 +79,11 @@ class DevicePusher(gevent.Greenlet):
         message.append('<%s>' % type_)
 
         if addresses is not None and len(addresses) != 0:
-            for a, tags in addresses.iteritems():
+            akeys = sorted(addresses.keys())
+            for a in akeys:
                 message.append('<entry ip="%s">' % a)
 
+                tags = sorted(addresses[a])
                 if tags is not None:
                     message.append('<tag>')
                     for t in tags:
@@ -119,6 +121,8 @@ class DevicePusher(gevent.Greenlet):
                     tag = '%s%s_%s' % (self.prefix, t, str(value[t]))
 
                 result.append(tag)
+
+        return result
 
     def _push(self, op, address, value):
         tags = []
@@ -162,21 +166,21 @@ class DevicePusher(gevent.Greenlet):
         added = ctags - regtags
         removed = regtags - ctags
 
-        register = collections.DefaultDict(list)
+        register = collections.defaultdict(list)
         for t in added:
             a, tag = t.split('@', 1)
-            register[a].push(t)
+            register[a].append(tag)
 
-        unregister = collections.DefaultDict(list)
+        unregister = collections.defaultdict(list)
         for t in removed:
             a, tag = t.split('@', 1)
-            unregister[a].push(tag)
+            unregister[a].append(tag)
 
         rmsg = self._dag_message('register', register)
-        self.xapi.user_id(rmsg)
+        self.xapi.user_id(cmd=rmsg)
 
         urmsg = self._dag_message('unregister', unregister)
-        self.xapi.user_id(urmsg)
+        self.xapi.user_id(cmd=urmsg)
 
     def _run(self):
         self._init_resync()
@@ -215,11 +219,12 @@ class DagPusher(base.BaseFT):
     def configure(self):
         super(DagPusher, self).configure()
 
-        self.device_list_path = self.config.get(
-            'device_list',
-            os.path.join(os.environ['MM_CONFIG_DIR'],
-                         '%s_device_list.yml' % self.name)
-        )
+        self.device_list_path = self.config.get('device_list', None)
+        if self.device_list_path is None:
+            self.device_list_path = os.path.join(
+                os.environ['MM_CONFIG_DIR'],
+                '%s_device_list.yml' % self.name
+            )
         self.age_out = self.config.get('age_out', 3600)
         self.age_out_interval = self.config.get('age_out_interval', None)
         self.tag_prefix = self.config.get('tag_prefix', 'mmld_')
