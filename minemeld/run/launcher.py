@@ -10,6 +10,7 @@ import signal
 import multiprocessing
 import argparse
 import os
+import sys
 
 import minemeld.chassis
 import minemeld.mgmtbus
@@ -118,9 +119,20 @@ def main():
     LOG.info("Starting mm-run.py version %s", __version__)
     LOG.info("mm-run.py arguments: %s", args)
 
+    # load and validate config
     config = minemeld.run.config.load_config(args.config)
+    vresults = minemeld.run.config.validate_config(config)
+    if len(vresults) != 0:
+        LOG.critical('Invalid config: %s', ', '.join(vresults))
+        sys.exit(1)
 
     LOG.info("mm-run.py config: %s", config)
+
+    # make config dir available to nodes
+    cdir = args.config
+    if not os.path.isdir(cdir):
+        cdir = os.path.dirname(args.config)
+    os.environ['MM_CONFIG_PATH'] = cdir
 
     np = args.multiprocessing
     if np == 0:
