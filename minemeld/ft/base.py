@@ -387,7 +387,7 @@ class BaseFT(object):
 
     def mgmtbus_status(self):
         result = {
-            'class': self.__class__.__name__,
+            'class': (self.__class__.__module__+'.'+self.__class__.__name__),
             'state': self.state,
             'statistics': self.statistics,
             'length': self.length(),

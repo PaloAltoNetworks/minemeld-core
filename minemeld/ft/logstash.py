@@ -103,4 +103,4 @@ class LogstashOutput(base.BaseFT):
         )
 
     def length(self, source=None):
-        return self.statistics['message.sent']
+        return 0

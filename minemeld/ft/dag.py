@@ -7,6 +7,7 @@ import gevent
 import gevent.queue
 import os
 import re
+import collections
 
 import pan.xapi
 
@@ -52,7 +53,7 @@ class DevicePusher(gevent.Greenlet):
 
         entries = self.xapi.element_root.findall('./result/entry')
         if not entries:
-            return None
+            return {}
 
         addresses = {}
         for entry in entries:
@@ -78,9 +79,11 @@ class DevicePusher(gevent.Greenlet):
         message.append('<%s>' % type_)
 
         if addresses is not None and len(addresses) != 0:
-            for a, tags in addresses.iteritems():
+            akeys = sorted(addresses.keys())
+            for a in akeys:
                 message.append('<entry ip="%s">' % a)
 
+                tags = sorted(addresses[a])
                 if tags is not None:
                     message.append('<tag>')
                     for t in tags:
@@ -94,39 +97,39 @@ class DevicePusher(gevent.Greenlet):
 
         return ''.join(message)
 
-    def _clear_registered_addresses(self):
-        while True:
-            try:
-                addresses = self._get_all_registered_ips()
-                msg = self._dag_message('unregister', addresses)
-                self.xapi.user_id(cmd=msg)
+    def _tags_from_value(self, value):
+        result = []
 
-            except gevent.GreenletExit:
-                raise
+        for t in self.attributes:
+            if t in value:
+                if t == 'confidence':
+                    confidence = value[t]
+                    if confidence < 50:
+                        tag = '%s%s_low' % (self.prefix, t)
+                    elif confidence < 75:
+                        tag = '%s%s_medium' % (self.prefix, t)
+                    else:
+                        tag = '%s%s_high' % (self.prefix, t)
 
-            except:
-                LOG.exception('exception clear registered ips in %s',
-                              self.device)
-                gevent.sleep(60)
+                else:
+                    if type(value[t]) == unicode:
+                        v = value[t].encode('ascii', 'replace')
+                    else:
+                        v = str(value[t])
+                    v = SUBRE.sub('_', v)
 
-            else:
-                break
+                    tag = '%s%s_%s' % (self.prefix, t, str(value[t]))
+
+                result.append(tag)
+
+        return result
 
     def _push(self, op, address, value):
         tags = []
 
         tags.append('%s%s' % (self.prefix, self.watermark))
 
-        for t in self.attributes:
-            if t in value:
-                if type(value[t]) == unicode:
-                    v = value[t].encode('ascii', 'replace')
-                else:
-                    v = str(value[t])
-                v = SUBRE.sub('_', v)
-
-                tag = '%s%s_%s' % (self.prefix, t, str(value[t]))
-                tags.append(tag)
+        tags += self._tags_from_value(value)
 
         if len(tags) == 0:
             tags = None
@@ -135,8 +138,54 @@ class DevicePusher(gevent.Greenlet):
 
         self.xapi.user_id(cmd=msg)
 
+    def _init_resync(self):
+        ctags = set()
+        while True:
+            op, address, value = self.q.get()
+            if op == 'EOI':
+                break
+
+            if op != 'init':
+                raise RuntimeError(
+                    'DevicePusher %s - wrong op %s received in init phase' %
+                    (self.device.get('hostname', None), op)
+                )
+
+            ctags.add('%s@%s%s' % (address, self.prefix, self.watermark))
+            for t in self._tags_from_value(value):
+                ctags.add('%s@%s' % (address, t))
+
+        regtags = set()
+        regaddresses = self._get_all_registered_ips()
+        for a, atags in regaddresses.iteritems():
+            if atags is None:
+                continue
+            for t in atags:
+                regtags.add('%s@%s' % (a, t))
+
+        added = ctags - regtags
+        removed = regtags - ctags
+
+        register = collections.defaultdict(list)
+        for t in added:
+            a, tag = t.split('@', 1)
+            register[a].append(tag)
+
+        unregister = collections.defaultdict(list)
+        for t in removed:
+            a, tag = t.split('@', 1)
+            unregister[a].append(tag)
+
+        if len(register) != 0:
+            rmsg = self._dag_message('register', register)
+            self.xapi.user_id(cmd=rmsg)
+
+        if len(unregister) != 0:
+            urmsg = self._dag_message('unregister', unregister)
+            self.xapi.user_id(cmd=urmsg)
+
     def _run(self):
-        self._clear_registered_addresses()
+        self._init_resync()
 
         while True:
             try:
@@ -150,15 +199,10 @@ class DevicePusher(gevent.Greenlet):
             except pan.xapi.PanXapiError as e:
                 if 'already exists, ignore' not in e.message:
                     LOG.exception('XAPI exception in pusher for device %s',
-                                  self.device)
-                    gevent.sleep(60)
+                                  self.device.get('hostname', None))
+                    raise
                 else:
                     self.q.get()
-
-            except:
-                LOG.exception('exception in pusher for device %s',
-                              self.device)
-                gevent.sleep(60)
 
 
 class DagPusher(base.BaseFT):
@@ -178,6 +222,11 @@ class DagPusher(base.BaseFT):
         super(DagPusher, self).configure()
 
         self.device_list_path = self.config.get('device_list', None)
+        if self.device_list_path is None:
+            self.device_list_path = os.path.join(
+                os.environ['MM_CONFIG_DIR'],
+                '%s_device_list.yml' % self.name
+            )
         self.age_out = self.config.get('age_out', 3600)
         self.age_out_interval = self.config.get('age_out_interval', None)
         self.tag_prefix = self.config.get('tag_prefix', 'mmld_')
@@ -225,6 +274,7 @@ class DagPusher(base.BaseFT):
 
         value['_age_out'] = age_out
 
+        self.statistics['added'] += 1
         self.table.put(str(address), value)
 
         value.pop('_age_out')
@@ -262,6 +312,7 @@ class DagPusher(base.BaseFT):
 
         current_value.pop('_age_out', None)
 
+        self.statistics['removed'] += 1
         self.table.delete(str(address))
         for p in self.device_pushers:
             p.put('unregister', str(indicator), current_value)
@@ -285,6 +336,7 @@ class DagPusher(base.BaseFT):
                             value=v
                         )
 
+                    self.statistics['aged_out'] += 1
                     self.table.delete(i)
 
                 self.last_ageout_run = now
@@ -310,7 +362,9 @@ class DagPusher(base.BaseFT):
         dp.link_exception(self._device_puhser_died)
 
         for i, v in self.table.query(include_value=True):
-            dp.put('register', i, v)
+            LOG.debug('%s - addding %s to init', self.name, i)
+            dp.put('init', i, v)
+        dp.put('EOI', None, None)
 
         return dp
 

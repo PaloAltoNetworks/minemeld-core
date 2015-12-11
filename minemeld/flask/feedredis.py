@@ -22,7 +22,12 @@ def generate_feed(feed, start, num, desc, value):
     if num is None:
         num = (1 << 32)-1
 
+    if value == 'json':
+        yield '[\n'
+
     cstart = start
+    firstelement = True
+
     while cstart < (start+num):
         LOG.debug("cstart: %s start+num: %s", cstart, start+num)
         LOG.debug("interval: %s desc: %s",
@@ -30,7 +35,7 @@ def generate_feed(feed, start, num, desc, value):
         ilist = zrange(feed, cstart,
                        cstart-1+min(start+num - cstart, FEED_INTERVAL))
 
-        if not value:
+        if value is None:
             yield '\n'.join(ilist)+'\n'
         else:
             result = cStringIO.StringIO()
@@ -40,11 +45,22 @@ def generate_feed(feed, start, num, desc, value):
                 if v is None:
                     v = 'null'
 
-                result.write('\x1E{"indicator":"')
+                if value == 'json' and not firstelement:
+                    result.write(',\n')
+
+                if value == 'json-seq':
+                    result.write('\x1E')
+
+                result.write('{"indicator":"')
                 result.write(i)
                 result.write('","value":')
                 result.write(v)
-                result.write('}\n')
+                result.write('}')
+
+                if value == 'json-seq':
+                    result.write('\n')
+
+                firstelement = False
 
             yield result.getvalue()
 
@@ -54,6 +70,9 @@ def generate_feed(feed, start, num, desc, value):
             break
 
         cstart += 100
+
+    if value == 'json':
+        yield ']\n'
 
 
 @app.route('/feeds/<feed>', methods=['GET'])
@@ -68,7 +87,7 @@ def get_feed_content(feed):
     if nname not in tr:
         return jsonify(error={'message': 'Unknown feed'}), 404
     nclass = tr[nname].get('class', None)
-    if nclass != 'RedisSet':
+    if nclass != 'minemeld.ft.redis.RedisSet':
         return jsonify(error={'message': 'Unknown feed'}), 404
 
     start = request.values.get('s')
@@ -98,11 +117,18 @@ def get_feed_content(feed):
     desc = (False if desc is None else True)
 
     value = request.values.get('v')
-    value = (False if value is None else True)
+    if value is not None and value not in ['json', 'json-seq']:
+        return jsonify(error="unknown format %s" % value), 400
+
+    mimetype = 'text/plain'
+    if value == 'json':
+        mimetype = 'application/json'
+    elif value == 'json-seq':
+        mimetype = 'application/json-seq'
 
     return Response(
         stream_with_context(
             generate_feed(feed, start, num, desc, value)
         ),
-        mimetype=("text/plain" if value is False else "application/json-seq")
+        mimetype=mimetype
     )
