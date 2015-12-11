@@ -551,7 +551,7 @@ def save_config_data(datafilename):
     cpath = os.path.dirname(os.environ.get('MM_CONFIG'))
     tdir = os.path.dirname(os.path.join(cpath, datafilename))
 
-    if not os.samefile(cpath, tdir):
+    if not os.path.samefile(cpath, tdir):
         return jsonify(error={'msg': 'Wrong config data filename'}), 400
 
     fdfname = os.path.join(cpath, datafilename+'.yml')
@@ -562,6 +562,6 @@ def save_config_data(datafilename):
         return jsonify(error={'message': str(e)}), 400
 
     with open(fdfname, 'w') as f:
-        yaml.safe_dump(f)
+        yaml.safe_dump(body, stream=f)
 
     return jsonify(result='ok'), 200
