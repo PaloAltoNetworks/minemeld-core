@@ -378,9 +378,17 @@ class DagPusher(base.BaseFT):
         except:
             LOG.exception('%s - exception in greenlet for %s, '
                           'respawning in 60 seconds',
-                          self.name, g.device)
+                          self.name, g.device['hostname'])
 
-            idx = self.device_pushers.index(g.device)
+            try:
+                idx = self.device_pushers.index(g.device)
+            except ValueError:
+                LOG.info('%s - device pusher for %s removed,' +
+                         ' respawning aborted',
+                         self.name, g.device['hostname'])
+                g = None
+                return
+
             dp = self._spawn_device_pusher(g.device)
             self.device_pushers[idx] = dp
             dp.start_later(60)
