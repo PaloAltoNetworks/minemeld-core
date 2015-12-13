@@ -136,7 +136,7 @@ class SyslogMatcher(base.BaseFT):
             return
 
         for s in v.get('sources', []):
-            self.statistics[s] += 1
+            self.statistics['source.'+s] += 1
         self.statistics['total_matches'] += 1
 
         v['syslog_original_indicator'] = 'IPv4'+i
