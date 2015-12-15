@@ -7,6 +7,7 @@ import uuid
 import collections
 
 import minemeld.comm
+import minemeld.ft
 
 from .collectd import CollectdClient
 
@@ -95,10 +96,40 @@ class MgmtbusMaster(object):
         self._send_cmd('reset', and_discard=True)
 
     def checkpoint_graph(self, max_tries=12, try_interval=5):
+        LOG.info('checkpoint_graph called, checking current state')
+
+        while True:
+            revt = self._send_cmd('state_info')
+            success = revt.wait(timeout=30)
+            if success is None:
+                LOG.error('timeout in state_info')
+                gevent.sleep(60)
+                continue
+            LOG.debug(revt)
+
+            result = revt.get(block=False)
+            if result['errors'] > 0:
+                LOG.critical('errors reported from nodes in checkpoint_graph: %s',
+                             result['errors'])
+                gevent.sleep(60)
+                continue
+
+            all_started = True
+            for a in result['answers'].values():
+                if a.get('state', None) != minemeld.ft.ft_states.STARTED:
+                    all_started = False
+                    break
+            if not all_started:
+                LOG.error('some nodes not started yet, waiting')
+                gevent.sleep(60)
+                continue
+
+            break
+
         chkp = str(uuid.uuid4())
 
         revt = self._send_cmd('checkpoint', params={'value': chkp})
-        success = revt.wait(timeout=30)
+        success = revt.wait(timeout=60)
         if success is None:
             LOG.error('Timeout waiting for answers to checkpoint')
             return
@@ -106,10 +137,12 @@ class MgmtbusMaster(object):
         ntries = 0
         while ntries < max_tries:
             revt = self._send_cmd('state_info')
-            success = revt.wait(timeout=10)
+            success = revt.wait(timeout=60)
             if success is None:
                 LOG.error("Error retrieving nodes states after checkpoint")
-                break
+                gevent.sleep(30)
+                continue
+
             result = revt.get(block=False)
 
             ok = True
@@ -119,7 +152,7 @@ class MgmtbusMaster(object):
                 LOG.info('checkpoint graph - all good')
                 break
 
-            gevent.sleep(5)
+            gevent.sleep(10)
             ntries += 1
 
         if ntries == max_tries:
