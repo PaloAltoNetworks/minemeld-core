@@ -122,6 +122,9 @@ class DevicePusher(gevent.Greenlet):
 
                 result.append(tag)
 
+            else:
+                result.append('%s%s_unknown' % (self.prefix, t))
+
         return result
 
     def _push(self, op, address, value):
