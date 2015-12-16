@@ -298,7 +298,7 @@ class MineMeldFTDagPusherTests(unittest.TestCase):
         self.assertEqual(tags, ['mmeld_confidence_low', 'mmeld_direction_inbound'])
 
         tags = dp._tags_from_value({'confidence': 50})
-        self.assertEqual(tags, ['mmeld_confidence_medium'])
+        self.assertEqual(tags, ['mmeld_confidence_medium', 'mmeld_direction_unknown'])
 
         tags = dp._tags_from_value({'confidence': 75, 'direction': 'outbound'})
         self.assertEqual(tags, ['mmeld_confidence_high', 'mmeld_direction_outbound'])
@@ -349,7 +349,7 @@ class MineMeldFTDagPusherTests(unittest.TestCase):
 
         self.assertEqual(
             dp.xapi.user_id_calls[0],
-            '<uid-message><version>1.0</version><type>update</type><payload><register><entry ip="192.168.1.1"><tag><member>mmeld_confidence_high</member><member>mmeld_direction_inbound</member><member>mmeld_test</member></tag></entry><entry ip="192.168.1.10"><tag><member>mmeld_confidence_high</member><member>mmeld_test</member></tag></entry></register></payload></uid-message>'
+            '<uid-message><version>1.0</version><type>update</type><payload><register><entry ip="192.168.1.1"><tag><member>mmeld_confidence_high</member><member>mmeld_direction_inbound</member><member>mmeld_test</member></tag></entry><entry ip="192.168.1.10"><tag><member>mmeld_confidence_high</member><member>mmeld_direction_unknown</member><member>mmeld_test</member></tag></entry></register></payload></uid-message>'
         )
         self.assertEqual(
             dp.xapi.user_id_calls[1],
