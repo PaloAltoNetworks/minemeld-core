@@ -82,6 +82,12 @@ class O365XML(basepoller.BasePollerFT):
         _iterators = []
 
         _session = requests.Session()
+        _adapter = requests.adapters.HTTPAdapter(
+            pool_connections=10,
+            pool_maxsize=10,
+            max_retries=3
+        )
+        _session.mount('https://', _adapter)
 
         rkwargs = dict(
             stream=True,
