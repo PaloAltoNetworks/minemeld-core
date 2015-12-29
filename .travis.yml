@@ -11,6 +11,8 @@ addons:
     - libleveldb-dev
     - librrd-dev
     - libxslt1-dev
+    - libssl-dev
+    - libffi-dev
 
 before_install:
   - sudo apt-get -y install python2.7/trusty python2.7-dev/trusty python2.7-minimal/trusty libpython2.7/trusty libpython2.7-dev/trusty libpython2.7-minimal/trusty libpython2.7-stdlib/trusty
