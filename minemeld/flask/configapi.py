@@ -173,12 +173,14 @@ def _load_running_config():
     )
     return _load_config_from_file(rcpath)
 
+
 def _load_committed_config():
     rcpath = os.path.join(
         os.path.dirname(os.environ.get('MM_CONFIG')),
         'committed-config.yml'
     )
     return _load_config_from_file(rcpath)
+
 
 def _load_config_from_file(rcpath):
     with open(rcpath, 'r') as f:
@@ -286,6 +288,19 @@ def _commit_config(version):
     SR.hset(REDIS_KEY_CONFIG, 'changed', 0)
 
     return 'OK'
+
+
+@_redlock
+def _config_full():
+    cinfo = _config_info(lock=False)
+
+    cinfo['nodes'] = []
+    nnid = cinfo['next_node_id']
+    for n in range(nnid):
+        nc = _get_stanza('node%d' % n, lock=False)
+        cinfo['nodes'].append(nc)
+
+    return cinfo
 
 
 @_redlock
@@ -418,6 +433,18 @@ def commit():
 def get_config_info():
     try:
         result = _config_info(lock=True)
+    except Exception as e:
+        return jsonify(error={'message': str(e)}), 500
+
+    return jsonify(result=result)
+
+
+@app.route('/config/full', methods=['GET'])
+@flask.ext.login.login_required
+def get_config_full():
+    try:
+        result = _config_full(lock=True)
+
     except Exception as e:
         return jsonify(error={'message': str(e)}), 500
 
