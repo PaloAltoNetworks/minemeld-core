@@ -123,7 +123,8 @@ class MgmtbusMaster(object):
 
             result = revt.get(block=False)
             if result['errors'] > 0:
-                LOG.critical('errors reported from nodes in checkpoint_graph: %s',
+                LOG.critical('errors reported from nodes in ' +
+                             'checkpoint_graph: %s',
                              result['errors'])
                 gevent.sleep(60)
                 continue
