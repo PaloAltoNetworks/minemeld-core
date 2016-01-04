@@ -24,7 +24,8 @@ from . import basepoller
 
 LOG = logging.getLogger(__name__)
 
-O365_URL = 'https://support.content.office.net/en-us/static/O365IPAddresses.xml'
+O365_URL = \
+    'https://support.content.office.net/en-us/static/O365IPAddresses.xml'
 BASE_XPATH = "/products/product[@name='%s']"
 
 

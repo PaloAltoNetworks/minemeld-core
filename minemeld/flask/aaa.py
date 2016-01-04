@@ -83,6 +83,7 @@ def request_loader(request):
 
     return None
 
+
 @LOGIN_MANAGER.unauthorized_handler
 def unauthorized():
     return 'Unauthorized', 401

@@ -214,9 +214,9 @@ class AggregateIPv4FT(base.BaseFT):
 
         if (not (start >= 0 and start <= 0xFFFFFFFF)) or \
            (not (end >= 0 and end <= 0xFFFFFFFF)):
-           LOG.error('%s - {%s} invalid IPv4 indicator',
-                     self.name, indicator)
-           return None, None
+            LOG.error('%s - {%s} invalid IPv4 indicator',
+                      self.name, indicator)
+            return None, None
 
         return start, end
 
