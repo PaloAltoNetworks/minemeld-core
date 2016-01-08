@@ -180,7 +180,8 @@ class BaseFT(object):
                 'get',
                 'get_all',
                 'get_range',
-                'length'
+                'length',
+                'hup'
             ]
         )
 
@@ -445,6 +446,9 @@ class BaseFT(object):
 
     def length(self, source=None):
         raise NotImplementedError('%s: length - not implemented' % self.name)
+
+    def hup(self, source=None):
+        raise NotImplementedError('%s: hup - not implemented' % self.name)
 
     def start(self):
         LOG.debug("%s - start called", self.name)

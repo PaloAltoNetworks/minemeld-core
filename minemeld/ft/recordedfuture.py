@@ -18,6 +18,7 @@ import logging
 import requests
 import os
 import ujson
+import yaml
 import netaddr
 import netaddr.core
 
@@ -30,10 +31,30 @@ class ThreatFeed(csv.CSVFT):
     def configure(self):
         super(ThreatFeed, self).configure()
 
-        self.token = self.config.get('token',
-                                     '@RECORDED_FUTURE_TOKEN')
-        if self.token.startswith('@'):
-            self.token = os.getenv(self.public_key[1:])
+        self.confidence = self.config.get('confidence', 80)
+
+        self.token = None
+        self.side_config_path = self.config.get('side_config', None)
+        if self.side_config_path is None:
+            self.side_config_path = os.path.join(
+                os.environ['MM_CONFIG_DIR'],
+                '%s_side_config.yml' % self.name
+            )
+
+        self._load_side_config()
+
+    def _load_side_config(self):
+        try:
+            with open(self.side_config_path, 'r') as f:
+                sconfig = yaml.safe_load(f)
+
+        except Exception as e:
+            LOG.error('%s - Error loading side config: %s', self.name, str(e))
+            return
+
+        self.token = sconfig.get('token', None)
+        if self.token is not None:
+            LOG.info('%s - token set', self.name)
 
     def _process_item(self, row):
         row.pop(None, None)  # I love this
@@ -62,6 +83,7 @@ class ThreatFeed(csv.CSVFT):
         if risk != '':
             try:
                 result['recordedfuture_risk'] = int(risk)
+                result['confidence'] = (int(risk)*self.confidence)/100
             except:
                 LOG.debug("%s - invalid risk string: %s",
                           self.name, risk)
@@ -87,6 +109,13 @@ class ThreatFeed(csv.CSVFT):
 
         return [[indicator, result]]
 
+    def _build_iterator(self, now):
+        if self.token is None:
+            LOG.info('%s - token not set, poll not performed', self.name)
+            return []
+
+        return super(ThreatFeed, self)._build_iterator(now)
+
     def _build_request(self, now):
         params = {
             'version': '1.0',
@@ -101,3 +130,7 @@ class ThreatFeed(csv.CSVFT):
         )
 
         return r.prepare()
+
+    def hup(self, source=None):
+        LOG.info('%s - hup received, reload side config', self.name)
+        self._load_side_config()

@@ -99,6 +99,18 @@ def length(ctx, target):
 
 @cli.command()
 @click.argument('target')
+@click.pass_context
+def hup(ctx, target):
+    if target is None:
+        raise click.UsageError(message='target required')
+
+    print _send_cmd(ctx, target, 'hup')
+
+    ctx.obj['COMM'].stop()
+
+
+@cli.command()
+@click.argument('target')
 @click.argument('indicator')
 @click.pass_context
 def get(ctx, target, indicator):
