@@ -33,7 +33,7 @@ class AggregateFT(base.BaseFT):
     def configure(self):
         super(AggregateFT, self).configure()
 
-        self.whitelists = self.config.get('whitelists', [])
+        self.whitelist_prefixes = self.config.get('whitelist_prefixes', [])
 
     def _initialize_table(self, truncate=False):
         self.table = table.Table(self.name, truncate=truncate)
@@ -50,12 +50,18 @@ class AggregateFT(base.BaseFT):
     def _indicator_key(self, indicator, source):
         return indicator+'\x00'+source
 
+    def _is_whitelist(self, s):
+        for p in self.whitelist_prefixes:
+            if s.startswith(p):
+                return True
+        return False
+
     def _emit_update_indicator(self, indicator):
         LOG.debug("%s - emitting update: %s", self.name, indicator)
 
         mv = {'sources': []}
         for s in self.inputs:
-            if s in self.whitelists:
+            if self._is_whitelist(s):
                 continue
 
             v = self.table.get(self._indicator_key(indicator, s))
@@ -103,14 +109,14 @@ class AggregateFT(base.BaseFT):
         ewl = False
         for i in self.inputs:
             v = self.table.exists(self._indicator_key(indicator, i))
-            if i in self.whitelists:
+            if self._is_whitelist(i):
                 ewl |= v
             else:
                 ebl |= v
 
         v = self._add_indicator(source, indicator, value)
 
-        if source in self.whitelists:
+        if self._is_whitelist(source):
             # update from whitelist
             if ewl:
                 # already whitelisted, no updates
@@ -130,7 +136,7 @@ class AggregateFT(base.BaseFT):
         ewl = 0
         for i in self.inputs:
             v = int(self.table.exists(self._indicator_key(indicator, i)))
-            if i in self.whitelists:
+            if self._is_whitelist(i):
                 ewl += v
             else:
                 ebl += v
@@ -138,7 +144,7 @@ class AggregateFT(base.BaseFT):
         e = self.table.exists(self._indicator_key(indicator, source))
         self.table.delete(self._indicator_key(indicator, source))
 
-        if source in self.whitelists:
+        if self._is_whitelist(source):
             # withdraw from whitelist
             if e and ewl > 1:
                 return

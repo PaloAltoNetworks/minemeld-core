@@ -257,7 +257,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
 
     def test_uwl(self):
         config = {
-            'whitelists': ['s2']
+            'whitelist_prefixes': ['s2']
         }
         chassis = mock.Mock()
 
@@ -640,7 +640,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
 
     def test_uw(self):
         config = {
-            'whitelists': ['s2']
+            'whitelist_prefixes': ['s2']
         }
         chassis = mock.Mock()
 
