@@ -33,7 +33,12 @@ class YamlFT(basepoller.BasePollerFT):
     def configure(self):
         super(YamlFT, self).configure()
 
-        self.path = self.config.get('path')
+        self.path = self.config.get('path', None)
+        if self.path is None:
+            self.path = os.path.join(
+                os.environ['MM_CONFIG_DIR'],
+                '%s_indicators.yml' % self.name
+            )
         self.lock_path = self.path+'.lock'
 
     def _process_item(self, item):
