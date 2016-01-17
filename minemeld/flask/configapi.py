@@ -586,7 +586,7 @@ def get_config_data(datafilename):
             with open(os.path.join(cpath, fdfname), 'r') as f:
                 result = yaml.safe_load(f)
 
-    except:
+    except Exception as e:
         return jsonify(error={
             'message': 'Error loading config data file: %s' % str(e)
         }), 500
