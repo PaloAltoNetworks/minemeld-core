@@ -83,3 +83,10 @@ class YamlFT(basepoller.BasePollerFT):
         except:
             LOG.exception('%s - exception loading device list')
             return []
+
+
+class YamlIPv4FT(YamlFT):
+    def _process_item(self, item):
+        item['type'] = 'IPv4'
+
+        r = super(YamlIPv4FT, self)._process_item(item)
