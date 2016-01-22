@@ -81,7 +81,7 @@ class YamlFT(basepoller.BasePollerFT):
         try:
             return self._load_yaml()
         except:
-            LOG.exception('%s - exception loading device list')
+            LOG.exception('%s - exception loading indicators list', self.name)
             return []
 
 
@@ -89,4 +89,4 @@ class YamlIPv4FT(YamlFT):
     def _process_item(self, item):
         item['type'] = 'IPv4'
 
-        r = super(YamlIPv4FT, self)._process_item(item)
+        return super(YamlIPv4FT, self)._process_item(item)
