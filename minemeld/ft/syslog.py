@@ -21,6 +21,8 @@ import gevent.queue
 import amqp
 import ujson
 import netaddr
+import datetime
+import socket
 
 from . import base
 from . import table
@@ -34,6 +36,8 @@ class SyslogMatcher(base.BaseFT):
 
         super(SyslogMatcher, self).__init__(name, chassis, config)
 
+        self._ls_socket = None
+
     def configure(self):
         super(SyslogMatcher, self).configure()
 
@@ -42,6 +46,9 @@ class SyslogMatcher(base.BaseFT):
         self.rabbitmq_password = self.config.get('rabbitmq_password', 'guest')
 
         self.input_types = self.config.get('input_types', {})
+
+        self.logstash_host = self.config.get('logstash_host', None)
+        self.logstash_port = self.config.get('logstash_port', 5514)
 
     def _initialize_tables(self, truncate=False):
         self.table_ipv4 = table.Table(self.name+'_ipv4', truncate=truncate)
@@ -122,7 +129,7 @@ class SyslogMatcher(base.BaseFT):
                 self.emit_withdraw(i)
                 self.table.delete(i)
 
-    def _handle_ip(self, ip, source=True):
+    def _handle_ip(self, ip, source=True, message=None):
         try:
             ipv = netaddr.IPAddress(ip)
         except:
@@ -158,7 +165,15 @@ class SyslogMatcher(base.BaseFT):
         self.table.put(ip, v)
         self.emit_update(ip, v)
 
-    def _handle_url(self, url):
+        if message is not None:
+            self._send_logstash(
+                message='matched IPv4',
+                indicator=i,
+                value=v,
+                session=message
+            )
+
+    def _handle_url(self, url, message=None):
         domain = url.split('/', 1)[0]
 
         v = self.table_indicators.get('domain'+domain)
@@ -174,19 +189,27 @@ class SyslogMatcher(base.BaseFT):
         self.table.put(domain, v)
         self.emit_update(domain, v)
 
+        if message is not None:
+            self._send_logstash(
+                message='matched domain',
+                indicator=domain,
+                value=v,
+                session=message
+            )
+
     @base._counting('syslog.processed')
     def _handle_syslog_message(self, message):
         src_ip = message.get('src_ip', None)
         if src_ip is not None:
-            self._handle_ip(src_ip)
+            self._handle_ip(src_ip, message=message)
 
         dst_ip = message.get('dest_ip', None)
         if dst_ip is not None:
-            self._handle_ip(dst_ip, source=False)
+            self._handle_ip(dst_ip, source=False, message=message)
 
         url = message.get('url', None)
         if url is not None:
-            self._handle_url(url)
+            self._handle_url(url, message=message)
 
     def _amqp_callback(self, msg):
         try:
@@ -237,6 +260,62 @@ class SyslogMatcher(base.BaseFT):
                 LOG.exception('%s - Exception in consumer glet', self.name)
 
             gevent.sleep(30)
+
+    def _connect_logstash(self):
+        if self._ls_socket is not None:
+            return
+
+        if self.logstash_host is None:
+            return
+
+        _ls_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        _ls_socket.connect((self.logstash_host, self.logstash_port))
+
+        self._ls_socket = _ls_socket
+
+    def _send_logstash(self, message=None, indicator=None,
+                       value=None, session=None):
+        now = datetime.datetime.now()
+
+        fields = {
+            '@timestamp': now.isoformat()+'Z',
+            '@version': 1,
+            'syslog_node': self.name,
+            'message': message
+        }
+
+        if indicator is not None:
+            fields['indicator'] = indicator
+
+        if value is not None:
+            if 'last_seen' in value:
+                last_seen = datetime.datetime.fromtimestamp(
+                    float(value['last_seen'])/1000.0
+                )
+                value['last_seen'] = last_seen.isoformat()+'Z'
+
+            if 'first_seen' in fields:
+                first_seen = datetime.datetime.fromtimestamp(
+                    float(value['first_seen'])/1000.0
+                )
+                value['first_seen'] = first_seen.isoformat()+'Z'
+
+            fields['indicator_value'] = value
+
+        if session is not None:
+            fields['session'] = session
+
+        try:
+            self._connect_logstash()
+
+            if self._ls_socket is not None:
+                self._ls_socket.sendall(ujson.dumps(fields)+'\n')
+
+        except:
+            self._ls_socket = None
+            raise
+
+        self.statistics['logstash.sent'] += 1
 
     def mgmtbus_status(self):
         result = super(SyslogMatcher, self).mgmtbus_status()
