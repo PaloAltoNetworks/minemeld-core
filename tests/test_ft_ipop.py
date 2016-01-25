@@ -257,7 +257,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
 
     def test_uwl(self):
         config = {
-            'whitelists': ['s2']
+            'whitelist_prefixes': ['s2']
         }
         chassis = mock.Mock()
 
@@ -311,6 +311,87 @@ class MineMeldFTIPOpTests(unittest.TestCase):
                     {
                         'method': 'update',
                         'indicator': '192.168.1.0-192.168.255.255',
+                        'value': {
+                            's1$a': 1
+                        }
+                    },
+                    {
+                        'method': 'withdraw',
+                        'indicator': '192.168.0.0-192.168.255.255'
+                    }
+                ],
+                all_here=True
+            )
+        )
+
+        a.stop()
+        a.table.db.close()
+        a.st.db.close()
+        a = None
+
+    def test_uwl2(self):
+        config = {
+            'whitelist_prefixes': ['s2']
+        }
+        chassis = mock.Mock()
+
+        ochannel = mock.Mock()
+        chassis.request_pub_channel.return_value = ochannel
+
+        rpcmock = mock.Mock()
+        rpcmock.get.return_value = {'error': None, 'result': 'OK'}
+        chassis.send_rpc.return_value = rpcmock
+
+        a = minemeld.ft.ipop.AggregateIPv4FT(FTNAME, chassis, config)
+
+        inputs = ['s1', 's2']
+        output = True
+
+        a.connect(inputs, output)
+        a.mgmtbus_initialize()
+        a.start()
+
+        a.update('s1', indicator='192.168.0.0/16', value={
+            'type': 'IPv4',
+            'sources': ['s1s'],
+            's1$a': 1
+        })
+        self.assertTrue(
+            check_for_rpc(
+                ochannel.publish.call_args_list,
+                [
+                    {
+                        'method': 'update',
+                        'indicator': '192.168.0.0-192.168.255.255',
+                        'value': {
+                            's1$a': 1
+                        }
+                    }
+                ],
+                all_here=True
+            )
+        )
+
+        ochannel.publish.reset_mock()
+        a.update('s2', indicator='192.168.0.1', value={
+            'type': 'IPv4',
+            'sources': ['s2s'],
+            's1$b': 1
+        })
+        self.assertTrue(
+            check_for_rpc(
+                ochannel.publish.call_args_list,
+                [
+                    {
+                        'method': 'update',
+                        'indicator': '192.168.0.0-192.168.0.0',
+                        'value': {
+                            's1$a': 1
+                        }
+                    },
+                    {
+                        'method': 'update',
+                        'indicator': '192.168.0.2-192.168.255.255',
                         'value': {
                             's1$a': 1
                         }
@@ -640,7 +721,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
 
     def test_uw(self):
         config = {
-            'whitelists': ['s2']
+            'whitelist_prefixes': ['s2']
         }
         chassis = mock.Mock()
 

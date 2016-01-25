@@ -20,6 +20,7 @@ import yaml
 import uuid
 import time
 import json
+import filelock
 
 import minemeld.run.config
 
@@ -30,6 +31,7 @@ import flask.ext.login
 
 from . import app
 from . import SR
+from . import MMRpcClient
 
 LOG = logging.getLogger(__name__)
 FEED_INTERVAL = 100
@@ -570,6 +572,9 @@ def get_config_data(datafilename):
 
     fdfname = datafilename+'.yml'
 
+    lockfname = fdfname+'.lock'
+    lock = filelock.FileLock(lockfname)
+
     os.listdir(cpath)
     if fdfname not in os.listdir(cpath):
         return jsonify(error={
@@ -577,11 +582,14 @@ def get_config_data(datafilename):
         }), 400
 
     try:
-        with open(os.path.join(cpath, fdfname), 'r') as f:
-            result = yaml.safe_load(f)
+        with lock.acquire(timeout=10):
+            with open(os.path.join(cpath, fdfname), 'r') as f:
+                result = yaml.safe_load(f)
 
-    except:
-        return jsonify(error='Error loading config data file'), 400
+    except Exception as e:
+        return jsonify(error={
+            'message': 'Error loading config data file: %s' % str(e)
+        }), 500
 
     return jsonify(result=result)
 
@@ -597,12 +605,25 @@ def save_config_data(datafilename):
 
     fdfname = os.path.join(cpath, datafilename+'.yml')
 
+    lockfname = fdfname+'.lock'
+    lock = filelock.FileLock(lockfname)
+
     try:
         body = request.get_json()
     except Exception as e:
         return jsonify(error={'message': str(e)}), 400
 
-    with open(fdfname, 'w') as f:
-        yaml.safe_dump(body, stream=f)
+    try:
+        with lock.acquire(timeout=10):
+            with open(fdfname, 'w') as f:
+                yaml.safe_dump(body, stream=f)
+    except Exception as e:
+        return jsonify(error={
+            'message': str(e)
+        }), 500
+
+    hup = request.args.get('h', None)
+    if hup is not None:
+        MMRpcClient.send_cmd(hup, 'hup', {'source': 'minemeld-web'})
 
     return jsonify(result='ok'), 200

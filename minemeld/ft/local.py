@@ -33,7 +33,12 @@ class YamlFT(basepoller.BasePollerFT):
     def configure(self):
         super(YamlFT, self).configure()
 
-        self.path = self.config.get('path')
+        self.path = self.config.get('path', None)
+        if self.path is None:
+            self.path = os.path.join(
+                os.environ['MM_CONFIG_DIR'],
+                '%s_indicators.yml' % self.name
+            )
         self.lock_path = self.path+'.lock'
 
     def _process_item(self, item):
@@ -76,5 +81,12 @@ class YamlFT(basepoller.BasePollerFT):
         try:
             return self._load_yaml()
         except:
-            LOG.exception('%s - exception loading device list')
+            LOG.exception('%s - exception loading indicators list', self.name)
             return []
+
+
+class YamlIPv4FT(YamlFT):
+    def _process_item(self, item):
+        item['type'] = 'IPv4'
+
+        return super(YamlIPv4FT, self)._process_item(item)

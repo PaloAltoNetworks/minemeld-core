@@ -153,7 +153,7 @@ class MineMeldFTOpTests(unittest.TestCase):
 
     def test_aggregate_uwl(self):
         config = {
-            'whitelists': ['s2']
+            'whitelist_prefixes': ['s2']
         }
         chassis = mock.Mock()
 
@@ -301,7 +301,7 @@ class MineMeldFTOpTests(unittest.TestCase):
 
     def test_aggregate_uwlwl(self):
         config = {
-            'whitelists': ['s2', 's3']
+            'whitelist_prefixes': ['s2', 's3']
         }
         chassis = mock.Mock()
 

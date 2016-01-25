@@ -60,7 +60,7 @@ class AggregateIPv4FT(base.BaseFT):
     def configure(self):
         super(AggregateIPv4FT, self).configure()
 
-        self.whitelists = self.config.get('whitelists', [])
+        self.whitelist_prefixes = self.config.get('whitelist_prefixes', [])
 
     def _initialize_tables(self, truncate=False):
         self.table = table.Table(
@@ -152,10 +152,12 @@ class AggregateIPv4FT(base.BaseFT):
             return result
 
         oep = None
+        oeplevel = -1
         live_ids = set()
         for epaddr in eps:
-            LOG.debug('status: epaddr: %s oep: %s live_ids: %s result: %s',
-                      epaddr, oep, live_ids, result)
+            LOG.debug('status: epaddr: %s oep: %s oeplevel: %d, '
+                      'live_ids: %s result: %s',
+                      epaddr, oep, oeplevel, live_ids, result)
             end_ids = set()
             start_ids = set()
             eplevel = 0
@@ -178,13 +180,14 @@ class AggregateIPv4FT(base.BaseFT):
 
             if len(start_ids) != 0:
                 if oep is not None and oep != epaddr and len(live_ids) != 0:
-                    if eplevel < WL_LEVEL:
+                    if oeplevel != WL_LEVEL:
                         LOG.debug('start: %s %s %s',
                                   oep, epaddr-1, live_ids)
                         result.add(MWUpdate(oep, epaddr-1,
                                             live_ids))
 
                 oep = epaddr
+                oeplevel = eplevel
                 live_ids = live_ids | start_ids
 
             if len(end_ids) != 0:
@@ -194,6 +197,7 @@ class AggregateIPv4FT(base.BaseFT):
                         result.add(MWUpdate(oep, epaddr, live_ids))
 
                 oep = epaddr+1
+                oeplevel = eplevel
                 live_ids = live_ids - end_ids
 
         return result
@@ -239,7 +243,7 @@ class AggregateIPv4FT(base.BaseFT):
         )
         if rangestop is not None:
             rangestop = rangestop[0]
-        LOG.debug('%s - range stop: %s', self.name, rangestart)
+        LOG.debug('%s - range stop: %s', self.name, rangestop)
 
         return rangestart, rangestop
 
@@ -258,8 +262,10 @@ class AggregateIPv4FT(base.BaseFT):
             return
 
         level = 1
-        if source in self.whitelists:
-            level = WL_LEVEL
+        for p in self.whitelist_prefixes:
+            if source.startswith(p):
+                level = WL_LEVEL
+                break
 
         LOG.debug("%s - update: indicator: (%s) %s %s level: %s",
                   self.name, indicator, start, end, level)
@@ -269,7 +275,7 @@ class AggregateIPv4FT(base.BaseFT):
         rangesb = set(self._calc_ipranges(rangestart, rangestop))
         LOG.debug('%s - ranges before update: %s', self.name, rangesb)
 
-        if not newindicator and source not in self.whitelists:
+        if not newindicator and level != WL_LEVEL:
             for u in rangesb:
                 self.emit_update(
                     u.indicator(),
@@ -326,8 +332,10 @@ class AggregateIPv4FT(base.BaseFT):
             return
 
         level = 1
-        if source in self.whitelists:
-            level = WL_LEVEL
+        for p in self.whitelist_prefixes:
+            if source.startswith(p):
+                level = WL_LEVEL
+                break
 
         rangestart, rangestop = self._endpoints_from_range(start, end)
 

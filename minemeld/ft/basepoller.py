@@ -361,8 +361,9 @@ class BasePollerFT(base.BaseFT):
             except gevent.GreenletExit:
                 break
 
-            except:
-                LOG.exception("Exception in polling loop for %s", self.name)
+            except Exception as e:
+                LOG.exception("Exception in polling loop for %s: %s",
+                              self.name, str(e))
                 tryn += 1
                 if tryn < self.num_retries:
                     gevent.sleep(random.randint(1, 5))

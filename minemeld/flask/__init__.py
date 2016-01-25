@@ -93,6 +93,51 @@ try:
 
     MMMaster = werkzeug.LocalProxy(get_mmmaster)
 
+    class _MMRpcClient(object):
+        def __init__(self):
+            self.comm = None
+
+            tconfig = config.get('MGMTBUS', {})
+            self.comm_class = tconfig.get('class', 'AMQP')
+            self.comm_config = tconfig.get('config', {})
+
+        def _open_channel(self):
+            if self.comm is not None:
+                return
+
+            self.comm = minemeld.comm.factory(
+                self.comm_class,
+                self.comm_config
+            )
+            self.comm.start()
+
+        def send_cmd(self, target, method, params={}, timeout=10):
+            self._open_channel()
+            LOG.debug('MMRpcClient channel open')
+
+            return self.comm.send_rpc(target, method, params, timeout=timeout)
+
+        def stop(self):
+            if self.comm is not None:
+                self.comm.stop()
+                self.comm = None
+
+    def get_mmrpcclient():
+        r = getattr(g, 'MMRpcClient', None)
+        if r is None:
+            r = _MMRpcClient()
+            g.MMRpcClient = r
+        return r
+
+    @app.teardown_appcontext
+    def tearwdown_mmrpcclient(exception):
+        r = getattr(g, 'MMRpcClient', None)
+        if r is not None:
+            g.MMRpcClient.stop()
+            g.MMRpcClient = None
+
+    MMRpcClient = werkzeug.LocalProxy(get_mmrpcclient)
+
     class _MMStateFanout(object):
         def __init__(self):
             self.subscribers = {}

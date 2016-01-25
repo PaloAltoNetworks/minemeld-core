@@ -102,7 +102,8 @@ class MineMeldFTRedisTests(unittest.TestCase):
                 'get',
                 'get_all',
                 'get_range',
-                'length'
+                'length',
+                'hup'
             ]
         )
 
