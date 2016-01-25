@@ -152,10 +152,12 @@ class AggregateIPv4FT(base.BaseFT):
             return result
 
         oep = None
+        oeplevel = -1
         live_ids = set()
         for epaddr in eps:
-            LOG.debug('status: epaddr: %s oep: %s live_ids: %s result: %s',
-                      epaddr, oep, live_ids, result)
+            LOG.debug('status: epaddr: %s oep: %s oeplevel: %d, '
+                      'live_ids: %s result: %s',
+                      epaddr, oep, oeplevel, live_ids, result)
             end_ids = set()
             start_ids = set()
             eplevel = 0
@@ -178,13 +180,14 @@ class AggregateIPv4FT(base.BaseFT):
 
             if len(start_ids) != 0:
                 if oep is not None and oep != epaddr and len(live_ids) != 0:
-                    if eplevel < WL_LEVEL:
+                    if oeplevel != WL_LEVEL:
                         LOG.debug('start: %s %s %s',
                                   oep, epaddr-1, live_ids)
                         result.add(MWUpdate(oep, epaddr-1,
                                             live_ids))
 
                 oep = epaddr
+                oeplevel = eplevel
                 live_ids = live_ids | start_ids
 
             if len(end_ids) != 0:
@@ -194,6 +197,7 @@ class AggregateIPv4FT(base.BaseFT):
                         result.add(MWUpdate(oep, epaddr, live_ids))
 
                 oep = epaddr+1
+                oeplevel = eplevel
                 live_ids = live_ids - end_ids
 
         return result
@@ -239,7 +243,7 @@ class AggregateIPv4FT(base.BaseFT):
         )
         if rangestop is not None:
             rangestop = rangestop[0]
-        LOG.debug('%s - range stop: %s', self.name, rangestart)
+        LOG.debug('%s - range stop: %s', self.name, rangestop)
 
         return rangestart, rangestop
 
