@@ -303,6 +303,7 @@ class SyslogMatcher(base.BaseFT):
             fields['indicator_value'] = value
 
         if session is not None:
+            session.pop('event.tags', None)
             fields['session'] = session
 
         try:
