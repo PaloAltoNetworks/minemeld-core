@@ -508,3 +508,63 @@ class MineMeldFTSyslogMatcherests(unittest.TestCase):
         ochannel = None
 
         gc.collect()
+
+    @mock.patch.object(gevent, 'spawn_later')
+    @mock.patch.object(socket, 'socket')
+    def test_logstash_event_tags(self, socket_socket, spawnl_mock):
+        config = {
+            'logstash_host': '127.0.0.1'
+        }
+
+        chassis = mock.Mock()
+
+        ochannel = mock.Mock()
+        chassis.request_pub_channel.return_value = ochannel
+
+        rpcmock = mock.Mock()
+        rpcmock.get.return_value = {'error': None, 'result': 'OK'}
+        chassis.send_rpc.return_value = rpcmock
+
+        mock_socket = mock.Mock()
+        socket_socket.return_value = mock_socket
+
+        a = minemeld.ft.syslog.SyslogMatcher(FTNAME, chassis, config)
+
+        inputs = ['a']
+        output = True
+
+        a.connect(inputs, output)
+        a.mgmtbus_initialize()
+        a.start()
+
+        a.update('a', indicator='1.1.1.0-1.1.1.20', value={
+            'type': 'IPv4',
+            'confidence': 100
+        })
+        a._handle_ip('1.1.1.1', message={
+            'session_id': 666,
+            'event.tags': [1, 2]
+        })
+
+        self.assertEqual(mock_socket.connect.call_count, 1)
+        self.assertEqual(mock_socket.sendall.call_count, 1)
+        self.assertEqual(
+            'session_id' in mock_socket.sendall.call_args[0][0],
+            True
+        )
+        self.assertEqual(
+            'event.tags' in mock_socket.sendall.call_args[0][0],
+            False
+        )
+
+        a.stop()
+        a.table.db.close()
+        a.table_ipv4.db.close()
+        a.table_indicators.db.close()
+
+        a = None
+        chassis = None
+        rpcmock = None
+        ochannel = None
+
+        gc.collect()
