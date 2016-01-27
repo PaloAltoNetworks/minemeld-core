@@ -214,9 +214,9 @@ class DevicePusher(gevent.Greenlet):
                 break
 
             except pan.xapi.PanXapiError as e:
-                if 'already exists, ignore' not in e.message:
-                    LOG.exception('XAPI exception in pusher for device %s',
-                                  self.device.get('hostname', None))
+                if 'already exists, ignore' not in str(e):
+                    LOG.exception('XAPI exception in pusher for device %s: %s',
+                                  self.device.get('hostname', None), str(e))
                     raise
                 else:
                     self.q.get()
@@ -262,7 +262,7 @@ class DagPusher(base.BaseFT):
 
     def rebuild(self):
         self.rebuild_flag = True
-        self._initialize_table(truncate=(self.last_checkpoint is None))
+        self._initialize_table(truncate=True)
 
     def reset(self):
         self._initialize_table(truncate=True)
