@@ -66,7 +66,7 @@ class SyslogMatcher(base.BaseFT):
         self._initialize_tables()
 
     def rebuild(self):
-        self._initialize_tables(truncate=(self.last_checkpoint is None))
+        self._initialize_tables(truncate=True)
 
     def reset(self):
         self._initialize_tables(truncate=True)
