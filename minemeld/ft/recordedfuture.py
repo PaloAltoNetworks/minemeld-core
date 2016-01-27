@@ -66,7 +66,10 @@ class ThreatFeed(csv.CSVFT):
             return []
 
         try:
-            ip = netaddr.IPAddress(indicator)
+            if '/' in indicator:
+                ip = netaddr.IPNetwork(indicator)
+            else:
+                ip = netaddr.IPAddress(indicator)
         except netaddr.core.AddrFormatError:
             LOG.exception("%s - failed parsing indicator", self.name)
             return []
@@ -76,7 +79,7 @@ class ThreatFeed(csv.CSVFT):
         elif ip.version == 6:
             result['type'] = 'IPv6'
         else:
-            LOG.debug("%s - unknon IP version %d", self.name, ip.version)
+            LOG.debug("%s - unknown IP version %d", self.name, ip.version)
             return []
 
         risk = row.get('Risk', '')
