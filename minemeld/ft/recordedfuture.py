@@ -31,6 +31,7 @@ class ThreatFeed(csv.CSVFT):
     def configure(self):
         super(ThreatFeed, self).configure()
 
+        self.source_name = 'recordedfuture.threatfeed'
         self.confidence = self.config.get('confidence', 80)
 
         self.token = None
