@@ -110,3 +110,19 @@ class MineMeldRunConfigTests(unittest.TestCase):
         msgs = minemeld.run.config.validate_config(config)
 
         self.assertEqual(len(msgs), 1)
+
+    def test_validate_config_4(self):
+        config = {
+            'nodes': {
+                '../config/running-config.yml': {
+                    'output': True
+                },
+                '<script>alert("ciao")</script>': {
+                    'output': True
+                }
+            }
+        }
+
+        msgs = minemeld.run.config.validate_config(config)
+
+        self.assertEqual(len(msgs), 2)
