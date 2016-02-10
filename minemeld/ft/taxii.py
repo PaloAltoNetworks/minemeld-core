@@ -14,9 +14,6 @@
 
 import logging
 import copy
-import gevent
-import gevent.event
-import random
 import urlparse
 import datetime
 import pytz
@@ -28,80 +25,29 @@ import libtaxii.messages_11
 
 import stix.core.stix_package
 
-from . import base
-from . import table
-from . import ft_states
-from .utils import utc_millisec
+from . import basepoller
 from .utils import dt_to_millisec
-from .utils import age_out_in_millisec
-from .utils import RWLock
 
 LOG = logging.getLogger(__name__)
 
 
-class FtStateChanged(Exception):
-    pass
-
-
-class TaxiiClient(base.BaseFT):
+class TaxiiClient(basepoller.BasePollerFT):
     def __init__(self, name, chassis, config):
-        self.glet = None
-        self.ageout_glet = None
-
-        self.active_requests = []
-        self.rebuild_flag = False
-        self.last_run = None
-        self.last_ageout_run = None
-
         self.poll_service = None
         self.collection_mgmt_service = None
-
-        self.state_lock = RWLock()
+        self.last_taxii_run = None
 
         super(TaxiiClient, self).__init__(name, chassis, config)
 
     def configure(self):
         super(TaxiiClient, self).configure()
 
-        self.source_name = self.config.get('source_name', self.name)
         self.discovery_service = self.config.get('discovery_service', None)
         self.username = self.config.get('username', None)
         self.password = self.config.get('password', None)
         self.collection = self.config.get('collection', None)
-        self.attributes = self.config.get('attributes', {})
-        self.interval = self.config.get('interval', 900)
-        self.polling_timeout = self.config.get('polling_timeout', 20)
-        self.num_retries = self.config.get('num_retries', 2)
         self.prefix = self.config.get('prefix', self.name+'_')
-        self.age_out_interval = int(self.config.get(
-            'age_out_interval',
-            '3600'
-        ))
-        self.age_out = self.config.get('age_out', '30d')
         self.ca_file = self.config.get('ca_file', None)
-
-    def _initialize_table(self, truncate=False):
-        self.table = table.Table(self.name, truncate=truncate)
-        self.table.create_index('last_seen')
-
-    def initialize(self):
-        self._initialize_table()
-
-    def rebuild(self):
-        self.rebuild_flag = True
-        self._initialize_table(truncate=(self.last_checkpoint is None))
-
-    def reset(self):
-        self._initialize_table(truncate=True)
-
-    @base.BaseFT.state.setter
-    def state(self, value):
-        LOG.debug("%s - acquiring state write lock", self.name)
-        self.state_lock.lock()
-        #  this is weird ! from stackoverflow 10810369
-        super(TaxiiClient, self.__class__).state.fset(self, value)
-        self.state_lock.unlock()
-        LOG.debug("%s - releasing state write lock", self.name)
 
     def _build_taxii_client(self):
         result = libtaxii.clients.HttpClient()
@@ -290,7 +236,11 @@ class TaxiiClient(base.BaseFT):
 
         LOG.debug('%s - stix_objects: %s', self.name, stix_objects)
 
-        self._handle_indicators(stix_objects)
+        params = {
+            'ttps': stix_objects['ttps'],
+            'observables': stix_objects['observables']
+        }
+        return [[x, params] for x in stix_objects['indicators'].values()]
 
     def _handle_content_blocks(self, content_blocks, objects):
         try:
@@ -445,179 +395,54 @@ class TaxiiClient(base.BaseFT):
 
         return {'description': ''}
 
-    def _add_indicator(self, indicator, value):
-        result = True
+    def _process_item(self, item):
+        result = []
+        value = {}
 
-        v = self.table.get(indicator)
-        if v is not None:
-            if len(v) == len(value):
+        i, stix_objects = item
+        if len(i['ttps']) != 0:
+            ttp = i['ttps'][0]
+            if 'idref' in ttp:
+                ttp = stix_objects['ttps'].get(ttp['idref'])
 
-                ceq = 0
-                for k in v:
-                    if v[k] != value.get(k, None):
-                        break
-                    ceq += 1
+            if ttp is not None and 'description' in ttp:
+                value['%s_ttp' % self.prefix] = ttp['description']
 
-                result = ceq == len(v)
+        for o in i['observables']:
+            ob = o
+            if 'idref' in o:
+                ob = stix_objects['observables'].get(o['idref'], None)
+            if ob is None:
+                continue
 
-        self.table.put(indicator, value)
+            v = copy.copy(value)
+            v['type'] = ob['type']
+            result.append([ob['indicator'], v])
 
         return result
 
-    def _handle_indicators(self, stix_objects):
-        self.state_lock.rlock()
-        if self.state != ft_states.STARTED:
-            self.state_lock.runlock()
-            raise FtStateChanged('no more STARTED')
-
-        try:
-            for i in stix_objects['indicators'].values():
-                value = copy.copy(self.attributes)
-
-                value['last_seen'] = i.get('timestamp', utc_millisec())
-
-                if len(i['ttps']) != 0:
-                    ttp = i['ttps'][0]
-                    if 'idref' in ttp:
-                        ttp = stix_objects['ttps'][ttp['idref']]
-
-                    value['%s_ttp' % self.prefix] = ttp['description']
-
-                for o in i['observables']:
-                    ob = o
-                    if 'idref' in o:
-                        ob = stix_objects['observables'][o['idref']]
-
-                    if ob is None:
-                        continue
-
-                    indicator = ob['indicator']
-                    value['type'] = ob['type']
-
-                    if self._add_indicator(indicator, value):
-                        self.emit_update(indicator, value)
-
-        finally:
-            self.state_lock.runlock()
-
-    def _age_out_run(self):
-        interval = age_out_in_millisec(self.age_out)
-
-        while True:
-            self.state_lock.rlock()
-            if self.state != ft_states.STARTED:
-                self.state_lock.runlock()
-                return
-
-            try:
-                now = utc_millisec()
-
-                for i, v in self.table.query(index='last_seen',
-                                             to_key=now-interval,
-                                             include_value=True):
-                    LOG.debug('%s - %s %s aged out', self.name, i, v)
-                    self.emit_withdraw(indicator=i)
-                    self.table.delete(i)
-
-                self.last_ageout_run = now
-
-            except gevent.GreenletExit:
-                break
-
-            except:
-                LOG.exception('Exception in _age_out_loop')
-
-            finally:
-                self.state_lock.runlock()
-
-            gevent.sleep(self.age_out_interval)
-
-    def _run(self):
-        while self.last_ageout_run is None:
-            gevent.sleep(1)
-
-        self.state_lock.rlock()
-        if self.state != ft_states.STARTED:
-            self.state_lock.runlock()
-            return
-
-        try:
-            if self.rebuild_flag:
-                LOG.debug("rebuild flag set, resending current indicators")
-                # reinit flag is set, emit update for all the known indicators
-                for i, v in self.table.query('last_seen', include_value=True):
-                    self.emit_update(i, v)
-        finally:
-            self.state_lock.unlock()
-
+    def _build_iterator(self, now):
         tc = self._build_taxii_client()
+        self._discover_services(tc)
+        self._check_collections(tc)
 
-        while True:
-            try:
-                self._discover_services(tc)
-                self._check_collections(tc)
+        last_run = self.last_taxii_run
+        if last_run is None:
+            last_run = now-86400000
 
-                while True:
-                    now = utc_millisec()
+        begin = datetime.datetime.fromtimestamp(last_run/1000)
+        begin = begin.replace(tzinfo=pytz.UTC)
 
-                    last_run = self.last_run
-                    if last_run is None:
-                        last_run = now-86400000
+        end = datetime.datetime.fromtimestamp(now/1000)
+        end = end.replace(tzinfo=pytz.UTC)
 
-                    begin = datetime.datetime.fromtimestamp(last_run/1000)
-                    begin = begin.replace(tzinfo=pytz.UTC)
+        result = self._poll_collection(
+            tc,
+            begin=begin,
+            end=end
+        )
+        LOG.debug('%s - polling result: %s', self.name, result)
 
-                    end = datetime.datetime.fromtimestamp(now/1000)
-                    end = end.replace(tzinfo=pytz.UTC)
-
-                    self._poll_collection(
-                        tc,
-                        begin=begin,
-                        end=end
-                    )
-
-                    self.last_run = now
-
-                    gevent.sleep(self.interval)
-
-            except gevent.GreenletExit:
-                break
-
-            except FtStateChanged:
-                break
-
-            except:
-                LOG.exception('%s - exception in main loop', self.name)
-                gevent.sleep(300)
-
-    def mgmtbus_status(self):
-        result = super(TaxiiClient, self).mgmtbus_status()
-        result['last_run'] = self.last_run
+        self.last_taxii_run = now
 
         return result
-
-    def length(self, source=None):
-        return self.table.num_indicators
-
-    def start(self):
-        super(TaxiiClient, self).start()
-
-        if self.glet is not None:
-            return
-
-        self.glet = gevent.spawn_later(random.randint(0, 2), self._run)
-        self.ageout_glet = gevent.spawn(self._age_out_run)
-
-    def stop(self):
-        super(TaxiiClient, self).stop()
-
-        if self.glet is None:
-            return
-
-        for g in self.active_requests:
-            g.kill()
-
-        self.glet.kill()
-        self.ageout_glet.kill()
-
-        LOG.info("%s - # indicators: %d", self.name, self.table.num_indicators)
