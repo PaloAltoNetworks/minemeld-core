@@ -46,7 +46,7 @@ class TaxiiClient(basepoller.BasePollerFT):
         self.username = self.config.get('username', None)
         self.password = self.config.get('password', None)
         self.collection = self.config.get('collection', None)
-        self.prefix = self.config.get('prefix', self.name+'_')
+        self.prefix = self.config.get('prefix', self.name)
         self.ca_file = self.config.get('ca_file', None)
 
     def _build_taxii_client(self):
@@ -240,7 +240,7 @@ class TaxiiClient(basepoller.BasePollerFT):
             'ttps': stix_objects['ttps'],
             'observables': stix_objects['observables']
         }
-        return [[x, params] for x in stix_objects['indicators'].values()]
+        return [[iid, iv, params] for iid, iv in stix_objects['indicators'].iteritems()]
 
     def _handle_content_blocks(self, content_blocks, objects):
         try:
@@ -399,24 +399,30 @@ class TaxiiClient(basepoller.BasePollerFT):
         result = []
         value = {}
 
-        i, stix_objects = item
-        if len(i['ttps']) != 0:
-            ttp = i['ttps'][0]
+        iid, iv, stix_objects = item
+        value['%s_indicator' % self.prefix] = iid
+
+        if len(iv['ttps']) != 0:
+            ttp = iv['ttps'][0]
             if 'idref' in ttp:
                 ttp = stix_objects['ttps'].get(ttp['idref'])
 
             if ttp is not None and 'description' in ttp:
                 value['%s_ttp' % self.prefix] = ttp['description']
 
-        for o in i['observables']:
+        for o in iv['observables']:
+            v = copy.copy(value)
+
             ob = o
             if 'idref' in o:
                 ob = stix_objects['observables'].get(o['idref'], None)
+                v['%s_observable' % self.prefix] = o['idref']
+
             if ob is None:
                 continue
 
-            v = copy.copy(value)
             v['type'] = ob['type']
+
             result.append([ob['indicator'], v])
 
         return result
