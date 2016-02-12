@@ -447,7 +447,6 @@ class TaxiiClient(basepoller.BasePollerFT):
             begin=begin,
             end=end
         )
-        LOG.debug('%s - polling result: %s', self.name, result)
 
         self.last_taxii_run = now
 
