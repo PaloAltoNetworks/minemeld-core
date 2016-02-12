@@ -21,6 +21,7 @@ import os
 import os.path
 import logging
 import shutil
+import re
 
 LOG = logging.getLogger(__name__)
 
@@ -202,6 +203,10 @@ def validate_config(config):
     result = []
 
     nodes = config['nodes']
+
+    for n in nodes.keys():
+        if re.match('^[a-zA-Z0-9_\-]+$', n) is None:
+            result.append('%s node name is invalid' % n)
 
     for n, v in nodes.iteritems():
         for i in v.get('inputs', []):
