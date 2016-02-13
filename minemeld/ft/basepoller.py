@@ -405,7 +405,7 @@ class BasePollerFT(base.BaseFT):
         return result
 
     def hup(self, source=None):
-        LOG.info('%s - hup received, force polling', self.name):
+        LOG.info('%s - hup received, force polling', self.name)
         self.poll_event.set()
 
     def length(self, source=None):
