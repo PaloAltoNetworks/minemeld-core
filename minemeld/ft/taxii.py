@@ -240,7 +240,8 @@ class TaxiiClient(basepoller.BasePollerFT):
             'ttps': stix_objects['ttps'],
             'observables': stix_objects['observables']
         }
-        return [[iid, iv, params] for iid, iv in stix_objects['indicators'].iteritems()]
+        return [[iid, iv, params]
+                for iid, iv in stix_objects['indicators'].iteritems()]
 
     def _handle_content_blocks(self, content_blocks, objects):
         try:

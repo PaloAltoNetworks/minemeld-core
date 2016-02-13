@@ -106,6 +106,8 @@ class BasePollerFT(base.BaseFT):
         self.last_run = None
         self.last_ageout_run = None
 
+        self.poll_event = gevent.event.Event()
+
         self.state_lock = RWLock()
 
         super(BasePollerFT, self).__init__(name, chassis, config)
@@ -388,7 +390,10 @@ class BasePollerFT(base.BaseFT):
                 deltat += self.interval*1000
 
             try:
-                gevent.sleep(deltat/1000.0)
+                hup_called = self.poll_event.wait(timeout=deltat/1000.0)
+                if hup_called:
+                    LOG.debug('%s - clearing poll event', self.name)
+                    self.poll_event.clear()
 
             except gevent.GreenletExit:
                 break
@@ -398,6 +403,10 @@ class BasePollerFT(base.BaseFT):
         result['last_run'] = self.last_run
 
         return result
+
+    def hup(self, source=None):
+        LOG.info('%s - hup received, force polling', self.name):
+        self.poll_event.set()
 
     def length(self, source=None):
         return self.table.num_indicators

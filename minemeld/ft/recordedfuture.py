@@ -138,3 +138,4 @@ class ThreatFeed(csv.CSVFT):
     def hup(self, source=None):
         LOG.info('%s - hup received, reload side config', self.name)
         self._load_side_config()
+        super(ThreatFeed, self).hup(source)
