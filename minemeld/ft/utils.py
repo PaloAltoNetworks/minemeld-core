@@ -20,9 +20,6 @@ import datetime
 import pytz
 import re
 
-import netaddr
-import urlparse
-
 import gevent.lock
 import gevent.event
 
@@ -131,57 +128,3 @@ class RWLock(object):
             self.w.release()
 
         self.m1.release()
-
-
-def type_of_indicator(indicator):
-    def _check_for_ip(indicator):
-        if '-' in indicator:
-            # check for address range
-            a1, a2 = indicator.split('-', 1)
-
-            try:
-                a1 = netaddr.IPAddress(a1)
-                a2 = netaddr.IPAddress(a2)
-
-                if a1.version == a2.version:
-                    if a1.version == 6:
-                        return 'IPv6'
-                    if a1.version == 4:
-                        return 'IPv4'
-
-            except:
-                return None
-
-            return None
-
-        if '/' in indicator:
-            # check for network
-            try:
-                ip = netaddr.IPNetwork(indicator)
-
-            except:
-                return None
-
-            if ip.version == 4:
-                return 'IPv4'
-            if ip.version == 6:
-                return 'IPv6'
-
-            return None
-
-        try:
-            ip = netaddr.IPAddress(indicator)
-        except:
-            return None
-
-        if ip.version == 4:
-            return 'IPv4'
-        if ip.version == 6:
-            return 'IPv6'
-
-        return None
-
-    def _check_for_url(indicator):
-        
-
-
