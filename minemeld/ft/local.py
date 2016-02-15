@@ -91,11 +91,13 @@ class YamlIPv4FT(YamlFT):
 
         return super(YamlIPv4FT, self)._process_item(item)
 
+
 class YamlURLFT(YamlFT):
     def _process_item(self, item):
         item['type'] = 'URL'
 
         return super(YamlURLFT, self)._process_item(item)
+
 
 class YamlDomainFT(YamlFT):
     def _process_item(self, item):
