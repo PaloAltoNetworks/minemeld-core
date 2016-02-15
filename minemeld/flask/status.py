@@ -30,7 +30,6 @@ from . import MMStateFanout
 
 # for hup API
 from . import MMRpcClient
-from . import MMMaster
 
 LOG = logging.getLogger(__name__)
 
