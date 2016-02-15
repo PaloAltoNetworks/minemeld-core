@@ -21,6 +21,7 @@ import netaddr
 import netaddr.core
 import urlparse
 import pan.afapi
+import ujson
 
 from . import basepoller
 
@@ -56,7 +57,7 @@ class ExportList(basepoller.BasePollerFT):
         if self.api_key is not None:
             LOG.info('%s - api key set', self.name)
 
-        self.labels = sconfig.get('label', None)
+        self.label = sconfig.get('label', None)
 
     def _process_item(self, row):
         indicator = row
@@ -130,7 +131,7 @@ class ExportList(basepoller.BasePollerFT):
         return 'domain'
 
     def _build_iterator(self, now):
-        if self.api_key is None or len(self.label) == 0:
+        if self.api_key is None or self.label is None:
             LOG.info(
                 '%s - api_key or label not set, poll not performed',
                 self.name
@@ -146,7 +147,7 @@ class ExportList(basepoller.BasePollerFT):
             api_key=self.api_key
         )
 
-        af.export(data=body)
+        af.export(data=ujson.dumps(body))
         af.raise_for_status()
 
         return af.json.get('exportList', [])
