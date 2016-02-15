@@ -15,14 +15,14 @@
 from __future__ import absolute_import
 
 import logging
-import requests
 import os
-import ujson
 import yaml
 import netaddr
 import netaddr.core
+import urlparse
+import pan.afapi
 
-from . import csv
+from . import basepoller
 
 LOG = logging.getLogger(__name__)
 
@@ -56,60 +56,81 @@ class ExportList(basepoller.BasePollerFT):
         if self.api_key is not None:
             LOG.info('%s - api key set', self.name)
 
-        self.label = sconfig.get('label', None)
+        self.labels = sconfig.get('label', None)
 
     def _process_item(self, row):
+        indicator = row
+
         result = {}
-
-        try:
-            if '/' in indicator:
-                ip = netaddr.IPNetwork(indicator)
-            else:
-                ip = netaddr.IPAddress(indicator)
-        except netaddr.core.AddrFormatError:
-            LOG.exception("%s - failed parsing indicator", self.name)
-            return []
-
-        if ip.version == 4:
-            result['type'] = 'IPv4'
-        elif ip.version == 6:
-            result['type'] = 'IPv6'
-        else:
-            LOG.debug("%s - unknown IP version %d", self.name, ip.version)
-            return []
-
-        risk = row.get('Risk', '')
-        if risk != '':
-            try:
-                result['recordedfuture_risk'] = int(risk)
-                result['confidence'] = (int(risk)*self.confidence)/100
-            except:
-                LOG.debug("%s - invalid risk string: %s",
-                          self.name, risk)
-
-        riskstring = row.get('RiskString', '')
-        if riskstring != '':
-            result['recordedfuture_riskstring'] = riskstring
-
-        edetails = row.get('EvidenceDetails', '')
-        if edetails != '':
-            try:
-                edetails = ujson.loads(edetails)
-            except:
-                LOG.debug("%s - invalid JSON string in EvidenceDetails: %s",
-                          self.name, edetails)
-            else:
-                edetails = edetails.get('EvidenceDetails', [])
-                result['recordedfuture_evidencedetails'] = \
-                    [ed['Rule'] for ed in edetails]
-
-        result['recordedfuture_entityurl'] = \
-            'https://www.recordedfuture.com/live/sc/entity/ip:'+indicator
+        result['type'] = self._type_of_indicator(indicator)
+        result['autofocus_label'] = self.label
 
         return [[indicator, result]]
 
+    def _check_for_ip(self, indicator):
+        if '-' in indicator:
+            # check for address range
+            a1, a2 = indicator.split('-', 1)
+
+            try:
+                a1 = netaddr.IPAddress(a1)
+                a2 = netaddr.IPAddress(a2)
+
+                if a1.version == a2.version:
+                    if a1.version == 6:
+                        return 'IPv6'
+                    if a1.version == 4:
+                        return 'IPv4'
+
+            except:
+                return None
+
+            return None
+
+        if '/' in indicator:
+            # check for network
+            try:
+                ip = netaddr.IPNetwork(indicator)
+
+            except:
+                return None
+
+            if ip.version == 4:
+                return 'IPv4'
+            if ip.version == 6:
+                return 'IPv6'
+
+            return None
+
+        try:
+            ip = netaddr.IPAddress(indicator)
+        except:
+            return None
+
+        if ip.version == 4:
+            return 'IPv4'
+        if ip.version == 6:
+            return 'IPv6'
+
+        return None
+
+    def _type_of_indicator(self, indicator):
+        ipversion = self._check_for_ip(indicator)
+        if ipversion is not None:
+            return ipversion
+
+        try:
+            uparsed = urlparse.urlparse(indicator)
+        except:
+            return None
+
+        if uparsed.scheme is not None or uparsed.hostname is not None:
+            return 'URL'
+
+        return 'domain'
+
     def _build_iterator(self, now):
-        if self.api_key is None or self.label is None:
+        if self.api_key is None or len(self.label) == 0:
             LOG.info(
                 '%s - api_key or label not set, poll not performed',
                 self.name
@@ -122,7 +143,7 @@ class ExportList(basepoller.BasePollerFT):
         }
 
         af = pan.afapi.PanAFapi(
-            api_key = self.api_key
+            api_key=self.api_key
         )
 
         af.export(data=body)
@@ -133,3 +154,4 @@ class ExportList(basepoller.BasePollerFT):
     def hup(self, source=None):
         LOG.info('%s - hup received, reload side config', self.name)
         self._load_side_config()
+        super(ExportList, self).hup(source=source)
