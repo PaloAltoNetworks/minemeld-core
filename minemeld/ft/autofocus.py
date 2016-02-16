@@ -144,10 +144,10 @@ class ExportList(basepoller.BasePollerFT):
             api_key=self.api_key
         )
 
-        af.export(data=ujson.dumps(body))
-        af.raise_for_status()
+        r = af.export(data=ujson.dumps(body))
+        r.raise_for_status()
 
-        return af.json.get('exportList', [])
+        return r.json.get('export_list', [])
 
     def hup(self, source=None):
         LOG.info('%s - hup received, reload side config', self.name)
