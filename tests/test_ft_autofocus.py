@@ -80,7 +80,9 @@ class MineMeldYamlFTTests(unittest.TestCase):
         rpcmock.get.return_value = {'error': None, 'result': 'OK'}
         chassis.send_rpc.return_value = rpcmock
 
-        config = {}
+        config = {
+            'side_config': os.path.join(MYDIR, 'dummy.yml')
+        }
 
         a = minemeld.ft.autofocus.ExportList(FTNAME, chassis, config)
 
@@ -96,6 +98,9 @@ class MineMeldYamlFTTests(unittest.TestCase):
         self.assertEqual(a._type_of_indicator('1.1.1.1'), 'IPv4')
         self.assertEqual(a._type_of_indicator('1.1.1.2-1.1.1.5'), 'IPv4')
         self.assertEqual(a._type_of_indicator('1.1.1.0/24'), 'IPv4')
+        self.assertEqual(a._type_of_indicator('www.google.com'), 'domain')
+        self.assertEqual(a._type_of_indicator('www.google.com/test'), 'URL')
+        self.assertEqual(a._type_of_indicator('https://www.google.com'), 'URL')
 
         a.stop()
         a.table.db.close()
