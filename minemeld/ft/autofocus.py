@@ -19,13 +19,15 @@ import os
 import yaml
 import netaddr
 import netaddr.core
-import urlparse
 import pan.afapi
 import ujson
+import re
 
 from . import basepoller
 
 LOG = logging.getLogger(__name__)
+
+DOMAIN_RE = re.compile('^[a-zA-Z\d-]{,63}(\.[a-zA-Z\d-]{,63})*$')
 
 
 class ExportList(basepoller.BasePollerFT):
@@ -120,15 +122,10 @@ class ExportList(basepoller.BasePollerFT):
         if ipversion is not None:
             return ipversion
 
-        try:
-            uparsed = urlparse.urlparse(indicator)
-        except:
-            return None
+        if DOMAIN_RE.match(indicator):
+            return 'domain'
 
-        if uparsed.scheme is not None or uparsed.hostname is not None:
-            return 'URL'
-
-        return 'domain'
+        return 'URL'
 
     def _build_iterator(self, now):
         if self.api_key is None or self.label is None:
