@@ -10,7 +10,7 @@ netaddr==0.7.15
 antlr4-python2-runtime==4.5.2
 jmespath==0.7.1
 click==4.1
-pan-python==0.7.0
+pan-python==0.9.0
 stix==1.1.1.5
 libtaxii==1.1.107
 pytz==2015.4

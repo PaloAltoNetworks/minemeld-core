@@ -51,6 +51,13 @@ def logical_millisec(*args):
     return CUR_LOGICAL_TIME
 
 
+def gevent_event_mock_factory():
+    result = mock.Mock()
+    result.wait.side_effect = gevent.GreenletExit()
+
+    return result
+
+
 def device_pusher_mock_factory(device, prefix, watermark, attributes):
     def _start_se(x):
         x.started = True
@@ -87,10 +94,11 @@ class MineMeldFTDagPusherTests(unittest.TestCase):
     @mock.patch.object(gevent, 'spawn')
     @mock.patch.object(gevent, 'spawn_later')
     @mock.patch.object(gevent, 'sleep', side_effect=gevent.GreenletExit())
+    @mock.patch('gevent.event.Event', side_effect=gevent_event_mock_factory)
     @mock.patch.object(calendar, 'timegm', side_effect=logical_millisec)
     @mock.patch('minemeld.ft.dag.DevicePusher',
                 side_effect=device_pusher_mock_factory)
-    def test_device_list_load(self, dp_mock, timegm_mock,
+    def test_device_list_load(self, dp_mock, timegm_mock, event_mock,
                               sleep_mock, spawnl_mock, spawn_mock):
         device_list_path = os.path.join(MYDIR, 'test_device_list.yml')
         device_list_path2 = os.path.join(MYDIR, 'test_device_list2.yml')
@@ -197,10 +205,11 @@ class MineMeldFTDagPusherTests(unittest.TestCase):
     @mock.patch.object(gevent, 'spawn')
     @mock.patch.object(gevent, 'spawn_later')
     @mock.patch.object(gevent, 'sleep', side_effect=gevent.GreenletExit())
+    @mock.patch('gevent.event.Event', side_effect=gevent_event_mock_factory)
     @mock.patch.object(calendar, 'timegm', side_effect=logical_millisec)
     @mock.patch('minemeld.ft.dag.DevicePusher',
                 side_effect=device_pusher_mock_factory)
-    def test_uw(self, dp_mock, timegm_mock,
+    def test_uw(self, dp_mock, timegm_mock, event_mock,
                 sleep_mock, spawnl_mock, spawn_mock):
         device_list_path = os.path.join(MYDIR, 'test_device_list.yml')
 

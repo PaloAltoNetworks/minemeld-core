@@ -41,6 +41,13 @@ def logical_millisec(*args):
     return CUR_LOGICAL_TIME
 
 
+def gevent_event_mock_factory():
+    result = mock.Mock()
+    result.wait.side_effect = gevent.GreenletExit()
+
+    return result
+
+
 class DeltaFeed(minemeld.ft.basepoller.BasePollerFT):
     def __init__(self, name, chassis):
         config = {
@@ -147,8 +154,9 @@ class MineMeldFTBasePollerTests(unittest.TestCase):
     @mock.patch.object(gevent, 'spawn')
     @mock.patch.object(gevent, 'spawn_later')
     @mock.patch.object(gevent, 'sleep', side_effect=gevent.GreenletExit())
+    @mock.patch('gevent.event.Event', side_effect=gevent_event_mock_factory)
     @mock.patch.object(calendar, 'timegm', side_effect=logical_millisec)
-    def test_delta_feed(self, um_mock, sleep_mock, spawnl_mock, spawn_mock):
+    def test_delta_feed(self, um_mock, event_mock, sleep_mock, spawnl_mock, spawn_mock):
         global CUR_LOGICAL_TIME
 
         chassis = mock.Mock()
@@ -222,8 +230,10 @@ class MineMeldFTBasePollerTests(unittest.TestCase):
     @mock.patch.object(gevent, 'spawn')
     @mock.patch.object(gevent, 'spawn_later')
     @mock.patch.object(gevent, 'sleep', side_effect=gevent.GreenletExit())
+    @mock.patch('gevent.event.Event', side_effect=gevent_event_mock_factory)
     @mock.patch.object(calendar, 'timegm', side_effect=logical_millisec)
-    def test_rolling_feed(self, um_mock, sleep_mock, spawnl_mock, spawn_mock):
+    def test_rolling_feed(self, um_mock, event_mock, sleep_mock,
+                          spawnl_mock, spawn_mock):
         global CUR_LOGICAL_TIME
 
         chassis = mock.Mock()
@@ -297,9 +307,10 @@ class MineMeldFTBasePollerTests(unittest.TestCase):
     @mock.patch.object(gevent, 'spawn')
     @mock.patch.object(gevent, 'spawn_later')
     @mock.patch.object(gevent, 'sleep', side_effect=gevent.GreenletExit())
+    @mock.patch('gevent.event.Event', side_effect=gevent_event_mock_factory)
     @mock.patch.object(calendar, 'timegm', side_effect=logical_millisec)
-    def test_permanent_feed(self, um_mock, sleep_mock,
-                            spawnl_mock, spawn_mock):
+    def test_permanent_feed(self, um_mock, event_mock,
+                            sleep_mock, spawnl_mock, spawn_mock):
         global CUR_LOGICAL_TIME
 
         chassis = mock.Mock()

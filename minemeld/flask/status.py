@@ -28,6 +28,9 @@ from . import app
 from . import MMMaster
 from . import MMStateFanout
 
+# for hup API
+from . import MMRpcClient
+
 LOG = logging.getLogger(__name__)
 
 
@@ -95,3 +98,21 @@ def get_minemeld_running_config():
         rcconfig = yaml.safe_load(f)
 
     return jsonify(result=rcconfig)
+
+
+# this should be move on a different endpoint
+@app.route('/status/<nodename>/hup')
+@flask.ext.login.login_required
+def hup_node(nodename):
+    status = MMMaster.status()
+    tr = status.get('result', None)
+    if tr is None:
+        return jsonify(error={'message': status.get('error', 'error')})
+
+    nname = 'mbus:slave:'+nodename
+    if nname not in tr:
+        return jsonify(error={'message': 'Unknown node'}), 404
+
+    MMRpcClient.send_cmd(nodename, 'hup', {'source': 'minemeld-web'})
+
+    return jsonify(result='ok'), 200
