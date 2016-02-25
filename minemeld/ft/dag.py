@@ -269,18 +269,21 @@ class DagPusher(base.BaseFT):
 
     @base._counting('update.processed')
     def filtered_update(self, source=None, indicator=None, value=None):
-        if value.get('type', None) not in ['IPv4', 'IPv6']:
+        if value.get('type', None) not in ['IPv4']:
+            self.statistics['ignored'] += 1
             return
 
         if '-' in indicator:
             i1, i2 = indicator.split('-', 1)
             if i1 != i2:
+                self.statistics['ignored'] += 1
                 return
             indicator = i1
 
         if '/' in indicator:
             indicator, nmbits = indicator.split('/', 1)
             if nmbits != '32':
+                self.statistics['ignored'] += 1
                 return
 
         try:
@@ -288,11 +291,13 @@ class DagPusher(base.BaseFT):
         except ValueError:
             LOG.error('%s - invalid IP address received, ignored',
                       self.name)
+            self.statistics['ignored'] += 1
             return
 
         if address.netmask_bits() != 32:
             LOG.error('%s - IP network received, ignored',
                       self.name)
+            self.statistics['ignored'] += 1
             return
 
         current_value = self.table.get(str(address))
