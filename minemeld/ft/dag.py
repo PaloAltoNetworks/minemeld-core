@@ -272,6 +272,17 @@ class DagPusher(base.BaseFT):
         if value.get('type', None) not in ['IPv4', 'IPv6']:
             return
 
+        if '-' in indicator:
+            i1, i2 = indicator.split('-', 1)
+            if i1 != i2:
+                return
+            indicator = i1
+
+        if '/' in indicator:
+            indicator, nmbits = indicator.split('/', 1)
+            if nmbits != '32':
+                return
+
         try:
             address = netaddr.IPAddress(indicator)
         except ValueError:
@@ -310,6 +321,17 @@ class DagPusher(base.BaseFT):
 
     @base._counting('withdraw.processed')
     def filtered_withdraw(self, source=None, indicator=None, value=None):
+        if '-' in indicator:
+            i1, i2 = indicator.split('-', 1)
+            if i1 != i2:
+                return
+            indicator = i1
+
+        if '/' in indicator:
+            indicator, nmbits = indicator.split('/', 1)
+            if nmbits != '32':
+                return
+
         try:
             address = netaddr.IPAddress(indicator)
         except ValueError:
@@ -376,7 +398,7 @@ class DagPusher(base.BaseFT):
             self.tag_watermark,
             self.tag_attributes
         )
-        dp.link_exception(self._device_puhser_died)
+        dp.link_exception(self._device_pusher_died)
 
         for i, v in self.table.query(include_value=True):
             LOG.debug('%s - addding %s to init', self.name, i)
@@ -385,7 +407,7 @@ class DagPusher(base.BaseFT):
 
         return dp
 
-    def _device_puhser_died(self, g):
+    def _device_pusher_died(self, g):
         try:
             g.get()
 
