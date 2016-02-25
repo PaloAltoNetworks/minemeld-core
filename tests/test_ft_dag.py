@@ -290,6 +290,248 @@ class MineMeldFTDagPusherTests(unittest.TestCase):
 
         gc.collect()
 
+    @mock.patch.object(gevent, 'spawn')
+    @mock.patch.object(gevent, 'spawn_later')
+    @mock.patch.object(gevent, 'sleep', side_effect=gevent.GreenletExit())
+    @mock.patch('gevent.event.Event', side_effect=gevent_event_mock_factory)
+    @mock.patch.object(calendar, 'timegm', side_effect=logical_millisec)
+    @mock.patch('minemeld.ft.dag.DevicePusher',
+                side_effect=device_pusher_mock_factory)
+    def test_uinvalid(self, dp_mock, timegm_mock, event_mock,
+                      sleep_mock, spawnl_mock, spawn_mock):
+        device_list_path = os.path.join(MYDIR, 'test_device_list.yml')
+
+        shutil.copyfile(device_list_path, DLIST_NAME)
+
+        config = {
+            'device_list': DLIST_NAME
+        }
+
+        chassis = mock.Mock()
+
+        ochannel = mock.Mock()
+        chassis.request_pub_channel.return_value = ochannel
+
+        rpcmock = mock.Mock()
+        rpcmock.get.return_value = {'error': None, 'result': 'OK'}
+        chassis.send_rpc.return_value = rpcmock
+
+        a = minemeld.ft.dag.DagPusher(FTNAME, chassis, config)
+
+        inputs = ['a']
+        output = False
+
+        a.connect(inputs, output)
+        a.mgmtbus_initialize()
+        a.start()
+        self.assertEqual(spawnl_mock.call_count, 1)
+        self.assertEqual(spawn_mock.call_count, 0)
+
+        try:
+            a._device_list_monitor()
+        except gevent.GreenletExit:
+            pass
+
+        a.update('a', indicator='1.1.1.1-1.1.1.3', value={
+            'type': 'IPv4',
+            'confidence': 100
+        })
+
+        self.assertEqual(a.length(), 0)
+
+        a.update('a', indicator='1.1.1.0/24', value={
+            'type': 'IPv4',
+            'confidence': 100
+        })
+
+        self.assertEqual(a.length(), 0)
+
+        a.stop()
+        a.table.db.close()
+
+        a = None
+        chassis = None
+        rpcmock = None
+        ochannel = None
+
+        gc.collect()
+
+    @mock.patch.object(gevent, 'spawn')
+    @mock.patch.object(gevent, 'spawn_later')
+    @mock.patch.object(gevent, 'sleep', side_effect=gevent.GreenletExit())
+    @mock.patch('gevent.event.Event', side_effect=gevent_event_mock_factory)
+    @mock.patch.object(calendar, 'timegm', side_effect=logical_millisec)
+    @mock.patch('minemeld.ft.dag.DevicePusher',
+                side_effect=device_pusher_mock_factory)
+    def test_unicast1(self, dp_mock, timegm_mock, event_mock,
+                      sleep_mock, spawnl_mock, spawn_mock):
+        device_list_path = os.path.join(MYDIR, 'test_device_list.yml')
+
+        shutil.copyfile(device_list_path, DLIST_NAME)
+
+        config = {
+            'device_list': DLIST_NAME
+        }
+
+        chassis = mock.Mock()
+
+        ochannel = mock.Mock()
+        chassis.request_pub_channel.return_value = ochannel
+
+        rpcmock = mock.Mock()
+        rpcmock.get.return_value = {'error': None, 'result': 'OK'}
+        chassis.send_rpc.return_value = rpcmock
+
+        a = minemeld.ft.dag.DagPusher(FTNAME, chassis, config)
+
+        inputs = ['a']
+        output = False
+
+        a.connect(inputs, output)
+        a.mgmtbus_initialize()
+        a.start()
+        self.assertEqual(spawnl_mock.call_count, 1)
+        self.assertEqual(spawn_mock.call_count, 0)
+
+        try:
+            a._device_list_monitor()
+        except gevent.GreenletExit:
+            pass
+
+        a.update('a', indicator='1.1.1.1-1.1.1.1', value={
+            'type': 'IPv4',
+            'confidence': 100
+        })
+
+        for d in a.device_pushers:
+            d.put.assert_called_with(
+                'register',
+                '1.1.1.1',
+                {
+                    'type': 'IPv4',
+                    'confidence': 100
+                }
+            )
+
+        for d in a.device_pushers:
+            d.put.reset_mock()
+
+        a.withdraw('a', indicator='1.1.1.1-1.1.1.1')
+        for d in a.device_pushers:
+            d.put.assert_called_with(
+                'unregister',
+                '1.1.1.1',
+                {
+                    'type': 'IPv4',
+                    'confidence': 100
+                }
+            )
+
+        for d in a.device_pushers:
+            d.put.reset_mock()
+
+        a.withdraw('a', indicator='1.1.1.1-1.1.1.1')
+        for d in a.device_pushers:
+            self.assertEqual(d.put.call_count, 0)
+
+        a.stop()
+        a.table.db.close()
+
+        a = None
+        chassis = None
+        rpcmock = None
+        ochannel = None
+
+        gc.collect()
+
+    @mock.patch.object(gevent, 'spawn')
+    @mock.patch.object(gevent, 'spawn_later')
+    @mock.patch.object(gevent, 'sleep', side_effect=gevent.GreenletExit())
+    @mock.patch('gevent.event.Event', side_effect=gevent_event_mock_factory)
+    @mock.patch.object(calendar, 'timegm', side_effect=logical_millisec)
+    @mock.patch('minemeld.ft.dag.DevicePusher',
+                side_effect=device_pusher_mock_factory)
+    def test_unicast2(self, dp_mock, timegm_mock, event_mock,
+                      sleep_mock, spawnl_mock, spawn_mock):
+        device_list_path = os.path.join(MYDIR, 'test_device_list.yml')
+
+        shutil.copyfile(device_list_path, DLIST_NAME)
+
+        config = {
+            'device_list': DLIST_NAME
+        }
+
+        chassis = mock.Mock()
+
+        ochannel = mock.Mock()
+        chassis.request_pub_channel.return_value = ochannel
+
+        rpcmock = mock.Mock()
+        rpcmock.get.return_value = {'error': None, 'result': 'OK'}
+        chassis.send_rpc.return_value = rpcmock
+
+        a = minemeld.ft.dag.DagPusher(FTNAME, chassis, config)
+
+        inputs = ['a']
+        output = False
+
+        a.connect(inputs, output)
+        a.mgmtbus_initialize()
+        a.start()
+        self.assertEqual(spawnl_mock.call_count, 1)
+        self.assertEqual(spawn_mock.call_count, 0)
+
+        try:
+            a._device_list_monitor()
+        except gevent.GreenletExit:
+            pass
+
+        a.update('a', indicator='1.1.1.1/32', value={
+            'type': 'IPv4',
+            'confidence': 100
+        })
+
+        for d in a.device_pushers:
+            d.put.assert_called_with(
+                'register',
+                '1.1.1.1',
+                {
+                    'type': 'IPv4',
+                    'confidence': 100
+                }
+            )
+
+        for d in a.device_pushers:
+            d.put.reset_mock()
+
+        a.withdraw('a', indicator='1.1.1.1/32')
+        for d in a.device_pushers:
+            d.put.assert_called_with(
+                'unregister',
+                '1.1.1.1',
+                {
+                    'type': 'IPv4',
+                    'confidence': 100
+                }
+            )
+
+        for d in a.device_pushers:
+            d.put.reset_mock()
+
+        a.withdraw('a', indicator='1.1.1.1/32')
+        for d in a.device_pushers:
+            self.assertEqual(d.put.call_count, 0)
+
+        a.stop()
+        a.table.db.close()
+
+        a = None
+        chassis = None
+        rpcmock = None
+        ochannel = None
+
+        gc.collect()
+
     @mock.patch.object(pan.xapi, 'PanXapi', side_effect=panos_mock.factory)
     def test_devicepusher_dag_message(self, panxapi_mock):
         RESULT_REG = '<uid-message><version>1.0</version><type>update</type><payload><register><entry ip="192.168.1.1"><tag><member>a</member><member>b</member></tag></entry></register></payload></uid-message>'
