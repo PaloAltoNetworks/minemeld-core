@@ -203,7 +203,7 @@ class BaseFT(object):
             value=value
         )
 
-    def do_rpc(self, dftname, method,  block=True, timeout=30, **kwargs):
+    def do_rpc(self, dftname, method, block=True, timeout=30, **kwargs):
         return self.chassis.send_rpc(self.name, dftname, method, kwargs,
                                      block=block, timeout=timeout)
 

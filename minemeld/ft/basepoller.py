@@ -44,7 +44,7 @@ def _parse_age_out(s):
             result['base'] = t
             result['offset'] = 0
         else:
-            result['base'] = 'last_seen'
+            result['base'] = 'first_seen'
             result['offset'] = age_out_in_millisec(t)
             if result['offset'] is None:
                 raise ValueError('Invalid age out offset %s' % t)
