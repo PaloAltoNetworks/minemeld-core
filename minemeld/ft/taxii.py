@@ -48,6 +48,11 @@ class TaxiiClient(basepoller.BasePollerFT):
         self.collection = self.config.get('collection', None)
         self.prefix = self.config.get('prefix', self.name)
         self.ca_file = self.config.get('ca_file', None)
+        self.confidence_map = self.config.get('confidence_map', {
+            'low': 40,
+            'medium': 60,
+            'high': 80
+        })
 
     def _build_taxii_client(self):
         result = libtaxii.clients.HttpClient()
@@ -262,6 +267,11 @@ class TaxiiClient(basepoller.BasePollerFT):
                             'timestamp': dt_to_millisec(i.timestamp),
                         }
 
+                        if i.confidence is not None:
+                            confidence = str(i.confidence.value).lower()
+                            if confidence in self.confidence_map:
+                                ci['confidence'] = self.confidence_map[confidence]
+
                         os = []
                         ttps = []
 
@@ -380,8 +390,6 @@ class TaxiiClient(basepoller.BasePollerFT):
     def _decode_ttp(self, t):
         tdict = t.to_dict()
 
-        LOG.debug('ttp: %s', tdict)
-
         if 'ttp' in tdict:
             tdict = tdict['ttp']
 
@@ -401,7 +409,11 @@ class TaxiiClient(basepoller.BasePollerFT):
         value = {}
 
         iid, iv, stix_objects = item
+
         value['%s_indicator' % self.prefix] = iid
+
+        if 'confidence' in iv:
+            value['confidence'] = iv['confidence']
 
         if len(iv['ttps']) != 0:
             ttp = iv['ttps'][0]
@@ -424,7 +436,13 @@ class TaxiiClient(basepoller.BasePollerFT):
 
             v['type'] = ob['type']
 
-            result.append([ob['indicator'], v])
+            if type(ob['indicator']) == list:
+                indicator = ob['indicator']
+            else:
+                indicator = [ob['indicator']]
+
+            for i in indicator:
+                result.append([i, v])
 
         return result
 
