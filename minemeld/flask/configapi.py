@@ -669,4 +669,8 @@ def append_config_data(datafilename):
             'message': 'Error append to config data file: %s' % str(e)
         }), 500
 
+    hup = request.args.get('h', None)
+    if hup is not None:
+        MMRpcClient.send_cmd(hup, 'hup', {'source': 'minemeld-web'})
+
     return jsonify(result='ok')
