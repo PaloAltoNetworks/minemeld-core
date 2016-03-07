@@ -364,6 +364,8 @@ class BasePollerFT(base.BaseFT):
                 break
 
             except Exception as e:
+                self.statistics['error.polling'] += 1
+
                 LOG.exception("Exception in polling loop for %s: %s",
                               self.name, str(e))
                 tryn += 1
