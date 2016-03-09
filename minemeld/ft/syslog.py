@@ -390,6 +390,129 @@ class SyslogMiner(base.BaseFT):
     def reset(self):
         self._initialize_table(truncate=True)
 
+    @base.BaseFT.state.setter
+    def state(self, value):
+        LOG.debug("%s - acquiring state write lock", self.name)
+        self.state_lock.lock()
+        #  this is weird ! from stackoverflow 10810369
+        super(SyslogMiner, self.__class__).state.fset(self, value)
+        self.state_lock.unlock()
+        LOG.debug("%s - releasing state write lock", self.name)
+
+    def _age_out_run(self):
+        while True:
+            self.state_lock.rlock()
+            if self.state != ft_states.STARTED:
+                self.state_lock.runlock()
+                return
+
+            try:
+                now = utc_millisec()
+
+                LOG.debug('now: %s', now)
+
+                for i, v in self.table.query(index='_age_out',
+                                             to_key=now-1,
+                                             include_value=True):
+                    LOG.debug('%s - %s %s aged out', self.name, i, v)
+
+                    if v.get('_withdrawn', None) is not None:
+                        continue
+
+                    self.emit_withdraw(indicator=i)
+                    v['_withdrawn'] = now
+                    self.table.put(i, v)
+
+                    self.statistics['aged_out'] += 1
+
+                self.last_ageout_run = now
+
+            except gevent.GreenletExit:
+                break
+
+            except:
+                LOG.exception('Exception in _age_out_loop')
+
+            finally:
+                self.state_lock.runlock()
+
+            try:
+                gevent.sleep(self.age_out['interval'])
+            except gevent.GreenletExit:
+                break
+
+    @base._counting('syslog.processed')
+    def _handle_syslog_message(self, message):
+        pass
+
+    def _amqp_callback(self, msg):
+        try:
+            message = ujson.loads(msg.body)
+            self._handle_syslog_message(message)
+
+        except gevent.GreenletExit:
+            raise
+
+        except:
+            LOG.exception("%s - exception handling syslog message")
+
+    def _amqp_consumer(self):
+        while self.last_ageout_run is None:
+            gevent.sleep(1)
+
+        self.state_lock.rlock()
+        if self.state != ft_states.STARTED:
+            self.state_lock.runlock()
+            return
+
+        try:
+            if self.rebuild_flag:
+                LOG.debug("rebuild flag set, resending current indicators")
+                # reinit flag is set, emit update for all the known indicators
+                for i, v in self.table.query(include_value=True):
+                    type_, i = i.split('\0', 1)
+                    self.emit_update(i, v)
+        finally:
+            self.state_lock.unlock()
+
+        while True:
+            try:
+                conn = amqp.connection.Connection(
+                    userid=self.rabbitmq_username,
+                    password=self.rabbitmq_password
+                )
+                channel = conn.channel()
+                channel.exchange_declare(
+                    self.exchange,
+                    'fanout',
+                    durable=False,
+                    auto_delete=False
+                )
+                q = channel.queue_declare(
+                    exclusive=False
+                )
+
+                channel.queue_bind(
+                    queue=q.queue,
+                    exchange=self.exchange,
+                )
+                channel.basic_consume(
+                    callback=self._amqp_callback,
+                    no_ack=True,
+                    exclusive=True
+                )
+
+                while True:
+                    conn.drain_events()
+
+            except gevent.GreenletExit:
+                break
+
+            except:
+                LOG.exception('%s - Exception in consumer glet', self.name)
+
+            gevent.sleep(30)
+
     def length(self, source=None):
         return self.table.num_indicators
 
