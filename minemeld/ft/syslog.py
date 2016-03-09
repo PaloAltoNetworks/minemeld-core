@@ -340,3 +340,81 @@ class SyslogMatcher(base.BaseFT):
 
         if self.amqp_glet is None:
             return
+
+class SyslogMiner(base.BaseFT):
+    def __init__(self, name, chassis, config):
+        self.amqp_glet = None
+        self.ageout_glet = None
+
+        self.active_requests = []
+        self.rebuild_flag = False
+        self.last_ageout_run = None
+
+        self.state_lock = RWLock()
+
+        super(SyslogMiner, self).__init__(name, chassis, config)
+
+    def configure(self):
+        super(SyslogMiner, self).configure()
+
+        self.source_name = self.config.get('source_name', self.name)
+        self.attributes = self.config.get('attributes', {})
+
+        _age_out = self.config.get('age_out', {})
+
+        self.age_out = {
+            'interval': _age_out.get('interval', 3600),
+            'default': _parse_age_out(_age_out.get('default', '30d'))
+        }
+        for k, v in _age_out.iteritems():
+            if k in self.age_out:
+                continue
+            self.age_out[k] = _parse_age_out(v)
+
+        self.exchange = self.config.get('exchange', 'mmeld-syslog')
+        self.rabbitmq_username = self.config.get('rabbitmq_username', 'guest')
+        self.rabbitmq_password = self.config.get('rabbitmq_password', 'guest')
+
+    def _initialize_table(self, truncate=False):
+        self.table = table.Table(self.name, truncate=truncate)
+        self.table.create_index('_age_out')
+        self.table.create_index('_withdrawn')
+
+    def initialize(self):
+        self._initialize_table()
+
+    def rebuild(self):
+        self.rebuild_flag = True
+        self._initialize_table(truncate=(self.last_checkpoint is None))
+
+    def reset(self):
+        self._initialize_table(truncate=True)
+
+    def length(self, source=None):
+        return self.table.num_indicators
+
+    def start(self):
+        super(SyslogMiner, self).start()
+
+        if self.amqp_glet is not None:
+            return
+
+        self.amqp_glet = gevent.spawn_later(
+            random.randint(0, 2),
+            self._amqp_consumer
+        )
+        self.ageout_glet = gevent.spawn(self._age_out_run)
+
+    def stop(self):
+        super(SyslogMiner, self).stop()
+
+        if self.amqp_glet is None:
+            return
+
+        for g in self.active_requests:
+            g.kill()
+
+        self.amqp_glet.kill()
+        self.ageout_glet.kill()
+
+        LOG.info("%s - # indicators: %d", self.name, self.table.num_indicators)
