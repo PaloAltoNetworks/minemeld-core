@@ -629,23 +629,21 @@ def save_config_data(datafilename):
     return jsonify(result='ok'), 200
 
 
-@app.route('/config/data/<datafilename>/add', methods=['POST'])
+@app.route('/config/data/<datafilename>/append', methods=['POST'])
 @flask.ext.login.login_required
 def append_config_data(datafilename):
     cpath = os.path.dirname(os.environ.get('MM_CONFIG'))
+    tdir = os.path.dirname(os.path.join(cpath, datafilename))
 
-    fdfname = datafilename+'.yml'
+    if not os.path.samefile(cpath, tdir):
+        return jsonify(error={'msg': 'Wrong config data filename'}), 400
 
-    lockfname = os.path.join(cpath, fdfname+'.lock')
+
+    cdfname = os.path.join(cpath, datafilename+'.yml')
+
+    lockfname = cdfname+'.lock'
     lock = filelock.FileLock(lockfname)
 
-    os.listdir(cpath)
-    if fdfname not in os.listdir(cpath):
-        return jsonify(error={
-            'message': 'Unknown config data file'
-        }), 400
-
-    cdfname = os.path.join(cpath, fdfname)
     try:
         with lock.acquire(timeout=10):
             if not os.path.isfile(cdfname):
@@ -662,7 +660,7 @@ def append_config_data(datafilename):
             config_data_file.append(body)
 
             with open(cdfname, 'w') as f:
-                yaml.safe_dump(body, stream=f)
+                yaml.safe_dump(config_data_file, stream=f)
 
     except Exception as e:
         return jsonify(error={
