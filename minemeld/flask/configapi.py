@@ -572,7 +572,7 @@ def get_config_data(datafilename):
 
     fdfname = datafilename+'.yml'
 
-    lockfname = fdfname+'.lock'
+    lockfname = os.path.join(cpath, fdfname+'.lock')
     lock = filelock.FileLock(lockfname)
 
     os.listdir(cpath)
@@ -627,3 +627,48 @@ def save_config_data(datafilename):
         MMRpcClient.send_cmd(hup, 'hup', {'source': 'minemeld-web'})
 
     return jsonify(result='ok'), 200
+
+
+@app.route('/config/data/<datafilename>/append', methods=['POST'])
+@flask.ext.login.login_required
+def append_config_data(datafilename):
+    cpath = os.path.dirname(os.environ.get('MM_CONFIG'))
+    tdir = os.path.dirname(os.path.join(cpath, datafilename))
+
+    if not os.path.samefile(cpath, tdir):
+        return jsonify(error={'msg': 'Wrong config data filename'}), 400
+
+
+    cdfname = os.path.join(cpath, datafilename+'.yml')
+
+    lockfname = cdfname+'.lock'
+    lock = filelock.FileLock(lockfname)
+
+    try:
+        with lock.acquire(timeout=10):
+            if not os.path.isfile(cdfname):
+                config_data_file = []
+            else:
+                with open(cdfname, 'r') as f:
+                    config_data_file = yaml.safe_load(f)
+
+            if type(config_data_file) != list:
+                raise RuntimeError('Config data file is not a list')
+
+            body = request.get_json()
+
+            config_data_file.append(body)
+
+            with open(cdfname, 'w') as f:
+                yaml.safe_dump(config_data_file, stream=f)
+
+    except Exception as e:
+        return jsonify(error={
+            'message': 'Error append to config data file: %s' % str(e)
+        }), 500
+
+    hup = request.args.get('h', None)
+    if hup is not None:
+        MMRpcClient.send_cmd(hup, 'hup', {'source': 'minemeld-web'})
+
+    return jsonify(result='ok')
