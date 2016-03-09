@@ -342,10 +342,11 @@ class TaxiiClient(basepoller.BasePollerFT):
             if ov is None:
                 LOG.error('%s - no value in observable props', self.name)
                 return None
-            ov = ov.get('value', None)
-            if ov is None:
-                LOG.error('%s - no value in observable value', self.name)
-                return None
+            if type(ov) != str:
+                ov = ov.get('value', None)
+                if ov is None:
+                    LOG.error('%s - no value in observable value', self.name)
+                    return None
 
         elif ot == 'AddressObjectType':
             addrcat = op.get('category', None)
@@ -363,10 +364,11 @@ class TaxiiClient(basepoller.BasePollerFT):
             if ov is None:
                 LOG.error('%s - no value in observable props', self.name)
                 return None
-            ov = ov.get('value', None)
-            if ov is None:
-                LOG.error('%s - no value in observable value', self.name)
-                return None
+            if type(ov) != str:
+                ov = ov.get('value', None)
+                if ov is None:
+                    LOG.error('%s - no value in observable value', self.name)
+                    return None
 
         elif ot == 'URIObjectType':
             result['type'] = 'URL'
@@ -375,10 +377,12 @@ class TaxiiClient(basepoller.BasePollerFT):
             if ov is None:
                 LOG.error('%s - no value in observable props', self.name)
                 return None
-            ov = ov.get('value', None)
-            if ov is None:
-                LOG.error('%s - no value in observable value', self.name)
-                return None
+            if type(ov) != str:
+                ov = ov.get('value', None)
+                if ov is None:
+                    LOG.error('%s - no value in observable value', self.name)
+                    return None
+
         else:
             LOG.error('%s - unknown type %s', self.name, ot)
             return None
