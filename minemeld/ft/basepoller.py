@@ -22,42 +22,12 @@ from . import base
 from . import ft_states
 from . import table
 from .utils import utc_millisec
-from .utils import age_out_in_millisec
 from .utils import RWLock
+from .utils import parse_age_out
 
 LOG = logging.getLogger(__name__)
 
-_AGE_OUT_BASES = ['last_seen', 'first_seen']
 _MAX_AGE_OUT = ((1 << 32)-1)*1000  # 2106-02-07 6:28:15
-
-
-def _parse_age_out(s):
-    if s is None:
-        return None
-
-    result = {}
-
-    toks = s.split('+', 1)
-    if len(toks) == 1:
-        t = toks[0].strip()
-        if t in _AGE_OUT_BASES:
-            result['base'] = t
-            result['offset'] = 0
-        else:
-            result['base'] = 'first_seen'
-            result['offset'] = age_out_in_millisec(t)
-            if result['offset'] is None:
-                raise ValueError('Invalid age out offset %s' % t)
-    else:
-        base = toks[0].strip()
-        if base not in _AGE_OUT_BASES:
-            raise ValueError('Invalid age out base %s' % base)
-        result['base'] = base
-        result['offset'] = age_out_in_millisec(toks[1].strip())
-        if result['offset'] is None:
-            raise ValueError('Invalid age out offset %s' % t)
-
-    return result
 
 
 class IndicatorStatus(object):
@@ -125,12 +95,12 @@ class BasePollerFT(base.BaseFT):
         self.age_out = {
             'interval': _age_out.get('interval', 3600),
             'sudden_death': _age_out.get('sudden_death', True),
-            'default': _parse_age_out(_age_out.get('default', '30d'))
+            'default': parse_age_out(_age_out.get('default', '30d'))
         }
         for k, v in _age_out.iteritems():
             if k in self.age_out:
                 continue
-            self.age_out[k] = _parse_age_out(v)
+            self.age_out[k] = parse_age_out(v)
 
     def _initialize_table(self, truncate=False):
         self.table = table.Table(self.name, truncate=truncate)
