@@ -638,7 +638,6 @@ def append_config_data(datafilename):
     if not os.path.samefile(cpath, tdir):
         return jsonify(error={'msg': 'Wrong config data filename'}), 400
 
-
     cdfname = os.path.join(cpath, datafilename+'.yml')
 
     lockfname = cdfname+'.lock'
