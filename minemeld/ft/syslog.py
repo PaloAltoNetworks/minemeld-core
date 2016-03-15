@@ -23,11 +23,22 @@ import ujson
 import netaddr
 import datetime
 import socket
+import random
+import os
+import yaml
+import copy
 
 from . import base
 from . import table
+from . import ft_states
+from . import condition
+from .utils import utc_millisec
+from .utils import RWLock
+from .utils import parse_age_out
 
 LOG = logging.getLogger(__name__)
+
+_MAX_AGE_OUT = ((1 << 32)-1)*1000
 
 
 class SyslogMatcher(base.BaseFT):
@@ -341,6 +352,7 @@ class SyslogMatcher(base.BaseFT):
         if self.amqp_glet is None:
             return
 
+
 class SyslogMiner(base.BaseFT):
     def __init__(self, name, chassis, config):
         self.amqp_glet = None
@@ -364,16 +376,32 @@ class SyslogMiner(base.BaseFT):
 
         self.age_out = {
             'interval': _age_out.get('interval', 3600),
-            'default': _parse_age_out(_age_out.get('default', '30d'))
+            'default': parse_age_out(_age_out.get('default', '30d'))
         }
         for k, v in _age_out.iteritems():
             if k in self.age_out:
                 continue
-            self.age_out[k] = _parse_age_out(v)
+            self.age_out[k] = parse_age_out(v)
 
         self.exchange = self.config.get('exchange', 'mmeld-syslog')
         self.rabbitmq_username = self.config.get('rabbitmq_username', 'guest')
         self.rabbitmq_password = self.config.get('rabbitmq_password', 'guest')
+
+        self.indicator_mapping = self.config.get('indicator_mapping', {
+            'src_ip': 'IP',
+            'dst_ip': 'IP',
+            'url': 'URL'
+        })
+
+        self.filters = []
+        self.side_config_path = self.config.get('filters', None)
+        if self.side_config_path is None:
+            self.side_config_path = os.path.join(
+                os.environ['MM_CONFIG_DIR'],
+                '%s_filters.yml' % self.name
+            )
+
+        self._load_side_config()
 
     def _initialize_table(self, truncate=False):
         self.table = table.Table(self.name, truncate=truncate)
@@ -389,6 +417,70 @@ class SyslogMiner(base.BaseFT):
 
     def reset(self):
         self._initialize_table(truncate=True)
+
+    def _compile_filter(self, name, f):
+        LOG.debug('%s - compiling filter %s: %s', self.name, name, f)
+        result = {
+            'name': name,
+            'conditions': [],
+            'indicators': [],
+            'fields': []
+        }
+
+        conditions = f.get('conditions', None)
+        if conditions is None or len(conditions) == 0:
+            LOG.error('%s - no conditions in filter %s, ignored',
+                      self.name, name)
+            return None
+        for c in conditions:
+            result['conditions'].append(condition.Condition(c))
+
+        indicators = f.get('indicators', None)
+        if type(indicators) != list:
+            LOG.error('%s - no indicators list in filter %s, ignored',
+                      self.name, name)
+            return None
+        for i in indicators:
+            if i not in self.indicator_mapping:
+                LOG.error('%s - filter %s unknown type indicator %s, ignored',
+                          self.name, name, i)
+                continue
+            result['indicators'].append(i)
+        if len(result['indicators']) == 0:
+            LOG.error('%s - no valid indicators in filter %s, ignored',
+                      self.name, name)
+            return None
+
+        fields = f.get('fields', None)
+        if type(fields) is not None and type(fields) != list:
+            LOG.error('%s - wrong fields format in filter %s, ignored',
+                      self.name, name)
+            return None
+        result['fields'] = [fld for fld in fields if type(fld) == str]
+
+        return result
+
+    def _load_side_config(self):
+        try:
+            with open(self.side_config_path, 'r') as f:
+                filters = yaml.safe_load(f)
+
+        except Exception as e:
+            LOG.error('%s - Error loading filters: %s', self.name, str(e))
+            return
+
+        if type(filters) != list:
+            LOG.error('%s - Error loading filters: not a list', self.name)
+            return
+
+        newfilters = []
+        for idx, f in enumerate(filters):
+            fname = f.get('name', 'filter_%d' % idx)
+            cf = self._compile_filter(fname, f)
+            if cf is not None:
+                newfilters.append(cf)
+
+        self.filters = newfilters
 
     @base.BaseFT.state.setter
     def state(self, value):
@@ -419,9 +511,10 @@ class SyslogMiner(base.BaseFT):
                     if v.get('_withdrawn', None) is not None:
                         continue
 
+                    i, _ = i.split('\0', 1)
+
                     self.emit_withdraw(indicator=i)
-                    v['_withdrawn'] = now
-                    self.table.put(i, v)
+                    self.table.delete(i)
 
                     self.statistics['aged_out'] += 1
 
@@ -441,9 +534,104 @@ class SyslogMiner(base.BaseFT):
             except gevent.GreenletExit:
                 break
 
+    def _calc_age_out(self, indicator, attributes):
+        t = attributes.get('type', None)
+        if t is None or t not in self.age_out:
+            sel = self.age_out['default']
+        else:
+            sel = self.age_out[t]
+
+        if sel is None:
+            return _MAX_AGE_OUT
+
+        b = attributes[sel['base']]
+
+        return b + sel['offset']
+
+    def _apply_filter(self, f, message):
+        LOG.debug('%s - applying %s', self.name, f['name'])
+
+        r = True
+        for c in f['conditions']:
+            r &= c.eval(message)
+
+        LOG.debug('%s - %s result: %s', self.name, f['name'], r)
+        if not r:
+            return
+
+        for i in f['indicators']:
+            indicator = message.get(i, None)
+            if indicator is None:
+                continue
+
+            value = {}
+
+            for fld in f['fields']:
+                fv = message.get(fld, None)
+                if fv is not None:
+                    value['syslog_%s' % fld] = fv
+
+            type_ = self.indicator_mapping[i]
+
+            if type_ == 'IP':
+                pi = netaddr.IPAddress(indicator)
+                if pi.version == 6:
+                    type_ = 'IPv6'
+                elif pi.version == 4:
+                    type_ = 'IPv4'
+                else:
+                    continue
+
+            value['type'] = type_
+
+            device = message.get('serial_number', 'unknown')
+
+            yield [indicator, value, device]
+
     @base._counting('syslog.processed')
     def _handle_syslog_message(self, message):
-        pass
+        LOG.debug('%s - %s', self.name, message)
+
+        now = utc_millisec()
+
+        for f in self.filters:
+            for indicator, value, device in self._apply_filter(f, message):
+                if indicator is None:
+                    continue
+
+                type_ = value.get('type', None)
+                if type_ is None:
+                    LOG.error('%s - no type for indicator %s, ignored',
+                              self.name, indicator)
+                    continue
+
+                ikey = indicator+'\0'+type_
+                cv = self.table.get(ikey)
+
+                if cv is None:
+                    cv = copy.copy(self.attributes)
+                    cv['sources'] = [self.source_name]
+                    cv['last_seen'] = now
+                    cv['first_seen'] = now
+                    cv['syslog_devices'] = [device]
+                    cv.update(value)
+                    cv['_age_out'] = self._calc_age_out(indicator, cv)
+
+                    self.statistics['added'] += 1
+                    self.table.put(ikey, cv)
+                    self.emit_update(indicator, cv)
+
+                    LOG.debug('%s - added %s %s', self.name, indicator, cv)
+
+                else:
+                    cv['last_seen'] = now
+                    cv.update(value)
+                    cv['_age_out'] = self._calc_age_out(indicator, cv)
+                    if device not in cv['syslog_devices']:
+                        cv['syslog_devices'].append(device)
+
+                    self.table.put(ikey, cv)
+                    self.emit_update(ikey, cv)
 
     def _amqp_callback(self, msg):
         try:
@@ -541,3 +729,8 @@ class SyslogMiner(base.BaseFT):
         self.ageout_glet.kill()
 
         LOG.info("%s - # indicators: %d", self.name, self.table.num_indicators)
+
+    def hup(self, source=None):
+        LOG.info('%s - hup received, reload filters', self.name)
+        self._load_side_config()
+        super(SyslogMiner, self).hup(source=source)
