@@ -393,12 +393,14 @@ class SyslogMiner(base.BaseFT):
             'url': 'URL'
         })
 
-        self.filters = []
-        self.side_config_path = self.config.get('filters', None)
+        self.prefix = self.config.get('prefix', 'panossyslog')
+
+        self.rules = []
+        self.side_config_path = self.config.get('rules', None)
         if self.side_config_path is None:
             self.side_config_path = os.path.join(
                 os.environ['MM_CONFIG_DIR'],
-                '%s_filters.yml' % self.name
+                '%s_rules.yml' % self.name
             )
 
         self._load_side_config()
@@ -418,8 +420,8 @@ class SyslogMiner(base.BaseFT):
     def reset(self):
         self._initialize_table(truncate=True)
 
-    def _compile_filter(self, name, f):
-        LOG.debug('%s - compiling filter %s: %s', self.name, name, f)
+    def _compile_rule(self, name, f):
+        LOG.debug('%s - compiling rule %s: %s', self.name, name, f)
         result = {
             'name': name,
             'conditions': [],
@@ -429,7 +431,7 @@ class SyslogMiner(base.BaseFT):
 
         conditions = f.get('conditions', None)
         if conditions is None or len(conditions) == 0:
-            LOG.error('%s - no conditions in filter %s, ignored',
+            LOG.error('%s - no conditions in rule %s, ignored',
                       self.name, name)
             return None
         for c in conditions:
@@ -437,23 +439,23 @@ class SyslogMiner(base.BaseFT):
 
         indicators = f.get('indicators', None)
         if type(indicators) != list:
-            LOG.error('%s - no indicators list in filter %s, ignored',
+            LOG.error('%s - no indicators list in rule %s, ignored',
                       self.name, name)
             return None
         for i in indicators:
             if i not in self.indicator_mapping:
-                LOG.error('%s - filter %s unknown type indicator %s, ignored',
+                LOG.error('%s - rule %s unknown type indicator %s, ignored',
                           self.name, name, i)
                 continue
             result['indicators'].append(i)
         if len(result['indicators']) == 0:
-            LOG.error('%s - no valid indicators in filter %s, ignored',
+            LOG.error('%s - no valid indicators in rule %s, ignored',
                       self.name, name)
             return None
 
         fields = f.get('fields', None)
         if type(fields) is not None and type(fields) != list:
-            LOG.error('%s - wrong fields format in filter %s, ignored',
+            LOG.error('%s - wrong fields format in rule %s, ignored',
                       self.name, name)
             return None
         result['fields'] = [fld for fld in fields if type(fld) == str]
@@ -463,24 +465,24 @@ class SyslogMiner(base.BaseFT):
     def _load_side_config(self):
         try:
             with open(self.side_config_path, 'r') as f:
-                filters = yaml.safe_load(f)
+                rules = yaml.safe_load(f)
 
         except Exception as e:
-            LOG.error('%s - Error loading filters: %s', self.name, str(e))
+            LOG.error('%s - Error loading rules: %s', self.name, str(e))
             return
 
-        if type(filters) != list:
-            LOG.error('%s - Error loading filters: not a list', self.name)
+        if type(rules) != list:
+            LOG.error('%s - Error loading rules: not a list', self.name)
             return
 
-        newfilters = []
-        for idx, f in enumerate(filters):
-            fname = f.get('name', 'filter_%d' % idx)
-            cf = self._compile_filter(fname, f)
+        newrules = []
+        for idx, f in enumerate(rules):
+            fname = f.get('name', 'rule_%d' % idx)
+            cf = self._compile_rule(fname, f)
             if cf is not None:
-                newfilters.append(cf)
+                newrules.append(cf)
 
-        self.filters = newfilters
+        self.rules = newrules
 
     @base.BaseFT.state.setter
     def state(self, value):
@@ -548,7 +550,7 @@ class SyslogMiner(base.BaseFT):
 
         return b + sel['offset']
 
-    def _apply_filter(self, f, message):
+    def _apply_rule(self, f, message):
         LOG.debug('%s - applying %s', self.name, f['name'])
 
         r = True
@@ -569,7 +571,7 @@ class SyslogMiner(base.BaseFT):
             for fld in f['fields']:
                 fv = message.get(fld, None)
                 if fv is not None:
-                    value['syslog_%s' % fld] = fv
+                    value['%s_%s' % (self.prefix, fld)] = fv
 
             type_ = self.indicator_mapping[i]
 
@@ -592,10 +594,12 @@ class SyslogMiner(base.BaseFT):
     def _handle_syslog_message(self, message):
         LOG.debug('%s - %s', self.name, message)
 
+        devices_attribute = '%s_devices' % self.prefix
+
         now = utc_millisec()
 
-        for f in self.filters:
-            for indicator, value, device in self._apply_filter(f, message):
+        for f in self.rules:
+            for indicator, value, device in self._apply_rule(f, message):
                 if indicator is None:
                     continue
 
@@ -613,7 +617,7 @@ class SyslogMiner(base.BaseFT):
                     cv['sources'] = [self.source_name]
                     cv['last_seen'] = now
                     cv['first_seen'] = now
-                    cv['syslog_devices'] = [device]
+                    cv[devices_attribute] = [device]
                     cv.update(value)
                     cv['_age_out'] = self._calc_age_out(indicator, cv)
 
@@ -627,8 +631,8 @@ class SyslogMiner(base.BaseFT):
                     cv['last_seen'] = now
                     cv.update(value)
                     cv['_age_out'] = self._calc_age_out(indicator, cv)
-                    if device not in cv['syslog_devices']:
-                        cv['syslog_devices'].append(device)
+                    if device not in cv[devices_attribute]:
+                        cv[devices_attribute].append(device)
 
                     self.table.put(ikey, cv)
                     self.emit_update(ikey, cv)
@@ -733,4 +737,3 @@ class SyslogMiner(base.BaseFT):
     def hup(self, source=None):
         LOG.info('%s - hup received, reload filters', self.name)
         self._load_side_config()
-        super(SyslogMiner, self).hup(source=source)
