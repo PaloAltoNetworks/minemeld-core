@@ -27,6 +27,7 @@ import random
 import os
 import yaml
 import copy
+import re
 
 from . import base
 from . import table
@@ -424,6 +425,7 @@ class SyslogMiner(base.BaseFT):
         LOG.debug('%s - compiling rule %s: %s', self.name, name, f)
         result = {
             'name': name,
+            'metric': 'rule.%s' % re.sub('^[a-zA-Z0-9]', '_', name)
             'conditions': [],
             'indicators': [],
             'fields': []
@@ -454,7 +456,7 @@ class SyslogMiner(base.BaseFT):
             return None
 
         fields = f.get('fields', None)
-        if type(fields) is not None and type(fields) != list:
+        if fields is not None and type(fields) != list:
             LOG.error('%s - wrong fields format in rule %s, ignored',
                       self.name, name)
             return None
@@ -477,7 +479,12 @@ class SyslogMiner(base.BaseFT):
 
         newrules = []
         for idx, f in enumerate(rules):
-            fname = f.get('name', 'rule_%d' % idx)
+            fname = f.get('name', None)
+            if fname is None:
+                LOG.error('%s - rule %d does not have a name, ignored',
+                          self.name, idx)
+                continue
+
             cf = self._compile_rule(fname, f)
             if cf is not None:
                 newrules.append(cf)
@@ -602,6 +609,8 @@ class SyslogMiner(base.BaseFT):
             for indicator, value, device in self._apply_rule(f, message):
                 if indicator is None:
                     continue
+
+                self.statistics[f['metric']] += 1
 
                 type_ = value.get('type', None)
                 if type_ is None:
