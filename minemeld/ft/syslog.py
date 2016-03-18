@@ -425,7 +425,7 @@ class SyslogMiner(base.BaseFT):
         LOG.debug('%s - compiling rule %s: %s', self.name, name, f)
         result = {
             'name': name,
-            'metric': 'rule.%s' % re.sub('^[a-zA-Z0-9]', '_', name)
+            'metric': 'rule.%s' % re.sub('[^a-zA-Z0-9]', '_', name),
             'conditions': [],
             'indicators': [],
             'fields': []
