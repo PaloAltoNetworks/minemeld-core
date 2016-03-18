@@ -310,3 +310,6 @@ except ImportError:
 
 # prototypes
 from . import prototypeapi  # noqa
+
+# validate
+from . import validateapi  # noqa
