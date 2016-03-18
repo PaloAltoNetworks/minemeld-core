@@ -14,7 +14,6 @@
 
 import logging
 
-import os
 import yaml
 
 import flask.ext.login
@@ -28,10 +27,12 @@ import minemeld.ft.condition
 
 LOG = logging.getLogger(__name__)
 
+
 def _return_validation_error(msg):
     return jsonify(error={
         'message': msg
     }), 400
+
 
 @app.route('/validate/syslogminerrule', methods=['POST'])
 @flask.ext.login.login_required
@@ -52,7 +53,7 @@ def validate_syslogminerrule():
             'YAML not valid: %s' % str(e)
         )
 
-    if not 'name' in crule:
+    if 'name' not in crule:
         return _return_validation_error('"name" is required')
 
     conditions = crule.get('conditions', None)
@@ -79,6 +80,6 @@ def validate_syslogminerrule():
         if type(i) != str:
             return _return_validation_error(
                 'wrong indicator format: %s' % i
-            )   
+            )
 
     return jsonify(result='ok')
