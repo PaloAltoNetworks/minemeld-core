@@ -377,7 +377,7 @@ class SyslogMiner(base.BaseFT):
 
         self.age_out = {
             'interval': _age_out.get('interval', 3600),
-            'default': parse_age_out(_age_out.get('default', '30d'))
+            'default': parse_age_out(_age_out.get('default', 'last_seen+1h'))
         }
         for k, v in _age_out.iteritems():
             if k in self.age_out:
