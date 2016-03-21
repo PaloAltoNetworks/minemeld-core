@@ -122,7 +122,7 @@ class ThreatFeed(csv.CSVFT):
 
     def _build_request(self, now):
         params = {
-            'version': '1.0',
+            'version': '2.0',
             'output_format': 'csv/splunk',
             'token': self.token
         }
