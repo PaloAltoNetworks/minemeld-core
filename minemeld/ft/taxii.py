@@ -260,9 +260,13 @@ class TaxiiClient(basepoller.BasePollerFT):
                               self.name, cb.content_binding.binding_id)
                     continue
 
-                stixpackage = stix.core.stix_package.STIXPackage.from_xml(
-                    lxml.etree.fromstring(cb.content)
-                )
+                try:
+                    stixpackage = stix.core.stix_package.STIXPackage.from_xml(
+                        lxml.etree.fromstring(cb.content)
+                    )
+                except Exception as e:
+                    LOG.exception('%s - Exception parsing contnet block', self.name)
+                    continue
 
                 if stixpackage.indicators:
                     for i in stixpackage.indicators:
