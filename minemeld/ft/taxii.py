@@ -107,7 +107,8 @@ class TaxiiClient(basepoller.BasePollerFT):
             break
 
         if self.collection_mgmt_service is None:
-            raise RuntimeError('%s - collection management service not found')
+            raise RuntimeError('%s - collection management service not found' %
+                               self.name)
 
         LOG.debug('%s - collection_mgmt_service: %s',
                   self.name, self.collection_mgmt_service)
@@ -142,17 +143,19 @@ class TaxiiClient(basepoller.BasePollerFT):
             break
 
         if tci is None:
-            raise RuntimeError('%s - collection %s not found',
-                               self.name, self.collection)
+            raise RuntimeError('%s - collection %s not found' %
+                               (self.name, self.collection))
 
         if tci.polling_service_instances is None or \
            len(tci.polling_service_instances) == 0:
-            raise RuntimeError('%s - collection %s doesn\'t support polling',
-                               self.name, self.collection)
+            raise RuntimeError('%s - collection %s doesn\'t support polling' %
+                               (self.name, self.collection))
 
         if tci.collection_type != libtaxii.constants.CT_DATA_FEED:
-            raise RuntimeError('%s - collection %s is not a data feed (%s)',
-                               self.name, self.collection, tci.collection_type)
+            raise RuntimeError(
+                '%s - collection %s is not a data feed (%s)' %
+                (self.name, self.collection, tci.collection_type)
+            )
 
         self.poll_service = tci.polling_service_instances[0].poll_address
 
@@ -257,9 +260,13 @@ class TaxiiClient(basepoller.BasePollerFT):
                               self.name, cb.content_binding.binding_id)
                     continue
 
-                stixpackage = stix.core.stix_package.STIXPackage.from_xml(
-                    lxml.etree.fromstring(cb.content)
-                )
+                try:
+                    stixpackage = stix.core.stix_package.STIXPackage.from_xml(
+                        lxml.etree.fromstring(cb.content)
+                    )
+                except Exception as e:
+                    LOG.exception('%s - Exception parsing contnet block', self.name)
+                    continue
 
                 if stixpackage.indicators:
                     for i in stixpackage.indicators:
@@ -270,7 +277,8 @@ class TaxiiClient(basepoller.BasePollerFT):
                         if i.confidence is not None:
                             confidence = str(i.confidence.value).lower()
                             if confidence in self.confidence_map:
-                                ci['confidence'] = self.confidence_map[confidence]
+                                ci['confidence'] = \
+                                    self.confidence_map[confidence]
 
                         os = []
                         ttps = []
@@ -342,10 +350,11 @@ class TaxiiClient(basepoller.BasePollerFT):
             if ov is None:
                 LOG.error('%s - no value in observable props', self.name)
                 return None
-            ov = ov.get('value', None)
-            if ov is None:
-                LOG.error('%s - no value in observable value', self.name)
-                return None
+            if type(ov) != str:
+                ov = ov.get('value', None)
+                if ov is None:
+                    LOG.error('%s - no value in observable value', self.name)
+                    return None
 
         elif ot == 'AddressObjectType':
             addrcat = op.get('category', None)
@@ -363,10 +372,11 @@ class TaxiiClient(basepoller.BasePollerFT):
             if ov is None:
                 LOG.error('%s - no value in observable props', self.name)
                 return None
-            ov = ov.get('value', None)
-            if ov is None:
-                LOG.error('%s - no value in observable value', self.name)
-                return None
+            if type(ov) != str:
+                ov = ov.get('value', None)
+                if ov is None:
+                    LOG.error('%s - no value in observable value', self.name)
+                    return None
 
         elif ot == 'URIObjectType':
             result['type'] = 'URL'
@@ -375,10 +385,12 @@ class TaxiiClient(basepoller.BasePollerFT):
             if ov is None:
                 LOG.error('%s - no value in observable props', self.name)
                 return None
-            ov = ov.get('value', None)
-            if ov is None:
-                LOG.error('%s - no value in observable value', self.name)
-                return None
+            if type(ov) != str:
+                ov = ov.get('value', None)
+                if ov is None:
+                    LOG.error('%s - no value in observable value', self.name)
+                    return None
+
         else:
             LOG.error('%s - unknown type %s', self.name, ot)
             return None

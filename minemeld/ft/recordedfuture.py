@@ -27,11 +27,11 @@ from . import csv
 LOG = logging.getLogger(__name__)
 
 
-class ThreatFeed(csv.CSVFT):
+class IPRiskList(csv.CSVFT):
     def configure(self):
-        super(ThreatFeed, self).configure()
+        super(IPRiskList, self).configure()
 
-        self.source_name = 'recordedfuture.threatfeed'
+        self.source_name = 'recordedfuture.iprisklist'
         self.confidence = self.config.get('confidence', 80)
 
         self.token = None
@@ -118,11 +118,11 @@ class ThreatFeed(csv.CSVFT):
             LOG.info('%s - token not set, poll not performed', self.name)
             return []
 
-        return super(ThreatFeed, self)._build_iterator(now)
+        return super(IPRiskList, self)._build_iterator(now)
 
     def _build_request(self, now):
         params = {
-            'version': '1.0',
+            'version': '2.0',
             'output_format': 'csv/splunk',
             'token': self.token
         }
@@ -138,4 +138,4 @@ class ThreatFeed(csv.CSVFT):
     def hup(self, source=None):
         LOG.info('%s - hup received, reload side config', self.name)
         self._load_side_config()
-        super(ThreatFeed, self).hup(source)
+        super(IPRiskList, self).hup(source)
