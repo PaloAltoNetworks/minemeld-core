@@ -340,6 +340,11 @@ class XMPPMiner(op.AggregateFT):
 
     def _xmpp_publish(self, msg):
         LOG.debug('%s - _publish %s', self.name, msg)
+
+        node_ = msg['pubsub_event']['items']['node']
+        if node_ != self.node:
+            return
+
         payload = msg['pubsub_event']['items']['item']['payload']
         if payload is None:
             return
@@ -388,6 +393,9 @@ class XMPPMiner(op.AggregateFT):
 
         if command == 'UPDATE':
             for o in origins:
+                if o not in self.inputs:
+                    self.inputs.append(o)
+
                 self.update(
                     source=o,
                     indicator=indicator,
@@ -396,6 +404,9 @@ class XMPPMiner(op.AggregateFT):
 
         elif command == 'WITHDRAW':
             for o in origins:
+                if o not in self.inputs:
+                    self.inputs.append(o)
+
                 self.withdraw(
                     source=o,
                     indicator=indicator,
