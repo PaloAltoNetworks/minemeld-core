@@ -644,7 +644,7 @@ class SyslogMiner(base.BaseFT):
                         cv[devices_attribute].append(device)
 
                     self.table.put(ikey, cv)
-                    self.emit_update(ikey, cv)
+                    self.emit_update(indicator, cv)
 
     def _amqp_callback(self, msg):
         try:
