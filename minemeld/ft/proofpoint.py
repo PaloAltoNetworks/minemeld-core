@@ -252,11 +252,11 @@ class ETIntelligence(basepoller.BasePollerFT):
         super(ETIntelligence, self).hup(source=source)
 
 
-class ETIntelligenceIP(ETIntelligence):
+class EmergingThreatsIP(ETIntelligence):
     _FILE = 'detailed-iprepdata.txt'
 
     def _process_item(self, row):
-        ipairs = super(ETIntelligenceIP, self)._process_item(row)
+        ipairs = super(EmergingThreatsIP, self)._process_item(row)
 
         result = []
 
@@ -280,11 +280,11 @@ class ETIntelligenceIP(ETIntelligence):
         return result
 
 
-class ETIntelligenceDomain(ETIntelligence):
+class EmergingThreatsDomain(ETIntelligence):
     _FILE = 'detailed-domainrepdata.txt'
 
     def _process_item(self, row):
-        ipairs = super(ETIntelligenceDomain, self)._process_item(row)
+        ipairs = super(EmergingThreatsDomain, self)._process_item(row)
 
         result = []
 
