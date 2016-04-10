@@ -104,3 +104,10 @@ class YamlDomainFT(YamlFT):
         item['type'] = 'domain'
 
         return super(YamlDomainFT, self)._process_item(item)
+
+
+class YamlIPv6FT(YamlFT):
+    def _process_item(self, item):
+        item['type'] = 'IPv6'
+
+        return super(YamlIPv6FT, self)._process_item(item)
