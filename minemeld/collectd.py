@@ -1,4 +1,4 @@
-#  Copyright 2015 Palo Alto Networks, Inc
+#  Copyright 2015-2016 Palo Alto Networks, Inc
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -12,6 +12,12 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+"""
+minemeld.collectd
+
+Provides a client to collectd for storing metrics.
+"""
+
 import socket
 import logging
 
@@ -19,6 +25,11 @@ LOG = logging.getLogger(__name__)
 
 
 class CollectdClient(object):
+    """Collectd client.
+
+    Args:
+        path (str): path to the collectd unix socket
+    """
     def __init__(self, path):
         self.path = path
         self.socket = None
@@ -56,7 +67,7 @@ class CollectdClient(object):
             raise RuntimeError('Error communicating with collectd %s' %
                                message)
         message = [message]
-        for i in range(status):
+        for _ in range(status):
             message.append(self._readline())
 
         LOG.debug('command result %d %s', status, '\n'.join(message))
@@ -76,7 +87,7 @@ class CollectdClient(object):
 
     def putval(self, identifier, value, timestamp='N',
                type_='minemeld_counter', hostname='minemeld', interval=None):
-        if type(timestamp) == int:
+        if isinstance(timestamp, int):
             timestamp = '%d' % timestamp
 
         identifier = '/'.join([hostname, identifier, type_])

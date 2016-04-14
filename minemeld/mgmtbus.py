@@ -59,7 +59,6 @@ class MgmtbusMaster(object):
         comm_class (string): communication backend to be used
         comm_config (dict): config for the communication backend
     """
-
     def __init__(self, ftlist, config, comm_class, comm_config):
         super(MgmtbusMaster, self).__init__()
 

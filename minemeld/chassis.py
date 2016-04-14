@@ -1,4 +1,4 @@
-#  Copyright 2015 Palo Alto Networks, Inc
+#  Copyright 2015-2016 Palo Alto Networks, Inc
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -12,10 +12,11 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-"""Chassis module
+"""
+minemeld.chassis
 
-A chassis instance contains a list of FT and a fabric.
-FTs communicate using the fabric.
+A chassis instance contains a list of nodes and a fabric.
+Nodes communicate using the fabric.
 """
 
 import logging
@@ -33,15 +34,17 @@ STATE_REPORT_INTERVAL = 10
 
 
 class Chassis(object):
-    def __init__(self, fabricclass, fabricconfig, mgmtbusconfig):
-        """Chassis class
+    """Chassis class
 
-        Args:
-            fabricclass (str): class for the fabric
-            fabricconfig (dict): config dictionary for fabric,
-                class specific
-        """
+    Args:
+        fabricclass (str): class for the fabric
+        fabricconfig (dict): config dictionary for fabric,
+            class specific
+        mgmtbusconfig (dict): config dictionary for mgmt bus
+    """
+    def __init__(self, fabricclass, fabricconfig, mgmtbusconfig):
         self.fts = {}
+        self.poweroff = None
 
         self.fabric_class = fabricclass
         self.fabric_config = fabricconfig
@@ -59,8 +62,8 @@ class Chassis(object):
 
     def _dynamic_load(self, classname):
         modname, classname = classname.rsplit('.', 1)
-        t = __import__(modname, globals(), locals(), [classname])
-        cls = getattr(t, classname)
+        imodule = __import__(modname, globals(), locals(), [classname])
+        cls = getattr(imodule, classname)
         return cls
 
     def get_ft(self, ftname):
@@ -97,13 +100,17 @@ class Chassis(object):
     def request_mgmtbus_channel(self, ft):
         return self.mgmtbus.request_channel(ft)
 
-    def request_rpc_channel(self, ftname, ft, allowed_methods=[]):
+    def request_rpc_channel(self, ftname, ft, allowed_methods=None):
+        if allowed_methods is None:
+            allowed_methods = []
         self.fabric.request_rpc_channel(ftname, ft, allowed_methods)
 
     def request_pub_channel(self, ftname):
         return self.fabric.request_pub_channel(ftname)
 
-    def request_sub_channel(self, ftname, ft, subname, allowed_methods=[]):
+    def request_sub_channel(self, ftname, ft, subname, allowed_methods=None):
+        if allowed_methods is None:
+            allowed_methods = []
         self.fabric.request_sub_channel(ftname, ft, subname, allowed_methods)
 
     def send_rpc(self, sftname, dftname, method, params, block, timeout):
@@ -125,7 +132,7 @@ class Chassis(object):
         if self.fabric is None:
             return
 
-        for ftname, ft in self.fts.iteritems():
+        for _, ft in self.fts.iteritems():
             ft.stop()
 
         self.fabric.stop()
