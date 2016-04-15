@@ -130,11 +130,16 @@ def add_prototype(prototypename):
     if paths is None:
         raise RuntimeError('%s environment variable not set' %
                            (PROTOTYPE_ENV))
-    path = paths.split(':')[-1]
-    library_filename = os.path.join(path, library_filename)
+    paths = paths.split(':')
 
-    if os.path.isfile(library_filename):
-        with open(library_filename, 'r') as f:
+    library_path = None
+    for p in paths:
+        library_path = os.path.join(p, library_filename)
+        if os.path.isfile(library_path):
+            break
+
+    if os.path.isfile(library_path):
+        with open(library_path, 'r') as f:
             library_contents = yaml.safe_load(f)
     else:
         library_contents = {
@@ -172,7 +177,7 @@ def add_prototype(prototypename):
 
     library_contents[prototype] = new_prototype
 
-    with open(library_filename, 'w') as f:
+    with open(library_path, 'w') as f:
         yaml.dump(f, library_contents)
 
     return jsonify(result='OK'), 200
