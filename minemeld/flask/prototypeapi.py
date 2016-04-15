@@ -102,7 +102,11 @@ def get_prototype(prototypename):
         }
 
         if 'config' in curr_prototype:
-            result['config'] = yaml.dump(curr_prototype['config'])
+            result['config'] = yaml.dump(
+                curr_prototype['config'],
+                indent=4,
+                default_flow_style=False
+            )
 
         if 'development_status' in curr_prototype:
             result['developmentStatus'] = curr_prototype['development_status']
@@ -178,6 +182,6 @@ def add_prototype(prototypename):
     library_contents[prototype] = new_prototype
 
     with open(library_path, 'w') as f:
-        yaml.dump(f, library_contents)
+        yaml.dump(f, library_contents, indent=4, default_flow_style=False)
 
     return jsonify(result='OK'), 200
