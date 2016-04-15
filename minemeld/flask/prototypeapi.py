@@ -114,3 +114,65 @@ def get_prototype(prototypename):
             result['description'] = curr_prototype['description']
 
         return jsonify(result=result), 200
+
+@app.route('/prototype/<prototypename>', methods=['POST'])
+def add_prototype(prototypename):
+    toks = prototypename.split('.', 1)
+    if len(toks) != 2:
+        return jsonify(error={'message': 'bad prototype name'}), 400
+    library, prototype = toks
+
+    if os.path.basename(library) != library:
+        return jsonify(error={'message': 'bad library name, nice try'}), 400
+    library_filename = library+'.yml'
+
+    paths = os.getenv(PROTOTYPE_ENV, None)
+    if paths is None:
+        raise RuntimeError('%s environment variable not set' %
+                           (PROTOTYPE_ENV))
+    path = paths.split(':')[-1]
+    library_filename = os.path.join(path, library_filename)
+
+    if os.path.isfile(library_filename):
+        with open(library_filename, 'r') as f:
+            library_contents = yaml.safe_load(f)
+    else:
+        library_contents = {
+            'author': 'minemeld-web',
+            'prototypes': {}
+        }
+
+    try:
+        incoming_prototype = request.get_json()
+    except Exception as e:
+        return jsonify(error={'message': str(e)}), 400
+
+    new_prototype = {
+        'class': incoming_prototype['class'],
+    }
+
+    if 'config' in incoming_prototype:
+        try:
+            new_prototype['config'] = yaml.safe_load(
+                incoming_prototype['config']
+            )
+        except Exception as e:
+            return jsonify(error={'message': 'invalid YAML in config'}), 400
+
+    if 'developmentStatus' in incoming_prototype:
+        new_prototype['development_status'] = \
+            incoming_prototype['developmentStatus']
+
+    if 'nodeType' in incoming_prototype:
+        new_prototype['node_type'] = incoming_prototype['nodeType']
+
+    if 'description' in incoming_prototype:
+        new_prototype['description'] = incoming_prototype['description']
+
+
+    library_contents[prototype] = new_prototype
+
+    with open(library_filename, 'w') as f:
+        yaml.dump(f, library_contents)
+
+    return jsonify(result='OK'), 200
