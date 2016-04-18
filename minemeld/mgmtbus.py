@@ -334,7 +334,7 @@ class MgmtbusSlaveHub(object):
 
     Args:
         config (dict): config
-        comm_class (string): communication backend to be used 
+        comm_class (string): communication backend to be used
         comm_config (dict): config for the communication backend
     """
 
@@ -381,7 +381,7 @@ def master_factory(config, comm_class, comm_config, fts):
     Returns:
         Instance of minemeld.mgmtbus.MgmtbusMaster class
     """
-    _ = comm_class  # to get rid of pylint warning, comm_class not used yet
+    _ = comm_class  # noqa
 
     return MgmtbusMaster(
         fts,
@@ -403,7 +403,7 @@ def slave_hub_factory(config, comm_class, comm_config):
     Returns:
         Instance of minemeld.mgmtbus.MgmtbusSlaveHub class
     """
-    _ = comm_class  # to get rid of pylint warning, comm_class not used yet
+    _ = comm_class  # noqa
 
     return MgmtbusSlaveHub(
         config,

@@ -72,7 +72,7 @@ class Fabric(object):
             subname (str): name of the topic to subscribe to
             allowed_methods (list): list of allowed methods
         """
-        _ = ftname  # just to disable warnings
+        _ = ftname  # noqa
         self.comm.request_sub_channel(subname, node, allowed_methods)
 
     def send_rpc(self, sftname, dftname, method, params,

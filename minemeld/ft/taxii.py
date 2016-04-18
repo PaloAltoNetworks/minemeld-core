@@ -264,8 +264,11 @@ class TaxiiClient(basepoller.BasePollerFT):
                     stixpackage = stix.core.stix_package.STIXPackage.from_xml(
                         lxml.etree.fromstring(cb.content)
                     )
-                except Exception as e:
-                    LOG.exception('%s - Exception parsing contnet block', self.name)
+                except Exception:
+                    LOG.exception(
+                        '%s - Exception parsing contnet block',
+                        self.name
+                    )
                     continue
 
                 if stixpackage.indicators:
