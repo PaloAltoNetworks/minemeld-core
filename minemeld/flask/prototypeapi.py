@@ -21,7 +21,7 @@ import yaml
 import flask.ext.login
 
 from flask import jsonify
-from flask import Response
+from flask import request
 
 from . import app
 
@@ -88,7 +88,7 @@ def get_prototype(prototypename):
         if prototypes is None:
             continue
 
-        if not prototype in prototypes:
+        if prototype not in prototypes:
             continue
 
         curr_prototype = prototypes[prototype]
@@ -119,8 +119,12 @@ def get_prototype(prototypename):
 
         return jsonify(result=result), 200
 
+
 @app.route('/prototype/<prototypename>', methods=['POST'])
 def add_prototype(prototypename):
+    AUTHOR_ = 'minemeld-web'
+    DESCRIPTION_ = 'Local prototype library managed via MineMeld WebUI'
+
     toks = prototypename.split('.', 1)
     if len(toks) != 2:
         return jsonify(error={'message': 'bad prototype name'}), 400
@@ -128,6 +132,8 @@ def add_prototype(prototypename):
 
     if os.path.basename(library) != library:
         return jsonify(error={'message': 'bad library name, nice try'}), 400
+    if library != 'minemeldlocal':
+        return jsonify(error={'message': 'invalid library'}), 400
     library_filename = library+'.yml'
 
     paths = os.getenv(PROTOTYPE_ENV, None)
@@ -145,9 +151,18 @@ def add_prototype(prototypename):
     if os.path.isfile(library_path):
         with open(library_path, 'r') as f:
             library_contents = yaml.safe_load(f)
+        if not isinstance(library_contents, dict):
+            library_contents = {}
+        if 'description' not in library_contents:
+            library_contents['description'] = DESCRIPTION_
+        if 'prototypes' not in library_contents:
+            library_contents['prototypes'] = {}
+        if 'author' not in library_contents:
+            library_contents['author'] = AUTHOR_
     else:
         library_contents = {
-            'author': 'minemeld-web',
+            'author': AUTHOR_,
+            'description': DESCRIPTION_,
             'prototypes': {}
         }
 
@@ -178,10 +193,9 @@ def add_prototype(prototypename):
     if 'description' in incoming_prototype:
         new_prototype['description'] = incoming_prototype['description']
 
-
-    library_contents[prototype] = new_prototype
+    library_contents['prototypes'][prototype] = new_prototype
 
     with open(library_path, 'w') as f:
-        yaml.dump(f, library_contents, indent=4, default_flow_style=False)
+        yaml.safe_dump(library_contents, f, indent=4, default_flow_style=False)
 
     return jsonify(result='OK'), 200
