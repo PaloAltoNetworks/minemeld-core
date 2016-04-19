@@ -113,6 +113,7 @@ class BaseFT(object):
 
         self.chassis = chassis
 
+        self._original_config = copy.deepcopy(config)
         self.config = config
         self.configure()
 
@@ -141,7 +142,7 @@ class BaseFT(object):
 
         status = {
             'class': (self.__class__.__module__+'.'+self.__class__.__name__),
-            'config': self.config
+            'config': self._original_config
         }
         status = json.dumps(status, sort_keys=True)
 
@@ -173,7 +174,7 @@ class BaseFT(object):
     def create_checkpoint(self, value):
         status = {
             'class': (self.__class__.__module__+'.'+self.__class__.__name__),
-            'config': self.config
+            'config': self._original_config
         }
         status = json.dumps(status, sort_keys=True)
 
