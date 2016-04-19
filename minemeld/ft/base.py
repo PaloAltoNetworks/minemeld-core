@@ -1,4 +1,4 @@
-#  Copyright 2015 Palo Alto Networks, Inc
+#  Copyright 2015-2016 Palo Alto Networks, Inc
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -12,10 +12,13 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+from __future__ import absolute_import
+
 import logging
 import copy
 import os
 import collections
+import json
 
 from . import condition
 from . import ft_states
@@ -136,16 +139,47 @@ class BaseFT(object):
     def read_checkpoint(self):
         self.last_checkpoint = None
 
+        status = {
+            'class': (self.__class__.__module__+'.'+self.__class__.__name__),
+            'config': self.config
+        }
+        status = json.dumps(status, sort_keys=True)
+
         try:
             with open(self.name+'.chkp', 'r') as f:
-                self.last_checkpoint = f.read().strip()
+                self.last_checkpoint = f.readline().strip()
+                old_status = f.readline().strip()
+
             os.remove(self.name+'.chkp')
+
+            # old_status is missing in old releases
+            # stick to the old behavior
+            if old_status and old_status != status:
+                LOG.info(
+                    '%s - old config does not match new config',
+                    self.name
+                )
+                self.last_checkpoint = None
+            else:
+                LOG.info(
+                    '%s - old config matches new config',
+                    self.name
+                )
+
         except IOError:
-            pass
+            LOG.exception('%s - Error reading last checkpoint', self.name)
+            self.last_checkpoint = None
 
     def create_checkpoint(self, value):
+        status = {
+            'class': (self.__class__.__module__+'.'+self.__class__.__name__),
+            'config': self.config
+        }
+        status = json.dumps(status, sort_keys=True)
+
         with open(self.name+'.chkp', 'w') as f:
-            f.write(value)
+            f.write(value+'\n')
+            f.write(status)
 
     def configure(self):
         self.infilters = _Filters(self.config.get('infilters', []))

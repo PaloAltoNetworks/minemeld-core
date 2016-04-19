@@ -1,4 +1,4 @@
-#  Copyright 2015 Palo Alto Networks, Inc
+#  Copyright 2015-2016 Palo Alto Networks, Inc
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ class AggregateFT(base.BaseFT):
 
     def __init__(self, name, chassis, config):
         self.active_requests = []
+        self.table = None
 
         super(AggregateFT, self).__init__(name, chassis, config)
 
@@ -188,7 +189,7 @@ class AggregateFT(base.BaseFT):
             to_key = self._indicator_key(to_key, '\x7F')
 
         cindicator = None
-        cvalue = None
+        cvalue = {}
         for k, v in self.table.query(index=index, from_key=from_key,
                                      to_key=to_key, include_value=True):
             indicator, _ = k.split('\x00')

@@ -1,4 +1,4 @@
-#  Copyright 2015 Palo Alto Networks, Inc
+#  Copyright 2015-2016 Palo Alto Networks, Inc
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -12,13 +12,31 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+"""
+minemeld.mgmtbus
+
+This module implements master and slave hub classes for MineMeld engine
+management bus.
+
+Management bus master sends commands to all managemnt bus slaves by
+posting a message to a specific topic (MGMTBUS_PREFIX+'bus').
+Slaves subscribe to the topic, and when a command is received they
+reply back to the master by sending the answer to the queue
+MGMTBUS_PREFIX+'master'. Slaves connections are multiplexed via
+slave hub class.
+
+Management bus is used to control the MineMeld engine graph and to
+periodically retrieve metrics from all the nodes.
+"""
+
 from __future__ import absolute_import
 
-import gevent
-import gevent.event
 import logging
 import uuid
 import collections
+
+import gevent
+import gevent.event
 
 import minemeld.comm
 import minemeld.ft
@@ -33,6 +51,14 @@ MGMTBUS_MASTER = MGMTBUS_PREFIX+'master'
 
 
 class MgmtbusMaster(object):
+    """MineMeld engine management bus master
+
+    Args:
+        ftlist (list): list of nodes
+        config (dict): config
+        comm_class (string): communication backend to be used
+        comm_config (dict): config for the communication backend
+    """
     def __init__(self, ftlist, config, comm_class, comm_config):
         super(MgmtbusMaster, self).__init__()
 
@@ -57,9 +83,25 @@ class MgmtbusMaster(object):
         )
 
     def rpc_status(self):
+        """Returns collected status via RPC
+        """
         return self._status
 
-    def _send_cmd(self, command, params={}, and_discard=False):
+    def _send_cmd(self, command, params=None, and_discard=False):
+        """Sends command to slaves over mgmt bus.
+
+        Args:
+            command (str): command
+            params (dict): params of the command
+            and_discard (bool): discard answer, don't wait
+
+        Returns:
+            returns a gevent.event.AsyncResult that is signaled
+            when all the answers are collected
+        """
+        if params is None:
+            params = {}
+
         return self._rpc_client.send_rpc(
             command,
             params=params,
@@ -68,6 +110,11 @@ class MgmtbusMaster(object):
         )
 
     def init_graph(self, newconfig):
+        """Initalizes graph by sending startup messages.
+
+        Args:
+            newconfig (bool): config is new
+        """
         if newconfig:
             LOG.info("new config: sending rebuild")
             self._send_cmd('rebuild', and_discard=True)
@@ -88,10 +135,10 @@ class MgmtbusMaster(object):
         checkpoints = set([a.get('checkpoint', None)
                            for a in result['answers'].values()])
         if len(checkpoints) == 1:
-            c = next(iter(checkpoints))
-            if c is not None:
+            ccheckpoint = next(iter(checkpoints))
+            if ccheckpoint is not None:
                 LOG.info('all nodes at the same checkpoint (%s) '
-                         ' sending initialize', c)
+                         ' sending initialize', ccheckpoint)
                 self._send_cmd('initialize', and_discard=True)
                 return
 
@@ -99,17 +146,22 @@ class MgmtbusMaster(object):
                             for a in result['answers'].values()
                             if a['is_source']])
         if len(source_chkps) == 1:
-            c = next(iter(source_chkps))
-            if c is not None:
+            ccheckpoint = next(iter(source_chkps))
+            if ccheckpoint is not None:
                 LOG.info('all source nodes at the same checkpoint (%s) '
-                         ' sending rebuild', c)
+                         ' sending rebuild', ccheckpoint)
                 self._send_cmd('rebuild', and_discard=True)
                 return
 
         LOG.info("sending reset")
         self._send_cmd('reset', and_discard=True)
 
-    def checkpoint_graph(self, max_tries=12, try_interval=5):
+    def checkpoint_graph(self, max_tries=12):
+        """Checkpoints the graph.
+
+        Args:
+            max_tries (int): number of minutes before giving up
+        """
         LOG.info('checkpoint_graph called, checking current state')
 
         while True:
@@ -130,8 +182,8 @@ class MgmtbusMaster(object):
                 continue
 
             all_started = True
-            for a in result['answers'].values():
-                if a.get('state', None) != minemeld.ft.ft_states.STARTED:
+            for answer in result['answers'].values():
+                if answer.get('state', None) != minemeld.ft.ft_states.STARTED:
                     all_started = False
                     break
             if not all_started:
@@ -160,10 +212,10 @@ class MgmtbusMaster(object):
 
             result = revt.get(block=False)
 
-            ok = True
-            for a in result['answers'].values():
-                ok &= (a['checkpoint'] == chkp)
-            if ok:
+            cgraphok = True
+            for answer in result['answers'].values():
+                cgraphok &= (answer['checkpoint'] == chkp)
+            if cgraphok:
                 LOG.info('checkpoint graph - all good')
                 break
 
@@ -177,6 +229,12 @@ class MgmtbusMaster(object):
         LOG.debug('checkpoint_graph done')
 
     def _send_collectd_metrics(self, answers, interval):
+        """Send collected metrics from nodes to collectd.
+
+        Args:
+            answers (list): list of metrics
+            interval (int): collection interval
+        """
         collectd_socket = self.config.get(
             'COLLECTD_SOCKET',
             '/var/run/collectd.sock'
@@ -222,6 +280,9 @@ class MgmtbusMaster(object):
             cc.putval('minemeld.'+gs, v, type_=type_, interval=interval)
 
     def _status_loop(self):
+        """Greenlet that periodically retrieves metrics from nodes and sends
+        them to collected.
+        """
         loop_interval = self.config.get('STATUS_INTERVAL', '60')
         try:
             loop_interval = int(loop_interval)
@@ -244,12 +305,15 @@ class MgmtbusMaster(object):
                         result['answers'],
                         loop_interval
                     )
+
                 except:
                     LOG.exception('Exception in _status_loop')
 
             gevent.sleep(loop_interval)
 
     def start_status_monitor(self):
+        """Starts status monitor greenlet.
+        """
         if self.status_glet is not None:
             LOG.error('double call to start_status')
             return
@@ -264,6 +328,16 @@ class MgmtbusMaster(object):
 
 
 class MgmtbusSlaveHub(object):
+    """Hub MineMeld engine management bus slaves. Each chassis
+        has an instance of this class, and each node in the chassis
+        request a channel to the management bus via this instance.
+
+    Args:
+        config (dict): config
+        comm_class (string): communication backend to be used
+        comm_config (dict): config for the communication backend
+    """
+
     def __init__(self, config, comm_class, comm_config):
         self.config = config
         self.comm_config = comm_config
@@ -271,10 +345,10 @@ class MgmtbusSlaveHub(object):
 
         self.comm = minemeld.comm.factory(self.comm_class, self.comm_config)
 
-    def request_channel(self, ft):
+    def request_channel(self, node):
         self.comm.request_rpc_server_channel(
-            MGMTBUS_PREFIX+'slave:'+ft.name,
-            ft,
+            MGMTBUS_PREFIX+'slave:'+node.name,
+            node,
             allowed_methods=[
                 'mgmtbus_state_info',
                 'mgmtbus_initialize',
@@ -295,6 +369,20 @@ class MgmtbusSlaveHub(object):
 
 
 def master_factory(config, comm_class, comm_config, fts):
+    """Factory of management bus master instances
+
+    Args:
+        config (dict): management bus master config
+        comm_class (string): communication backend.
+            Unused, AMQP is always used
+        comm_config (dict): config of the communication backend
+        fts (list): list of nodes
+
+    Returns:
+        Instance of minemeld.mgmtbus.MgmtbusMaster class
+    """
+    _ = comm_class  # noqa
+
     return MgmtbusMaster(
         fts,
         config,
@@ -304,6 +392,19 @@ def master_factory(config, comm_class, comm_config, fts):
 
 
 def slave_hub_factory(config, comm_class, comm_config):
+    """Factory of management bus slave hub instances
+
+    Args:
+        config (dict): management bus master config
+        comm_class (string): communication backend.
+            Unused, AMQP is always used
+        comm_config (dict): config of the communication backend.
+
+    Returns:
+        Instance of minemeld.mgmtbus.MgmtbusSlaveHub class
+    """
+    _ = comm_class  # noqa
+
     return MgmtbusSlaveHub(
         config,
         'AMQP',
