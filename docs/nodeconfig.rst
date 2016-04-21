@@ -212,21 +212,21 @@ extract the indicator and additional fields::
     url: https://www.dshield.org/block.txt
     ignore_regex: "[#S].*"
     indicator:
-        regex: '^([0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3})\\t([0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3})'
-        transform: '\\1-\\2'
+        regex: '^([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})\t([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})'
+        transform: '\1-\2'
     fields:
         dshield_nattacks:
-            regex: '^.*\\t.*\\t[0-9]+\\t([0-9]+)'
-            transform: '\\1'
+            regex: '^.*\t.*\t[0-9]+\t([0-9]+)'
+            transform: '\1'
         dshield_name:
-            regex: '^.*\\t.*\\t[0-9]+\\t[0-9]+\\t([^\\t]+)'
-            transform: '\\1'
+            regex: '^.*\t.*\t[0-9]+\t[0-9]+\t([^\t]+)'
+            transform: '\1'
         dshield_country:
-            regex: '^.*\\t.*\\t[0-9]+\\t[0-9]+\\t[^\\t]+\\t([A-Z]+)'
-            transform: '\\1'
+            regex: '^.*\t.*\t[0-9]+\t[0-9]+\t[^\t]+\t([A-Z]+)'
+            transform: '\1'
         dshield_email:
-            regex: '^.*\\t.*\\t[0-9]+\\t[0-9]+\\t[^\\t]+\\t[A-Z]+\\t(\\S+)'
-            transform: '\\1'
+            regex: '^.*\t.*\t[0-9]+\t[0-9]+\t[^\t]+\t[A-Z]+\t(\S+)'
+            transform: '\1'
 
 Example config in YAML where the text in each line until the first
 whitespace is used as indicator::
