@@ -1,4 +1,4 @@
-#  Copyright 2015 Palo Alto Networks, Inc
+#  Copyright 2015-2016 Palo Alto Networks, Inc
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -11,6 +11,11 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+
+"""
+This module implements minemeld.ft.basepoller.BasePollerFT, a base class for
+miners retrieving indicators by periodically polling an external source.
+"""
 
 import logging
 import copy
@@ -67,6 +72,100 @@ class IndicatorStatus(object):
 
 
 class BasePollerFT(base.BaseFT):
+    """Implements base class for polling miners.
+
+    **Config parameters**
+        :source_name: name of the source. This is placed in the
+            *sources* attribute of the generated indicators. Default: name
+            of the node.
+        :attributes: dictionary of attributes for the generated indicators.
+            This dictionary is used as template for the value of the generated
+            indicators. Default: empty
+        :interval: polling interval in seconds. Default: 3600.
+        :num_retries: in case of failure, how many times the miner should
+            try to reach the source. If this number is exceeded, the miner
+            waits until the next polling time to try again. Default: 2
+        :age_out: age out policies to apply to the indicators.
+            Default: age out check interval 3600 seconds, sudden death enabled,
+            default age out interval 30 days.
+
+    **Age out policy**
+        Age out policy is described by a dictionary with at least 3 keys:
+
+        :interval: number of seconds between successive age out checks.
+        :sudden_death: boolean, if *true* indicators are immediately aged out
+            when they disappear from the feed.
+        :default: age out interval. After this interval an indicator is aged
+            out even if it is still present in the feed. If *null*, no age out
+            interval is applied.
+
+        Additional keys can be used to specify age out interval per indicator
+        *type*.
+
+    **Age out interval**
+        Age out intervals have the following format::
+
+            <base attribute>+<interval>
+
+        *base attribute* can be *last_seen*, if the age out interval should be
+        calculated based on the last time the indicator was found in the feed,
+        or *first_seen*, if instead the age out interval should be based on the
+        time the indicator was first seen in the feed. If not specified
+        *first_seen* is used.
+
+        *interval* is the length of the interval expressed in seconds. Suffixes
+        *d*, *h* and *m* can be used to specify days, hours or minutes.
+
+    Example:
+        Example config in YAML for a feed where indicators should be aged out
+        only when they are removed from the feed::
+
+            source_name: example.persistent_feed
+            interval: 600
+            age_out:
+                default: null
+                sudden_death: true
+                interval: 300
+            attributes:
+                type: IPv4
+                confidence: 100
+                share_level: green
+                direction: inbound
+
+        Example config in YAML for a feed where indicators are aged out when
+        they disappear from the feed and 30 days after they have seen for the
+        first time in the feed::
+
+            source_name: example.long_running_feed
+            interval: 3600
+            age_out:
+                default: first_seen+30d
+                sudden_death: true
+                interval: 1800
+            attributes:
+                type: URL
+                confidence: 50
+                share_level: green
+
+        Example config in YAML for a feed where indicators are aged 30 days
+        after they have seen for the last time in the feed::
+
+            source_name: example.delta_feed
+            interval: 3600
+            age_out:
+                default: last_seen+30d
+                sudden_death: false
+                interval: 1800
+            attributes:
+                type: URL
+                confidence: 50
+                share_level: green
+
+    Args:
+        name (str): node name, should be unique inside the graph
+        chassis (object): parent chassis instance
+        config (dict): node config.
+    """
     def __init__(self, name, chassis, config):
         self.glet = None
         self.ageout_glet = None

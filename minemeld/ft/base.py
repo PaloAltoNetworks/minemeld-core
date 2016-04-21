@@ -12,6 +12,10 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+"""
+This module implements minemeld.ft.base.BaseFT, the base class for nodes.
+"""
+
 from __future__ import absolute_import
 
 import logging
@@ -28,6 +32,12 @@ LOG = logging.getLogger(__name__)
 
 
 class _Filters(object):
+    """Implements a set of filters to be applied to indicators.
+    Used by mineneld.ft.base.BaseFT for ingress and egress filters.
+
+    Args:
+        filters (list): list of filters.
+    """
     def __init__(self, filters):
         self.filters = []
 
@@ -98,6 +108,12 @@ class _Filters(object):
 
 
 def _counting(statsname):
+    """Decorator for counting calls to decorated instance methods.
+    Counters are stored in statistics attribute of the instance.
+
+    Args:
+        statsname (str): name of the counter to increment
+    """
     def _counter_out(f):
         def _counter(self, *args, **kwargs):
             LOG.debug('updating %s', statsname)
@@ -108,6 +124,65 @@ def _counting(statsname):
 
 
 class BaseFT(object):
+    """Implements base class of MineMeld engine nodes.
+
+    **Config parameters**
+
+        :infilters: inbound filter set. Filters to be applied to
+            received indicators.
+        :outfilters: outbound filter set. Filters to be applied to
+            transmitted indicators.
+
+    **Filter set**
+        Each filter set is a list of filters. Filters are verified from top
+        to bottom, and the first matching filter is applied. Default action
+        is **accept**.
+        Each filter is a dictionary with 3 keys:
+
+        :name: name of the filter.
+        :conditions: list of boolean expressions to match on the
+            indicator.
+        :actions: list of actions to be applied to the indicator.
+            Currently the only supported actions are **accept** and **drop**
+
+        In addition to the atttributes in the indicator value, filters can
+        match on 3 special attributes:
+
+        :__indicator: the indicator itself.
+        :__method: the method of the message, **update** or **withdraw**.
+        :__origin: the name of the node who sent the indicator.
+
+    **Condition**
+        A condition in the filter, is boolean expression composed by a JMESPath
+        expression, an operator (<, <=, ==, >=, >, !=) and a value.
+
+    Example:
+        Example config in YAML::
+
+            infilters:
+                - name: accept withdraws
+                  conditions:
+                    - __method == 'withdraw'
+                  actions:
+                    - accept
+                - name: accept URL
+                  conditions:
+                    - type == 'URL'
+                  actions:
+                    - accept
+                - name: drop all
+                  actions:
+                    - drop
+            outfilters:
+                - name: accept all (default)
+                  actions:
+                    - accept
+
+    Args:
+        name (str): node name, should be unique inside the graph
+        chassis (object): parent chassis instance
+        config (dict): node config.
+    """
     def __init__(self, name, chassis, config):
         self.name = name
 
@@ -138,6 +213,19 @@ class BaseFT(object):
         self._state = value
 
     def read_checkpoint(self):
+        """Reads checkpoint file from disk.
+
+        First line of the checkpoint file is a UUID, the *checkpoint* received
+        before stopping. The second line is a dictionary in JSON with the class
+        of the node and the config.
+
+        Checkpoint files are used to check if the saved state on disk is
+        consistent with the current running config. If the state is not
+        consistent `last_checkpoint` is set to None, to indicate that the state
+        stored on disk is not valid or inexistent.
+
+        Called by `__init__`.
+        """
         self.last_checkpoint = None
 
         status = {
@@ -172,6 +260,13 @@ class BaseFT(object):
             self.last_checkpoint = None
 
     def create_checkpoint(self, value):
+        """Saves checkpoint file to disk.
+
+        Called by `checkpoint`.
+
+        Args:
+            value (str): received *checkpoint*
+        """
         status = {
             'class': (self.__class__.__module__+'.'+self.__class__.__name__),
             'config': self._original_config
@@ -183,6 +278,13 @@ class BaseFT(object):
             f.write(status)
 
     def configure(self):
+        """Applies the config settings stored in `self.config`.
+
+        Called by `__init__`.
+
+        When this method is changed to add/remove new parameters, the class
+        docstring should be updated.
+        """
         self.infilters = _Filters(self.config.get('infilters', []))
         self.outfilters = _Filters(self.config.get('outfilters', []))
 
