@@ -12,6 +12,11 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+"""
+This module implements minemeld.ft.json.SimpleJSON, the Miner node for JSON
+feeds over HTTP/HTTPS.
+"""
+
 import requests
 import logging
 import jmespath
@@ -22,6 +27,37 @@ LOG = logging.getLogger(__name__)
 
 
 class SimpleJSON(basepoller.BasePollerFT):
+    """Implements class for miners of JSON feeds over http/https.
+
+    **Config parameters**
+        :url: URL of the feed.
+        :polling_timeout: timeout of the polling request in seconds.
+            Default: 20
+        :verify_cert: boolean, if *true* feed HTTPS server certificate is
+            verified. Default: *true*
+        :extractor: JMESPath expression for extracting the indicators from
+            the JSON document. Default: @
+        :indicator: the JSON attribute to use as indicator. Default: indicator
+        :fields: list of JSON attributes to include in the indicator value.
+            If *null* no additional attributes are extracted. Default: *null*
+        :prefix: prefix to add to field names. Default: json
+
+    Example:
+        Example config in YAML::
+
+            url: https://ip-ranges.amazonaws.com/ip-ranges.json
+            extractor: "prefixes[?service=='AMAZON']"
+            prefix: aws
+            indicator: ip_prefix
+            fields:
+                - region
+                - service
+
+    Args:
+        name (str): node name, should be unique inside the graph
+        chassis (object): parent chassis instance
+        config (dict): node config.
+    """
     def configure(self):
         super(SimpleJSON, self).configure()
 
