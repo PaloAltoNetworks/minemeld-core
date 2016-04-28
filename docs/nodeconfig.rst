@@ -3,35 +3,34 @@ Node config
 
 The set of config parameters supported by a node depends on the node class.
 
+.. note::
+    This document has been extracted from the docstrings of the python code.
+    For the most updated documentation check the original source code.
+
 Base class
 ----------
 
 All nodes support these parameters.
 
-.. note::
-    This document has been extracted from the docstrings of the python code.
-    For the most updated documentation check the original source code.
-
 Parameters
 +++++++++++++++++
 
-:infilters: inbound *filter set*. Filters to be applied to
-    received indicators.
-:outfilters: outbound *filter set*. Filters to be applied to
-    transmitted indicators.
+:infilters: inbound *filter set*. Filters to apply to received indicators.
+:outfilters: outbound *filter set*. Filters to apply to transmitted
+    indicators.
 
 Filter set
 ++++++++++
 
-Each filter set is a list of filters. Filters are verified from top
-to bottom, and the first matching filter is applied. Default action
-is **accept**.
+Each filter set is a list of filters. Filters are checked from top
+to bottom, the first matching filter is applied and following filters are not
+checked. Default action is **accept**.
 Each filter is a dictionary with 3 keys:
 
 :name: name of the filter.
 :conditions: list of boolean expressions to match on the
-    indicator.
-:actions: list of actions to be applied to the indicator.
+    indicator and indicator value.
+:actions: list of actions to apply to the indicator.
     Currently the only supported actions are **accept** and **drop**
 
 In addition to the atttributes in the indicator value, filters can
@@ -44,7 +43,7 @@ match on 3 special attributes:
 Condition
 +++++++++
 
-A condition in the filter, is boolean expression composed by a JMESPath
+A condition in the filter is a boolean expression composed by: a JMESPath
 expression, an operator (<, <=, ==, >=, >, !=) and a value.
 
 Example
@@ -74,20 +73,21 @@ Example config in YAML::
 Base poller class
 -----------------
 
-All the polling miners nodes support these parameters.
+In addition to `Base class` config parameters, the base poller class support
+the following parameters.
 
 Config parameters
 +++++++++++++++++
 
-:source_name: name of the source. This is placed in the
+:source_name: name of the source. This is added to the
     *sources* attribute of the generated indicators. Default: name
     of the node.
 :attributes: dictionary of attributes for the generated indicators.
     This dictionary is used as template for the value of the generated
     indicators. Default: empty
 :interval: polling interval in seconds. Default: 3600.
-:num_retries: in case of failure, how many times the miner should
-    try to reach the source. If this number is exceeded, the miner
+:num_retries: how many times the miner should try to reach the source in case
+    of failure. If this number is exceeded, the miner
     waits until the next polling time to try again. Default: 2
 :age_out: age out policies to apply to the indicators.
     Default: age out check interval 3600 seconds, sudden death enabled,
@@ -174,6 +174,9 @@ after they have seen for the last time in the feed::
 minemeld.ft.http.HttpFT
 -----------------------
 
+In addition to `Base poller class` config parameters, the base poller class
+support the following parameters.
+
 Parameters
 +++++++++++++++++
 
@@ -233,3 +236,84 @@ whitespace is used as indicator::
 
     url: https://ransomwaretracker.abuse.ch/downloads/CW_C2_URLBL.txt
     ignore_regex: '^#'
+
+For a complete config example check **dshield.block** prototype.
+
+minemeld.ft.csv.CSVFT
+---------------------
+
+In addition to `Base poller class` config parameters, the base poller class
+support the following parameters.
+
+Parameters
+++++++++++
+
+:url: URL of the feed.
+:polling_timeout: timeout of the polling request in seconds.
+    Default: 20
+:verify_cert: boolean, if *true* feed HTTPS server certificate is
+    verified. Default: *true*
+:ignore_regex: Python regular expression for lines that should be
+    ignored. Default: *null*
+:fieldnames: list of field names in the file. If *null* the values
+    in the first row of the file are used as names. Default: *null*
+:delimiter: see `csv Python module <https://docs.python.org/2/library/csv.html#dialects-and-formatting-parameters>`_.
+    Default: ,
+:doublequote: see `csv Python module <https://docs.python.org/2/library/csv.html#dialects-and-formatting-parameters>`_.
+    Default: true
+:escapechar: see `csv Python module <https://docs.python.org/2/library/csv.html#dialects-and-formatting-parameters>`_.
+    Default: null
+:quotechar: see `csv Python module <https://docs.python.org/2/library/csv.html#dialects-and-formatting-parameters>`_.
+    Default: "
+:skipinitialspace: see `csv Python module <https://docs.python.org/2/library/csv.html#dialects-and-formatting-parameters>`_.
+    Default: false
+
+Example
++++++++
+
+Example config in YAML::
+
+    url: https://sslbl.abuse.ch/blacklist/sslipblacklist.csv
+    ignore_regex: '^#'
+    fieldnames:
+        - indicator
+        - port
+        - sslblabusech_type
+
+For a complete config example check **sslabusech.ipblacklist** prototype.
+
+minemeld.ft.json.SimpleJSON
+---------------------------
+
+In addition to `Base poller class` config parameters, the base poller class
+support the following parameters.
+
+Parameters
+++++++++++
+
+:url: URL of the feed.
+:polling_timeout: timeout of the polling request in seconds.
+    Default: 20
+:verify_cert: boolean, if *true* feed HTTPS server certificate is
+    verified. Default: *true*
+:extractor: JMESPath expression for extracting the indicators from
+    the JSON document. Default: @
+:indicator: the JSON attribute to use as indicator. Default: indicator
+:fields: list of JSON attributes to include in the indicator value.
+    If *null* no additional attributes are extracted. Default: *null*
+:prefix: prefix to add to field names. Default: json
+
+Example
++++++++
+
+Example config in YAML::
+
+    url: https://ip-ranges.amazonaws.com/ip-ranges.json
+    extractor: "prefixes[?service=='AMAZON']"
+    prefix: aws
+    indicator: ip_prefix
+    fields:
+        - region
+        - service
+
+For a complete config example check **aws.AMAZON** prototype.
