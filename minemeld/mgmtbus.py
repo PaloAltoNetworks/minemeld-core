@@ -345,7 +345,10 @@ class MgmtbusSlaveHub(object):
         self.comm = minemeld.comm.factory(self.comm_class, self.comm_config)
 
     def request_log_channel(self):
-        return self.comm.request_pub_channel(MGMTBUS_LOG_TOPIC)
+        LOG.debug("Adding log channel")
+        return self.comm.request_pub_channel(
+            MGMTBUS_LOG_TOPIC
+        )
 
     def request_channel(self, node):
         self.comm.request_rpc_server_channel(
@@ -362,6 +365,9 @@ class MgmtbusSlaveHub(object):
             method_prefix='mgmtbus_',
             fanout=MGMTBUS_TOPIC
         )
+
+    def add_failure_listener(self, f):
+        self.comm.add_failure_listener(f)
 
     def start(self):
         self.comm.start()
