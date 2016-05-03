@@ -32,6 +32,7 @@ LOG = logging.getLogger(__name__)
 class AMQPPubChannel(object):
     def __init__(self, topic):
         self.topic = topic
+
         self.channel = None
         self.ioloop = None
 
@@ -42,13 +43,17 @@ class AMQPPubChannel(object):
             return
 
         self.channel = conn.channel()
-        self.channel.exchange_declare(self.topic, 'fanout', auto_delete=True)
+        self.channel.exchange_declare(
+            self.topic,
+            'fanout',
+            auto_delete=True
+        )
 
     def disconnect(self):
         if self.channel is None:
             return
 
-        self.channel.exchange_delete(self.topic)
+        # self.channel.exchange_delete(self.topic)
         self.channel.close()
         self.channel = None
 
@@ -418,7 +423,9 @@ class AMQP(object):
 
     def request_pub_channel(self, topic):
         if topic not in self.pub_channels:
-            self.pub_channels[topic] = AMQPPubChannel(topic)
+            self.pub_channels[topic] = AMQPPubChannel(
+                topic
+            )
 
         return self.pub_channels[topic]
 
