@@ -28,6 +28,8 @@ LOG = logging.getLogger(__name__)
 COMMITTED_CONFIG = 'committed-config.yml'
 RUNNING_CONFIG = 'running-config.yml'
 PROTOTYPE_ENV = 'MINEMELD_PROTOTYPE_PATH'
+MGMTBUS_NUM_CONNS_ENV = 'MGMTBUS_NUM_CONNS'
+FABRIC_NUM_CONNS_ENV = 'FABRIC_NUM_CONNS'
 
 
 def _load_node_prototype(protoname):
@@ -78,18 +80,28 @@ def _load_config_from_file(f):
         config = {}
 
     if 'fabric' not in config:
+        fabric_num_conns = int(
+            os.getenv(FABRIC_NUM_CONNS_ENV, 5)
+        )
+
         config['fabric'] = {
             'class': 'AMQP',
             'config': {
-                'num_connections': 5
+                'num_connections': fabric_num_conns
             }
         }
 
     if 'mgmtbus' not in config:
+        mgmtbus_num_conns = int(
+            os.getenv(MGMTBUS_NUM_CONNS_ENV, 1)
+        )
+
         config['mgmtbus'] = {
             'transport': {
                 'class': 'AMQP',
-                'config': {}
+                'config': {
+                    'num_connections': mgmtbus_num_conns
+                }
             },
             'master': {},
             'slave': {}
