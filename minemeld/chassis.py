@@ -25,8 +25,6 @@ import gevent
 import gevent.monkey
 gevent.monkey.patch_all(thread=False, select=False)
 
-import ujson
-
 import minemeld.mgmtbus
 import minemeld.ft
 import minemeld.fabric
@@ -61,6 +59,7 @@ class Chassis(object):
             mgmtbusconfig['transport']['class'],
             mgmtbusconfig['transport']['config']
         )
+        self.mgmtbus.add_failure_listener(self.mgmtbus_failed)
         self.log_channel = self.mgmtbus.request_log_channel()
 
     def _dynamic_load(self, classname):
@@ -120,16 +119,22 @@ class Chassis(object):
         return self.fabric.send_rpc(sftname, dftname, method, params,
                                     block=block, timeout=timeout)
 
-    def log(self, nodename, log):
+    def log(self, timestamp, nodename, log_type, value):
         self.log_channel.publish(
             method='log',
             params={
+                'timestamp': timestamp,
                 'source': nodename,
-                'log': ujson.dumps(log)
+                'log_type': log_type,
+                'log': value
             }
         )
 
     def fabric_failed(self):
+        self.stop()
+
+    def mgmtbus_failed(self):
+        LOG.critical('chassis - mgmtbus failed')
         self.stop()
 
     def fts_init(self):
