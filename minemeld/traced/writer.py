@@ -18,12 +18,15 @@ This module implements the writer class for logs
 
 import logging
 import ujson
+import gevent.event
 
 LOG = logging.getLogger(__name__)
 
 
 class Writer(object):
     def __init__(self, comm, store, topic):
+        self._stop = gevent.event.Event()
+
         self.store = store
         self.comm = comm
         self.comm.request_sub_channel(
@@ -33,4 +36,15 @@ class Writer(object):
         )
 
     def log(self, timestamp, **kwargs):
+        if self._stop.is_set():
+            return
+
         self.store.write(timestamp, ujson.dumps(kwargs))
+
+    def stop(self):
+        LOG.info('Writer - stop called')
+
+        if self._stop.is_set():
+            return
+
+        self._stop.set()

@@ -23,25 +23,61 @@ import Queue
 
 import gevent.queue
 import gevent.event
+import gevent.lock
 
 import plyvel
 import pytz
 
 LOG = logging.getLogger(__name__)
 
+START_KEY = '%016x%08x' % (0, 0)
+
+TD_1DAY = datetime.timedelta(days=1)
+
+TABLE_MAX_COUNTER_KEY = 'MAX_COUNTER'
+
+
+class TableNotFound(Exception):
+    pass
+
 
 class Table(object):
-    def __init__(self, name):
-        LOG.debug('New table: %s', name)
+    def __init__(self, name, create_if_missing=True):
+        LOG.debug('New table: %s %s', name, create_if_missing)
 
         self.name = name
         self.last_used = None
         self.refs = []
 
-        self.db = plyvel.DB(
-            name,
-            create_if_missing=True
-        )
+        try:
+            self.db = plyvel.DB(
+                name,
+                create_if_missing=create_if_missing
+            )
+
+        except plyvel.Error as e:
+            if not create_if_missing:
+                raise TableNotFound(str(e))
+            raise
+
+        self.max_counter = None
+        try:
+            self.max_counter = self.db.get(TABLE_MAX_COUNTER_KEY)
+
+        except KeyError:
+            pass
+
+        if self.max_counter is None:
+            LOG.warning(
+                'MAX_ID key not found in %s',
+                self.name
+            )
+            self.max_counter = 0
+
+        else:
+            self.max_counter = int(self.max_counter, 16)
+
+        LOG.debug('Table %s - max id: %d', self.name, self.max_counter)
 
     def add_reference(self, refid):
         self.refs.append(refid)
@@ -61,28 +97,66 @@ class Table(object):
         return len(self.refs)
 
     def put(self, key, value):
-        LOG.debug('table %s - writing %s', self.name, key)
         self.last_used = time.time()
 
-        self.db.put(key, value)
+        self.max_counter += 1
+        new_max_counter = '%016x' % self.max_counter
+
+        batch = self.db.write_batch()
+        batch.put(key+new_max_counter, value)
+        batch.put(TABLE_MAX_COUNTER_KEY, new_max_counter)
+        batch.write()
+
+    def backwards_iterator(self, timestamp, counter):
+        return self.db.iterator(
+            start=START_KEY,
+            stop=('%016x%016x' % (timestamp, counter)),
+            include_start=False,
+            include_stop=True,
+            reverse=True
+        )
+
+    def close(self):
+        self.db.close()
+
+
+def _lock_current_tables():
+    """Decorator for locking current_tables
+    """
+    def _lock_out(f):
+        def _lock_in(self, *args, **kwargs):
+            self.current_tables_lock.acquire()
+
+            try:
+                result = f(self, *args, **kwargs)
+
+            finally:
+                self.current_tables_lock.release()
+
+            return result
+        return _lock_in
+    return _lock_out
+
 
 class Store(object):
     def __init__(self, config=None):
         if config is None:
             config = {}
 
+        self._stop = gevent.event.Event()
+
         self.max_tables = config.get('max_tables', 5)
 
         self.current_tables = {}
+        self.current_tables_lock = gevent.lock.BoundedSemaphore()
 
-        self.last_timestamp = None
-        self.last_counter = 0
+        self.max_written_timestamp = None
+        self.max_written_counter = 0
 
         self.add_queue = gevent.queue.PriorityQueue()
 
-    def _open_table(self, name):
-        LOG.debug('_open_table: %s', name)
-        table = Table(name)
+    def _open_table(self, name, create_if_missing):
+        table = Table(name, create_if_missing=create_if_missing)
         self.current_tables[name] = table
 
         return table
@@ -91,33 +165,55 @@ class Store(object):
         table.close()
         self.current_tables.pop(table.name)
 
-    def _add_table(self, name, priority):
-        LOG.debug('_add_table: %s', name)
+    def _add_table(self, name, priority, create_if_missing=True):
+        self.current_tables_lock.acquire()
         if len(self.current_tables) < self.max_tables:
-            return self._open_table(name)
+            try:
+                result = self._open_table(
+                    name,
+                    create_if_missing=create_if_missing
+                )
+            finally:
+                self.current_tables_lock.release()
+            return result
+        self.current_tables_lock.release()
 
         future_table = gevent.event.AsyncResult()
-        self.add_queue.put((priority, (future_table, name)))
-        
+        self.add_queue.put((
+            priority,
+            (future_table, name, create_if_missing)
+        ))
+
         return future_table.get()
 
-    def _get_table(self, day, ref):
+    def _get_table(self, day, ref, create_if_missing=True):
+        self.current_tables_lock.acquire()
         table = self.current_tables.get(day, None)
+        self.current_tables_lock.release()
+
         if table is None:
             prio = 99 if ref != 'write' else 1
-            table = self._add_table(day, prio)
+            table = self._add_table(
+                day,
+                prio,
+                create_if_missing=create_if_missing
+            )
 
         table.add_reference(ref)
 
         return table
 
-    def _process_queue_element(self, name, ftable):
+    @_lock_current_tables()
+    def _process_queue_element(self, name, ftable, create_if_missing):
         if name in self.current_tables:
             ftable.set(self.current_tables[name])
             return True
 
         if len(self.current_tables) < self.max_tables:
-            new_table = self._open_table(name)
+            new_table = self._open_table(
+                name,
+                create_if_missing=create_if_missing
+            )
             ftable.set(new_table)
             return True
 
@@ -143,11 +239,20 @@ class Store(object):
     def _process_queue(self):
         try:
             while True:
-                prio, (ftable, name) = self.add_queue.get_nowait()
+                prio, (ftable, name, create_if_missing) = \
+                    self.add_queue.get_nowait()
 
-                if not self._process_queue_element(name, ftable):
+                result = self._process_queue_element(
+                    name,
+                    ftable,
+                    create_if_missing
+                )
+                if not result:
                     prio = (prio - 1) if prio > 2 else prio
-                    self.add_queue.put((prio, (ftable, name)))
+                    self.add_queue.put((
+                        prio,
+                        (ftable, name, create_if_missing)
+                    ))
                     return
 
         except IndexError:
@@ -162,6 +267,9 @@ class Store(object):
         self._process_queue()
 
     def write(self, timestamp, log):
+        if self._stop.is_set():
+            raise RuntimeError('stopping')
+
         dt = datetime.datetime.fromtimestamp(
             timestamp/1000.0,
             pytz.UTC
@@ -170,18 +278,81 @@ class Store(object):
 
         table = self._get_table(day, 'write')
 
-        LOG.debug('%s %s', timestamp, self.last_timestamp)
-        if timestamp == self.last_timestamp:
-            self.last_counter += 1
-        else:
-            self.last_timestamp = timestamp
-            self.last_counter = 0
-
         try:
             table.put(
-                '%016x%08x' % (self.last_timestamp, self.last_counter),
+                '%016x' % timestamp,
                 log
             )
 
         finally:
             self._release(table, 'write')
+
+    def iterate_backwards(self, ref, timestamp, counter):
+        if self._stop.is_set():
+            raise RuntimeError('stopping')
+
+        current_day = datetime.datetime.fromtimestamp(
+            timestamp/1000.0,
+            pytz.UTC
+        )
+        current_day = current_day.replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+
+        while True:
+            table_name = '%04d-%02d-%02d' % (
+                current_day.year,
+                current_day.month,
+                current_day.day
+            )
+            yield {'msg': 'Checking %s' % table_name}
+
+            try:
+                table = self._get_table(
+                    table_name,
+                    ref,
+                    create_if_missing=False
+                )
+            except TableNotFound:
+                yield {'msg': 'No more logs to check'}
+                return
+
+            table_iterator = table.backwards_iterator(
+                timestamp=timestamp,
+                counter=counter
+            )
+
+            for linets, line in table_iterator:
+                yield {
+                    'timestamp': int(linets[:16], 16),
+                    'counter': int(linets[16:], 16),
+                    'log': line
+                }
+
+            self._release(table, ref)
+
+            current_day -= TD_1DAY
+
+    def release_all(self, ref):
+        if self._stop.is_set():
+            raise RuntimeError('stopping')
+
+        self.current_tables_lock.acquire()
+        for t in self.current_tables.values():
+            t.remove_reference(ref)
+        self.current_tables_lock.release()
+
+        self._process_queue()
+
+    def stop(self):
+        LOG.info('Store - stop called')
+
+        if self._stop.is_set():
+            return
+
+        self._stop.set()
+        self.current_tables_lock.acquire()
+        for t in self.current_tables.keys():
+            self.current_tables[t].close()
+            self.current_tables.pop(t, None)
+        self.current_tables_lock.release()

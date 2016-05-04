@@ -23,17 +23,18 @@ import gevent.event
 import gevent.monkey
 gevent.monkey.patch_all(thread=False, select=False)
 
-import sys
 import argparse
 import logging
 import yaml
 import functools
+import signal
 
 from minemeld import __version__
 
 import minemeld.comm
 import minemeld.traced.storage
 import minemeld.traced.writer
+import minemeld.traced.queryprocessor
 
 LOG = logging.getLogger(__name__)
 
@@ -67,6 +68,18 @@ def _ioloop_failure(event):
 
 
 def main():
+    def _sigint_handler():
+        raise KeyboardInterrupt('Ctrl-C from _sigint_handler')
+
+    def _sigterm_handler():
+        raise KeyboardInterrupt('Ctrl-C from _sigterm_handler')
+
+    def _cleanup():
+        trace_writer.stop()
+        query_processor.stop()
+        store.stop()
+        comm.stop()
+
     args = _parse_args()
 
     loglevel = logging.INFO
@@ -108,13 +121,30 @@ def main():
         topic=config.get('topic', 'mbus:log')
     )
 
-    loop_failure = gevent.event.Event()
-    comm.add_failure_listener(functools.partial(_ioloop_failure, loop_failure))
+    query_processor = minemeld.traced.queryprocessor.QueryProcessor(
+        comm,
+        store,
+        config=config.get('queryprocessor', {})
+    )
+
+    shutdown_event = gevent.event.Event()
+    comm.add_failure_listener(
+        functools.partial(_ioloop_failure, shutdown_event)
+    )
 
     comm.start()
 
+    gevent.signal(signal.SIGINT, _sigint_handler)
+    gevent.signal(signal.SIGTERM, _sigterm_handler)
+
     try:
-        loop_failure.wait()
+        shutdown_event.wait()
+
+    except KeyboardInterrupt:
+        pass
 
     except:
         LOG.exception('Exception')
+
+    finally:
+        _cleanup()
