@@ -20,16 +20,21 @@ import logging
 import signal
 import time
 import pprint
+import uuid
 
 import click
 
 import minemeld.comm
 import minemeld.mgmtbus
+import minemeld.traced
 
 LOG = logging.getLogger(__name__)
 
 
-def _send_cmd(ctx, target, command, params={}, source=True):
+def _send_cmd(ctx, target, command, params=None, source=True):
+    if params is None:
+        params = {}
+
     if source:
         params['source'] = ctx.obj['SOURCE']
     return ctx.obj['COMM'].send_rpc(
@@ -160,6 +165,27 @@ def get_range(ctx, target, index, from_key, to_key):
 def status(ctx):
     pprint.pprint(_send_cmd(ctx, minemeld.mgmtbus.MGMTBUS_MASTER,
                             'status', source=False))
+
+    ctx.obj['COMM'].stop()
+
+
+# XXX query should subscribe to the Redis topic to dump the 
+# query results
+@cli.command()
+@click.argument('query')
+@click.option('--from-counter', default=None, type=int)
+@click.option('--from-timestamp', default=None, type=int)
+@click.option('--num-lines', default=100, type=int)
+@click.pass_context
+def query(ctx, query, from_counter, from_timestamp, num_lines):
+    pprint.pprint(_send_cmd(ctx, minemeld.traced.QUERY_QUEUE,
+                            'query', source=False, params={
+                                'uuid': str(uuid.uuid4()),
+                                'timestamp': from_timestamp,
+                                'counter': from_counter,
+                                'num_lines': num_lines,
+                                'query': query
+                            }))
 
     ctx.obj['COMM'].stop()
 
