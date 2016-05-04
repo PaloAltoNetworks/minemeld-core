@@ -98,6 +98,11 @@ class Query(gevent.Greenlet):
                 SR.publish('mm-traced-q.'+self.uuid, ujson.dumps(line))
                 num_generated_lines += 1
 
+        SR.publish(
+            'mm-traced-q.'+self.uuid,
+            '{"msg": "Loaded %d lines"}' % num_generated_lines
+        )
+        SR.publish('mm-traced-q.'+self.uuid, '<EOQ>')
         LOG.info("Query %s finished - %d", self.uuid, num_generated_lines)
 
         # make sure we release the tables if we stop in the middle
@@ -140,7 +145,7 @@ class QueryProcessor(object):
             self.store.release_all(gquery.uuid)
             LOG.exception('Query finished with exception')
 
-    def query(self, uuid, query, timestamp=None, counter=None, num_lines=100):
+    def query(self, uuid, query, timestamp=None, counter=None, num_lines=None):
         if self._stop.is_set():
             return RuntimeError('stopping')
 
@@ -149,6 +154,9 @@ class QueryProcessor(object):
 
         if counter is None:
             counter = 0xFFFFFFFFFFFFFFFF
+
+        if num_lines is None:
+            num_lines = 100
 
         self.queries_lock.acquire()
 
