@@ -624,6 +624,7 @@ class BaseFT(object):
         self.state = ft_states.STARTED
 
     def stop(self):
+        LOG.debug("%s - stop called", self.name)
         if self.state not in [ft_states.IDLE, ft_states.STARTED]:
             LOG.error("stop on not IDLE or STARTED FT")
             raise AssertionError("stop on not IDLE or STARTED FT")
