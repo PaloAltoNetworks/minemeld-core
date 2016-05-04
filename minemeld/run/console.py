@@ -169,18 +169,22 @@ def status(ctx):
     ctx.obj['COMM'].stop()
 
 
-# XXX query should subscribe to the Redis topic to dump the 
+# XXX query should subscribe to the Redis topic to dump the
 # query results
 @cli.command()
 @click.argument('query')
 @click.option('--from-counter', default=None, type=int)
 @click.option('--from-timestamp', default=None, type=int)
 @click.option('--num-lines', default=100, type=int)
+@click.option('--query-uuid', default=None)
 @click.pass_context
-def query(ctx, query, from_counter, from_timestamp, num_lines):
+def query(ctx, query, from_counter, from_timestamp, num_lines, query_uuid):
+    if query_uuid is None:
+        query_uuid = str(uuid.uuid4())
+
     pprint.pprint(_send_cmd(ctx, minemeld.traced.QUERY_QUEUE,
                             'query', source=False, params={
-                                'uuid': str(uuid.uuid4()),
+                                'uuid': query_uuid,
                                 'timestamp': from_timestamp,
                                 'counter': from_counter,
                                 'num_lines': num_lines,
