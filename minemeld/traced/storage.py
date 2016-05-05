@@ -72,7 +72,7 @@ class Table(object):
                 'MAX_ID key not found in %s',
                 self.name
             )
-            self.max_counter = 0
+            self.max_counter = -1
 
         else:
             self.max_counter = int(self.max_counter, 16)
@@ -183,6 +183,7 @@ class Store(object):
             priority,
             (future_table, name, create_if_missing)
         ))
+        self._process_queue()
 
         return future_table.get()
 
@@ -231,7 +232,10 @@ class Store(object):
 
         self._close_table(candidate)
 
-        new_table = self._open_table(name)
+        new_table = self._open_table(
+            name,
+            create_if_missing=create_if_missing
+        )
         ftable.set(new_table)
 
         return True
@@ -330,6 +334,12 @@ class Store(object):
                 }
 
             self._release(table, ref)
+
+            if current_day.year == 1970 and \
+               current_day.month == 1 and \
+               current_day.day == 1:
+                yield {'msg': 'We haved reached the origin of time'}
+                return
 
             current_day -= TD_1DAY
 
