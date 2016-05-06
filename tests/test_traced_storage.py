@@ -22,6 +22,7 @@ import shutil
 import random
 import time
 import mock
+import logging
 
 import minemeld.traced.storage
 
@@ -29,15 +30,21 @@ import traced_mock
 
 TABLENAME = tempfile.mktemp(prefix='minemeld.traced.storagetest')
 
+LOG = logging.getLogger(__name__)
+
 
 class MineMeldTracedStorage(unittest.TestCase):
     def setUp(self):
+        traced_mock.table_cleanup()
+
         try:
             shutil.rmtree(TABLENAME)
         except:
             pass
 
     def tearDown(self):
+        traced_mock.table_cleanup()
+
         try:
             shutil.rmtree(TABLENAME)
         except:
@@ -105,12 +112,89 @@ class MineMeldTracedStorage(unittest.TestCase):
     @mock.patch.object(minemeld.traced.storage, 'Table', side_effect=traced_mock.table_factory)
     def test_store_write(self, table_mock):
         store = minemeld.traced.storage.Store()
-        store.write(0*864000*1000, 'log0')
-        store.write(1*864000*1000, 'log1')
-        store.write(2*864000*1000, 'log2')
-        store.write(3*864000*1000, 'log3')
-        store.write(4*864000*1000, 'log4')
-        store.write(5*864000*1000, 'log5')
-        store.write(6*864000*1000, 'log6')
+        store.write(0*86400*1000, 'log0')
+        self.assertEqual(traced_mock.MOCK_TABLES[0].name, '1970-01-01')
+
+        store.write(1*86400*1000, 'log1')
+        self.assertEqual(traced_mock.MOCK_TABLES[1].name, '1970-01-02')
+
+        store.write(2*86400*1000, 'log2')
+        self.assertEqual(traced_mock.MOCK_TABLES[2].name, '1970-01-03')
+
+        store.write(3*86400*1000, 'log3')
+        self.assertEqual(traced_mock.MOCK_TABLES[3].name, '1970-01-04')
+
+        store.write(4*86400*1000, 'log4')
+        self.assertEqual(traced_mock.MOCK_TABLES[4].name, '1970-01-05')
+
+        store.write(5*86400*1000, 'log5')
+        self.assertEqual(traced_mock.MOCK_TABLES[5].name, '1970-01-06')
+        self.assertNotIn('1970-01-01', store.current_tables)
+
+        store.write(6*86400*1000, 'log6')
+        self.assertEqual(traced_mock.MOCK_TABLES[6].name, '1970-01-07')
+        self.assertNotIn('1970-01-02', store.current_tables)
+
         store.stop()
         self.assertEqual(len(store.current_tables), 0)
+
+    @mock.patch.object(minemeld.traced.storage, 'Table', side_effect=traced_mock.table_factory)
+    def test_store_iterate_backwards(self, table_mock):
+        _oldest_table_mock = mock.MagicMock(side_effect=traced_mock.MockTable.oldest_table)
+        table_mock.attach_mock(_oldest_table_mock, 'oldest_table')
+
+        store = minemeld.traced.storage.Store()
+        store.write(1*86400*1000, 'log0')
+        store.write(2*86400*1000, 'log1')
+        store.write(3*86400*1000, 'log2')
+        store.write(4*86400*1000, 'log3')
+        store.write(5*86400*1000, 'log4')
+        self.assertEqual(minemeld.traced.storage.Table.oldest_table(), '1970-01-02')
+
+        iterator = store.iterate_backwards(
+            ref='test-iter1',
+            timestamp=6*86400*1000,
+            counter=0xFFFFFFFFFFFFFFFF
+        )
+        self.assertEqual(next(iterator)['msg'], 'Checking 1970-01-07')
+        self.assertEqual(next(iterator)['msg'], 'Checking 1970-01-06')
+        self.assertEqual(next(iterator)['log'], 'log4')
+        self.assertEqual(next(iterator)['msg'], 'Checking 1970-01-05')
+        self.assertEqual(next(iterator)['log'], 'log3')
+        self.assertEqual(next(iterator)['msg'], 'Checking 1970-01-04')
+        self.assertEqual(next(iterator)['log'], 'log2')
+        self.assertEqual(next(iterator)['msg'], 'Checking 1970-01-03')
+        self.assertEqual(next(iterator)['log'], 'log1')
+        self.assertEqual(next(iterator)['msg'], 'Checking 1970-01-02')
+        self.assertEqual(next(iterator)['log'], 'log0')
+        self.assertEqual(next(iterator)['msg'], 'No more logs to check')
+        self.assertRaises(StopIteration, next, iterator)
+
+        store.stop()
+        store.stop()  # just for coverage
+
+    @mock.patch.object(minemeld.traced.storage, 'Table', side_effect=traced_mock.table_factory)
+    def test_store_iterate_backwards_2(self, table_mock):
+        _oldest_table_mock = mock.MagicMock(side_effect=traced_mock.MockTable.oldest_table)
+        table_mock.attach_mock(_oldest_table_mock, 'oldest_table')
+
+        store = minemeld.traced.storage.Store()
+        store.write(0*86400*1000, 'log0')
+        store.write(2*86400*1000, 'log1')
+        self.assertEqual(minemeld.traced.storage.Table.oldest_table(), '1970-01-01')
+
+        iterator = store.iterate_backwards(
+            ref='test-iter1',
+            timestamp=3*86400*1000,
+            counter=0xFFFFFFFFFFFFFFFF
+        )
+        self.assertEqual(next(iterator)['msg'], 'Checking 1970-01-04')
+        self.assertEqual(next(iterator)['msg'], 'Checking 1970-01-03')
+        self.assertEqual(next(iterator)['log'], 'log1')
+        self.assertEqual(next(iterator)['msg'], 'Checking 1970-01-02')
+        self.assertEqual(next(iterator)['msg'], 'Checking 1970-01-01')
+        self.assertEqual(next(iterator)['log'], 'log0')
+        self.assertEqual(next(iterator)['msg'], 'We haved reached the origins of time')
+        self.assertRaises(StopIteration, next, iterator)
+
+        store.stop()
