@@ -429,7 +429,10 @@ class AMQP(object):
 
         return self.pub_channels[topic]
 
-    def request_sub_channel(self, topic, obj=None, allowed_methods=[]):
+    def request_sub_channel(self, topic, obj=None, allowed_methods=None):
+        if allowed_methods is None:
+            allowed_methods = []
+
         if topic in self.sub_channels:
             self.sub_channels[topic].add_listener(obj, allowed_methods)
             return
