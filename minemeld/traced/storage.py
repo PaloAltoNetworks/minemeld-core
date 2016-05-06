@@ -20,6 +20,7 @@ import logging
 import datetime
 import time
 import Queue
+import os
 
 import gevent.queue
 import gevent.event
@@ -118,6 +119,16 @@ class Table(object):
 
     def close(self):
         self.db.close()
+
+    @staticmethod
+    def oldest_table():
+        # XXX we should switch to something iterative
+        tables = os.listdir('.')
+        if len(tables) == 0:
+            return None
+
+        tables = sorted(tables)
+        return tables[0]
 
 
 def _lock_current_tables():
@@ -303,12 +314,21 @@ class Store(object):
             hour=0, minute=0, second=0, microsecond=0
         )
 
+        oldest_table = Table.oldest_table()
+        if oldest_table is None:
+            yield {'msg': 'No more logs to check'}
+            return
+
         while True:
             table_name = '%04d-%02d-%02d' % (
                 current_day.year,
                 current_day.month,
                 current_day.day
             )
+            if table_name < oldest_table:
+                yield {'msg': 'No more logs to check'}
+                return
+
             yield {'msg': 'Checking %s' % table_name}
 
             try:
@@ -318,8 +338,15 @@ class Store(object):
                     create_if_missing=False
                 )
             except TableNotFound:
-                yield {'msg': 'No more logs to check'}
-                return
+                if current_day.year == 1970 and \
+                   current_day.month == 1 and \
+                   current_day.day == 1:
+                    # XXX this is unreachable
+                    yield {'msg': 'This should be unreachable'}
+                    return
+
+                current_day -= TD_1DAY
+                continue
 
             table_iterator = table.backwards_iterator(
                 timestamp=timestamp,
@@ -338,7 +365,7 @@ class Store(object):
             if current_day.year == 1970 and \
                current_day.month == 1 and \
                current_day.day == 1:
-                yield {'msg': 'We haved reached the origin of time'}
+                yield {'msg': 'We haved reached the origins of time'}
                 return
 
             current_day -= TD_1DAY
