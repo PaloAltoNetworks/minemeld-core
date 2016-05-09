@@ -22,6 +22,7 @@ import time
 import ujson
 
 import gevent
+import greenlet
 import gevent.lock
 import gevent.event
 import redis
@@ -136,18 +137,19 @@ class QueryProcessor(object):
         self.queries_lock.release()
 
         try:
-            gquery.get()
-
-        except gevent.GreenletExit:
-            pass
+            result = gquery.get()
 
         except:
             self.store.release_all(gquery.uuid)
             LOG.exception('Query finished with exception')
+            return
+
+        if isinstance(result, greenlet.GreenletExit):
+            self.store.release_all(gquery.uuid)
 
     def query(self, uuid, query, timestamp=None, counter=None, num_lines=None):
         if self._stop.is_set():
-            return RuntimeError('stopping')
+            raise RuntimeError('stopping')
 
         if timestamp is None:
             timestamp = int(calendar.timegm(time.gmtime())*1000)
