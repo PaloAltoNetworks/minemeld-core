@@ -16,7 +16,15 @@
 This module implements mock classes for minemed.traced tests
 """
 
+import gevent
+import gevent.event
+
+import logging
+
 from minemeld.traced.storage import TableNotFound
+
+LOG = logging.getLogger(__name__)
+
 
 CLOCK = -1
 def _get_clock():
@@ -103,7 +111,7 @@ class MockStore(object):
         self.writes = []
         self.db = {}
         self.counter = 0
-        self._release_all = False
+        self.release_alls = []
 
     def write(self, timestamp, log):
         self.writes.append({
@@ -124,7 +132,75 @@ class MockStore(object):
             yield {'timestamp': i[0], 'log': i[1]}
 
     def release_all(self, ref):
-        self._release_all = True
+        self.release_alls.append(ref)
 
 def store_factory(config=None):
     return MockStore(config=config)
+
+MOCK_QUERIES = []
+
+class MockQuery(gevent.Greenlet):
+    def __init__(self, store, query, timestamp, counter, 
+                 num_lines, uuid, redis_config):
+        self.store = store
+        self.query = query
+        self.timestamp = timestamp
+        self.counter = counter
+        self.num_lines = num_lines
+        self.uuid = uuid
+        self.redis_config = redis_config
+
+        self.finish_event = gevent.event.Event()
+
+        super(MockQuery, self).__init__()
+
+    def kill(self):
+        LOG.debug("%s killed", self.uuid)
+        super(MockQuery, self).kill()
+
+    def _run(self):
+        LOG.debug("%s started", self.uuid)
+        self.finish_event.wait()
+        LOG.debug("%s finished", self.uuid)
+
+class MockEQuery(gevent.Greenlet):
+    def __init__(self, store, query, timestamp, counter, 
+                 num_lines, uuid, redis_config):
+        self.store = store
+        self.query = query
+        self.timestamp = timestamp
+        self.counter = counter
+        self.num_lines = num_lines
+        self.uuid = uuid
+        self.redis_config = redis_config
+
+        self.finish_event = gevent.event.Event()
+
+        super(MockEQuery, self).__init__()
+
+    def kill(self):
+        LOG.debug("%s killed", self.uuid)
+        super(MockEQuery, self).kill()
+
+    def _run(self):
+        LOG.debug("%s started", self.uuid)
+        self.finish_event.wait()
+        raise RuntimeError("BAD BAD QUERY!")
+
+def query_factory(store, query, timestamp, counter, 
+                 num_lines, uuid, redis_config):
+
+    if query == "bad":
+        mqf = MockEQuery
+    else:
+        mqf = MockQuery
+
+    mq = mqf(store, query, timestamp, counter, 
+                num_lines, uuid, redis_config)
+    MOCK_QUERIES.append(mq)
+
+    return mq
+
+def query_cleanup():
+    global MOCK_QUERIES
+    MOCK_QUERIES = []
