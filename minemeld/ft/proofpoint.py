@@ -23,6 +23,8 @@ import pytz
 import netaddr
 import netaddr.core
 
+from minemeld import __version__ as MM_VERSION
+
 from . import basepoller
 from . import table
 from .utils import dt_to_millisec
@@ -200,7 +202,10 @@ class ETIntelligence(basepoller.BasePollerFT):
         rkwargs = dict(
             stream=True,
             verify=self.verify_cert,
-            timeout=self.polling_timeout
+            timeout=self.polling_timeout,
+            headers={
+                'User-Agent': 'MineMeld/%s' % MM_VERSION
+            }
         )
 
         r = requests.get(
