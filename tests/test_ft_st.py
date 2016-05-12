@@ -53,6 +53,8 @@ class MineMeldFTSTTests(unittest.TestCase):
         st.put(sid, 1, 5, 1)
         st.delete(sid, 1, 5, 1)
 
+        st.close()
+
     def test_query_endpoints_forward(self):
         st = minemeld.ft.st.ST(TABLENAME, 8, truncate=True)
 
@@ -71,6 +73,8 @@ class MineMeldFTSTTests(unittest.TestCase):
         )]
 
         self.assertEqual(eps, [1, 50, 70, 100])
+
+        st.close()
 
     def test_query_endpoints_reverse(self):
         st = minemeld.ft.st.ST(TABLENAME, 8, truncate=True)
@@ -91,6 +95,8 @@ class MineMeldFTSTTests(unittest.TestCase):
 
         self.assertEqual(eps, [100, 70, 50, 1])
 
+        st.close()
+
     def test_basic_cover(self):
         st = minemeld.ft.st.ST(TABLENAME, 8, truncate=True)
 
@@ -108,6 +114,8 @@ class MineMeldFTSTTests(unittest.TestCase):
 
             interval2 = next(ci, None)
             self.assertEqual(interval2, None)
+
+        st.close()
 
     def test_cover_overlap(self):
         st = minemeld.ft.st.ST(TABLENAME, 8, truncate=True)
@@ -153,6 +161,8 @@ class MineMeldFTSTTests(unittest.TestCase):
         interval = next(ci, None)
         self.assertEqual(interval, None)
 
+        st.close()
+
     def test_cover_overlap2(self):
         st = minemeld.ft.st.ST(TABLENAME, 8, truncate=True)
 
@@ -172,6 +182,8 @@ class MineMeldFTSTTests(unittest.TestCase):
         self.assertEqual(intervals[1][1], 1)
         self.assertEqual(intervals[1][2], 3)
         self.assertEqual(intervals[1][3], 7)
+
+        st.close()
 
     def _random_map(self, nbits=10, nintervals=1000):
         epmax = (1 << nbits)-1
@@ -209,6 +221,8 @@ class MineMeldFTSTTests(unittest.TestCase):
             intervals.sort()
             self.assertListEqual(intervals, sorted(rmap[e]))
 
+        st.close()
+
     def test_random_map_fast(self):
         self._random_map()
 
@@ -222,6 +236,7 @@ class MineMeldFTSTTests(unittest.TestCase):
         st.put(sid, 0, 0xFF)
         self.assertEqual(st.num_segments, 1)
         self.assertEqual(st.num_endpoints, 2)
+        st.close()
 
     @attr('slow')
     def test_stress_0(self):
@@ -256,6 +271,8 @@ class MineMeldFTSTTests(unittest.TestCase):
         self.assertEqual(st.num_segments, num_intervals)
         self.assertEqual(st.num_endpoints, num_intervals*2)
 
+        st.close()
+
     @attr('slow')
     def test_stress_1(self):
         num_intervals = 100000
@@ -287,3 +304,5 @@ class MineMeldFTSTTests(unittest.TestCase):
             next(st.cover(q), None)
         t2 = time.time()
         print "TIME: Queried %d times in %d" % (num_queries, (t2-t1))
+
+        st.close()

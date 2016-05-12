@@ -12,6 +12,11 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+"""
+This module implements minemeld.ft.http.HttpFT, the Miner node for plain
+text feeds over HTTP/HTTPS.
+"""
+
 import requests
 import logging
 import re
@@ -23,6 +28,67 @@ LOG = logging.getLogger(__name__)
 
 
 class HttpFT(basepoller.BasePollerFT):
+    """Implements class for miners of plain text feeds over http/https.
+
+    **Config parameters**
+        :url: URL of the feed.
+        :polling_timeout: timeout of the polling request in seconds.
+            Default: 20
+        :verify_cert: boolean, if *true* feed HTTPS server certificate is
+            verified. Default: *true*
+        :ignore_regex: Python regular expression for lines that should be
+            ignored. Default: *null*
+        :indicator: an *extraction dictionary* to extract the indicator from
+            the line. If *null*, the text until the first whitespace or newline
+            character is used as indicator. Default: *null*
+        :fields: a dicionary of *extraction dictionaries* to extract
+            additional attributes from each line. Default: {}
+
+    **Extraction dictionary**
+        Extraction dictionaries contain the following keys:
+
+        :regex: Python regular expression for searching the text.
+        :transform: template to generate the final value from the result
+            of the regular expression. Default: the entire match of the regex
+            is used as extracted value.
+
+        See Python `re <https://docs.python.org/2/library/re.html>`_ module for
+        details about Python regular expressions and templates.
+
+    Example:
+        Example config in YAML where extraction dictionaries are used to
+        extract the indicator and additional fields::
+
+            url: https://www.dshield.org/block.txt
+            ignore_regex: "[#S].*"
+            indicator:
+                regex: '^([0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3})\\t([0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3})'
+                transform: '\\1-\\2'
+            fields:
+                dshield_nattacks:
+                    regex: '^.*\\t.*\\t[0-9]+\\t([0-9]+)'
+                    transform: '\\1'
+                dshield_name:
+                    regex: '^.*\\t.*\\t[0-9]+\\t[0-9]+\\t([^\\t]+)'
+                    transform: '\\1'
+                dshield_country:
+                    regex: '^.*\\t.*\\t[0-9]+\\t[0-9]+\\t[^\\t]+\\t([A-Z]+)'
+                    transform: '\\1'
+                dshield_email:
+                    regex: '^.*\\t.*\\t[0-9]+\\t[0-9]+\\t[^\\t]+\\t[A-Z]+\\t(\\S+)'
+                    transform: '\\1'
+
+        Example config in YAML where the text in each line until the first
+        whitespace is used as indicator::
+
+            url: https://ransomwaretracker.abuse.ch/downloads/CW_C2_URLBL.txt
+            ignore_regex: '^#'
+
+    Args:
+        name (str): node name, should be unique inside the graph
+        chassis (object): parent chassis instance
+        config (dict): node config.
+    """
     def configure(self):
         super(HttpFT, self).configure()
 

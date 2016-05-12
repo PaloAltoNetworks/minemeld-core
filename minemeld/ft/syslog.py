@@ -232,7 +232,10 @@ class SyslogMatcher(base.BaseFT):
             raise
 
         except:
-            LOG.exception("%s - exception handling syslog message")
+            LOG.exception(
+                "%s - exception handling syslog message",
+                self.name
+            )
 
     def _amqp_consumer(self):
         while True:
@@ -390,8 +393,8 @@ class SyslogMiner(base.BaseFT):
 
         self.indicator_mapping = self.config.get('indicator_mapping', {
             'src_ip': 'IP',
-            'dst_ip': 'IP',
-            'url': 'URL'
+            'dest_ip': 'IP',
+            'misc': 'URL'
         })
 
         self.prefix = self.config.get('prefix', 'panossyslog')
@@ -655,7 +658,10 @@ class SyslogMiner(base.BaseFT):
             raise
 
         except:
-            LOG.exception("%s - exception handling syslog message")
+            LOG.exception(
+                "%s - exception handling syslog message",
+                self.name
+            )
 
     def _amqp_consumer(self):
         while self.last_ageout_run is None:

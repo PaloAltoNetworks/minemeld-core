@@ -56,7 +56,7 @@ Each node config has the following general format:
 
     nodename: # name of the node
       config:
-        # list of parameters for the node, depend on the node class
+        # list of parameters for the node, depends on the node class
       class: nodeclass # class of the node
       inputs:
         # list of upstream nodes

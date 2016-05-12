@@ -90,12 +90,16 @@ class O365XML(basepoller.BasePollerFT):
         )
         _session.mount('https://', _adapter)
 
-        rkwargs = dict(
-            stream=True,
-            verify=self.verify_cert,
-            timeout=self.polling_timeout
-        )
         prepreq = self._build_request(now)
+
+        # this is to honour the proxy environment variables
+        rkwargs = _session.merge_environment_settings(
+            prepreq.url,
+            {}, None, None, None  # defaults
+        )
+        rkwargs['stream'] = True
+        rkwargs['verify'] = self.verify_cert
+        rkwargs['timeout'] = self.polling_timeout
         r = _session.send(prepreq, **rkwargs)
 
         try:
