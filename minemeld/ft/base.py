@@ -601,8 +601,6 @@ class BaseFT(object):
         raise NotImplementedError('%s: hup - not implemented' % self.name)
 
     def trace(self, action, indicator, **kwargs):
-        LOG.debug('Emitting trace')
-
         self.chassis.log(
             timestamp=utils.utc_millisec(),
             nodename=self.name,
