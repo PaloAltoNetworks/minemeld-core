@@ -63,6 +63,8 @@ def _stream_redis_events(subscription):
     pubsub = SR.pubsub(ignore_subscribe_messages=True)
     pubsub.subscribe(subscription)
 
+    yield 'data: ok\n\n'
+
     for message in pubsub.listen():
         LOG.debug(message)
         message = message['data']
@@ -71,6 +73,8 @@ def _stream_redis_events(subscription):
             break
 
         yield 'data: '+message+'\n\n'
+
+    yield 'data: { "msg": "<EOQ>" }\n\n'
 
     pubsub.unsubscribe(subscription)
     pubsub.close()
