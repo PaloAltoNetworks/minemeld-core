@@ -21,6 +21,7 @@ import datetime
 import time
 import Queue
 import os
+import os.path
 
 import gevent.queue
 import gevent.event
@@ -49,6 +50,9 @@ class Table(object):
         self.name = name
         self.last_used = None
         self.refs = []
+
+        if not create_if_missing and not os.path.exists(name):
+            raise TableNotFound('Table does not exists')
 
         try:
             self.db = plyvel.DB(
