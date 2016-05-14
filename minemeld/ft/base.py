@@ -416,7 +416,7 @@ class BaseFT(object):
         LOG.debug('%s {%s} - update from %s value %s',
                   self.name, self.state, source, value)
 
-        self.trace('UPDATE', indicator, source_node=source, value=value)
+        self.trace('RECVD_UPDATE', indicator, source_node=source, value=value)
 
         if self.state not in [ft_states.STARTED, ft_states.CHECKPOINT]:
             return
@@ -462,7 +462,7 @@ class BaseFT(object):
         LOG.debug('%s {%s} - withdraw from %s value %s',
                   self.name, self.state, source, value)
 
-        self.trace('WITHDRAW', indicator, source_node=source, value=value)
+        self.trace('RECVD_WITHDRAW', indicator, source_node=source, value=value)
 
         if self.state not in [ft_states.STARTED, ft_states.CHECKPOINT]:
             return
