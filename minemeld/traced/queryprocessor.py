@@ -56,7 +56,7 @@ class Query(gevent.Greenlet):
 
     def _parse_query(self, query):
         query = query.strip()
-        self.parsed_query = query.split()
+        self.parsed_query = query.lower().split()
 
     def _check_query(self, log):
         log = log.lower()
