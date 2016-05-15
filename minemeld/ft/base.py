@@ -438,7 +438,7 @@ class BaseFT(object):
         )
 
         if fltindicator is None:
-            self.trace('DROP_UPDATE', indicator, value=value)
+            self.trace('DROP_UPDATE', indicator, source_node=source, value=value)
             self.filtered_withdraw(
                 source=source,
                 indicator=indicator,
@@ -446,7 +446,7 @@ class BaseFT(object):
             )
             return
 
-        self.trace('ACCEPT_UPDATE', indicator, value=value)
+        self.trace('ACCEPT_UPDATE', indicator, source_node=source, value=value)
         self.filtered_update(
             source=source,
             indicator=fltindicator,
@@ -479,7 +479,7 @@ class BaseFT(object):
         )
 
         if fltindicator is None:
-            self.trace('DROP_WITHDRAW', indicator, value=value)
+            self.trace('DROP_WITHDRAW', indicator, source_node=source, value=value)
             return
 
         if fltvalue is not None:
@@ -487,7 +487,7 @@ class BaseFT(object):
                 if k.startswith("_"):
                     fltvalue.pop(k)
 
-        self.trace('ACCEPT_WITHDRAW', indicator, value=value)
+        self.trace('ACCEPT_WITHDRAW', indicator, source_node=source, value=value)
         self.filtered_withdraw(
             source=source,
             indicator=indicator,
@@ -601,15 +601,16 @@ class BaseFT(object):
         raise NotImplementedError('%s: hup - not implemented' % self.name)
 
     def trace(self, action, indicator, **kwargs):
+        trace = {
+            'indicator': indicator,
+            'op': action,
+        }
+        trace.update(kwargs)
         self.chassis.log(
             timestamp=utils.utc_millisec(),
             nodename=self.name,
             log_type='TRACE',
-            value={
-                'indicator': indicator,
-                'op': action,
-                'value': kwargs
-            }
+            value=trace
         )
 
     def start(self):
