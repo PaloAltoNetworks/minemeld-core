@@ -167,7 +167,7 @@ class MineMeldTracedStorage(unittest.TestCase):
         )
         self.assertEqual(
             comm.rpc_server_channels[0]['allowed_methods'],
-            ['query']
+            ['query', 'kill_query']
         )
 
         qp.query('uuid-test-1', "test query")
@@ -207,7 +207,7 @@ class MineMeldTracedStorage(unittest.TestCase):
         )
         self.assertEqual(
             comm.rpc_server_channels[0]['allowed_methods'],
-            ['query']
+            ['query', 'kill_query']
         )
 
         qp.query('uuid-test-1', "test query")
@@ -248,7 +248,7 @@ class MineMeldTracedStorage(unittest.TestCase):
         )
         self.assertEqual(
             comm.rpc_server_channels[0]['allowed_methods'],
-            ['query']
+            ['query', 'kill_query']
         )
 
         qp.query('uuid-test-1', "test query")
@@ -283,7 +283,7 @@ class MineMeldTracedStorage(unittest.TestCase):
         )
         self.assertEqual(
             comm.rpc_server_channels[0]['allowed_methods'],
-            ['query']
+            ['query', 'kill_query']
         )
 
         qp.stop()

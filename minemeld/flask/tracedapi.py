@@ -74,3 +74,18 @@ def traced_query():
     })
 
     return jsonify(result=result), 200
+
+
+@app.route('/traced/query/<query_uuid>/kill')
+@flask.ext.login.login_required
+def traced_kill_query(query_uuid):
+    try:
+        uuid.UUID(query_uuid)
+    except ValueError:
+        return jsonify(error={'message': 'invalid query UUID'}), 400
+
+    result = MMRpcClient.send_cmd(minemeld.traced.QUERY_QUEUE, 'kill_query', {
+        'uuid': query_uuid
+    })
+
+    return jsonify(result=result), 200

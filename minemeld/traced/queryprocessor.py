@@ -91,6 +91,8 @@ class Query(gevent.Greenlet):
             if not line:
                 break
 
+            gevent.sleep(0)
+
             if 'log' not in line:
                 SR.publish('mm-traced-q.'+self.uuid, ujson.dumps(line))
                 continue
@@ -128,7 +130,7 @@ class QueryProcessor(object):
         comm.request_rpc_server_channel(
             QUERY_QUEUE,
             self,
-            allowed_methods=['query']
+            allowed_methods=['query', 'kill_query']
         )
 
     def _query_finished(self, gquery):
@@ -197,6 +199,8 @@ class QueryProcessor(object):
         if uuid in self.queries:
             self.queries[uuid].kill()
         self.queries_lock.release()
+
+        return 'OK'
 
     def stop(self):
         LOG.info('QueryProcessor - stop called')

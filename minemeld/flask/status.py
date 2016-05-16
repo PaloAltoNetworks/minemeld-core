@@ -66,7 +66,6 @@ def _stream_redis_events(subscription):
     yield 'data: ok\n\n'
 
     for message in pubsub.listen():
-        LOG.debug(message)
         message = message['data']
 
         if message == '<EOQ>':
