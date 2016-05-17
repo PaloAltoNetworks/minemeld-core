@@ -20,6 +20,7 @@ import logging
 import calendar
 import time
 import ujson
+import re
 
 import gevent
 import greenlet
@@ -51,22 +52,40 @@ class Query(gevent.Greenlet):
 
         super(Query, self).__init__()
 
+        LOG.info("Query %s - %s", uuid, query)
         self._parse_query(query)
-        LOG.info("Query %s - %s", uuid, self.parsed_query)
 
     def _parse_query(self, query):
         query = query.strip()
-        self.parsed_query = query.lower().split()
+        components = query.lower().split()
+
+        field_specific = re.compile('^[\w$]+:.*$')
+
+        self.parsed_query = []
+        for c in components:
+            negate = False
+            if c[0] == '-':
+                negate = True
+                c = c[1:]
+
+            matching_re = c
+            if field_specific.match(c) is not None:
+                field, value = c.split(':', 1)
+                matching_re = '"%(field)s":(?:\[(?:".*",)*)?"*[^"]*%(value)s' % {
+                    'field': field,
+                    'value': value
+                }
+
+            self.parsed_query.append({
+                're': re.compile(matching_re, re.IGNORECASE),
+                'negate': negate
+            })
 
     def _check_query(self, log):
-        log = log.lower()
         for q in self.parsed_query:
-            if q[0] == '-':
-                if log.find(q[1:]) != -1:
-                    return False
-            else:
-                if log.find(q) == -1:
-                    return False
+            occ = q['re'].search(log)
+            if not ((occ is not None) ^ q['negate']):
+                return False
         return True
 
     def _run(self):

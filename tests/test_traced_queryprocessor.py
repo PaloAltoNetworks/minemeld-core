@@ -29,6 +29,7 @@ import random
 import time
 import mock
 import json
+import ujson
 import logging
 
 import minemeld.traced.queryprocessor
@@ -128,6 +129,241 @@ class MineMeldTracedStorage(unittest.TestCase):
         q = minemeld.traced.queryprocessor.Query(
             store,
             "log -0",
+            3*86400*1000, 0,
+            100,
+            'uuid-test',
+            {}
+        )
+        q._run()
+        LOG.debug(SR_mock.mock_calls)
+        self.assertGreater(len(SR_mock.mock_calls), 1)
+
+        num_logs = 0
+        eoq = False
+        for call in SR_mock.mock_calls[1:]:
+            name, args, kwargs = call
+            self.assertEqual(name, '().publish')
+            self.assertEqual(args[0], 'mm-traced-q.uuid-test')
+
+            if args[1] == '<EOQ>':
+                eoq = True
+            else:
+                line = json.loads(args[1])
+                if 'log' in line:
+                    num_logs += 1
+
+        self.assertEqual(num_logs, 1)
+        self.assertEqual(eoq, True)
+
+    @mock.patch.object(redis, 'StrictRedis')
+    @mock.patch.object(gevent, 'Greenlet')
+    def test_query_fs1(self, glet_mock, SR_mock):
+        store = traced_mock.store_factory()
+
+        store.write(1*86400*1000, ujson.dumps({
+            "field1": "foo",
+            "field2": "bar",
+            "field3": ["foo", "bar"],
+            "field4": 12345678
+        }))
+        store.write(1*86400*1000, ujson.dumps({
+            "field1": "bar",
+            "field2": "foo",
+            "field3": ["foo", "bar"],
+            "field4": 12345679
+        }))
+
+        q = minemeld.traced.queryprocessor.Query(
+            store,
+            "field1:foo",
+            3*86400*1000, 0,
+            100,
+            'uuid-test',
+            {}
+        )
+        q._run()
+        LOG.debug(SR_mock.mock_calls)
+        self.assertGreater(len(SR_mock.mock_calls), 1)
+
+        num_logs = 0
+        eoq = False
+        for call in SR_mock.mock_calls[1:]:
+            name, args, kwargs = call
+            self.assertEqual(name, '().publish')
+            self.assertEqual(args[0], 'mm-traced-q.uuid-test')
+
+            if args[1] == '<EOQ>':
+                eoq = True
+            else:
+                line = json.loads(args[1])
+                if 'log' in line:
+                    num_logs += 1
+
+        self.assertEqual(num_logs, 1)
+        self.assertEqual(eoq, True)
+
+    @mock.patch.object(redis, 'StrictRedis')
+    @mock.patch.object(gevent, 'Greenlet')
+    def test_query_fs2(self, glet_mock, SR_mock):
+        store = traced_mock.store_factory()
+
+        store.write(1*86400*1000, ujson.dumps({
+            "field1": "foo",
+            "field2": "bar",
+            "field3": ["foo", "bar"],
+            "field4": 12345678
+        }))
+        store.write(1*86400*1000, ujson.dumps({
+            "field1": "bar",
+            "field2": "foo",
+            "field3": ["foo", "bar"],
+            "field4": 12345679
+        }))
+
+        q = minemeld.traced.queryprocessor.Query(
+            store,
+            "field1:foo field2:foo",
+            3*86400*1000, 0,
+            100,
+            'uuid-test',
+            {}
+        )
+        q._run()
+        LOG.debug(SR_mock.mock_calls)
+        self.assertGreater(len(SR_mock.mock_calls), 1)
+
+        num_logs = 0
+        eoq = False
+        for call in SR_mock.mock_calls[1:]:
+            name, args, kwargs = call
+            self.assertEqual(name, '().publish')
+            self.assertEqual(args[0], 'mm-traced-q.uuid-test')
+
+            if args[1] == '<EOQ>':
+                eoq = True
+            else:
+                line = json.loads(args[1])
+                if 'log' in line:
+                    num_logs += 1
+
+        self.assertEqual(num_logs, 0)
+        self.assertEqual(eoq, True)
+
+    @mock.patch.object(redis, 'StrictRedis')
+    @mock.patch.object(gevent, 'Greenlet')
+    def test_query_fs3(self, glet_mock, SR_mock):
+        store = traced_mock.store_factory()
+
+        store.write(1*86400*1000, ujson.dumps({
+            "field1": "foo",
+            "field2": "bar",
+            "field3": ["foo", "bar"],
+            "field4": 12345678
+        }))
+        store.write(1*86400*1000, ujson.dumps({
+            "field1": "bar",
+            "field2": "foo",
+            "field3": ["foo", "bar"],
+            "field4": 12345679
+        }))
+
+        q = minemeld.traced.queryprocessor.Query(
+            store,
+            "field3:bar FIELD2:foo",
+            3*86400*1000, 0,
+            100,
+            'uuid-test',
+            {}
+        )
+        q._run()
+        LOG.debug(SR_mock.mock_calls)
+        self.assertGreater(len(SR_mock.mock_calls), 1)
+
+        num_logs = 0
+        eoq = False
+        for call in SR_mock.mock_calls[1:]:
+            name, args, kwargs = call
+            self.assertEqual(name, '().publish')
+            self.assertEqual(args[0], 'mm-traced-q.uuid-test')
+
+            if args[1] == '<EOQ>':
+                eoq = True
+            else:
+                line = json.loads(args[1])
+                if 'log' in line:
+                    num_logs += 1
+
+        self.assertEqual(num_logs, 1)
+        self.assertEqual(eoq, True)
+
+    @mock.patch.object(redis, 'StrictRedis')
+    @mock.patch.object(gevent, 'Greenlet')
+    def test_query_fs4(self, glet_mock, SR_mock):
+        store = traced_mock.store_factory()
+
+        store.write(1*86400*1000, ujson.dumps({
+            "field1": "foo",
+            "field2": "bar",
+            "field3": ["foo", "bar"],
+            "field4": 12345678
+        }))
+        store.write(1*86400*1000, ujson.dumps({
+            "field1": "bar",
+            "field2": "foo",
+            "field3": ["foo", "bar"],
+            "field4": 12345679
+        }))
+
+        q = minemeld.traced.queryprocessor.Query(
+            store,
+            "field3:foo FIELD3:Bar",
+            3*86400*1000, 0,
+            100,
+            'uuid-test',
+            {}
+        )
+        q._run()
+        LOG.debug(SR_mock.mock_calls)
+        self.assertGreater(len(SR_mock.mock_calls), 1)
+
+        num_logs = 0
+        eoq = False
+        for call in SR_mock.mock_calls[1:]:
+            name, args, kwargs = call
+            self.assertEqual(name, '().publish')
+            self.assertEqual(args[0], 'mm-traced-q.uuid-test')
+
+            if args[1] == '<EOQ>':
+                eoq = True
+            else:
+                line = json.loads(args[1])
+                if 'log' in line:
+                    num_logs += 1
+
+        self.assertEqual(num_logs, 2)
+        self.assertEqual(eoq, True)
+
+    @mock.patch.object(redis, 'StrictRedis')
+    @mock.patch.object(gevent, 'Greenlet')
+    def test_query_fs5(self, glet_mock, SR_mock):
+        store = traced_mock.store_factory()
+
+        store.write(1*86400*1000, ujson.dumps({
+            "field1": "1foo1",
+            "field2": "2bar2",
+            "field3": ["5foo5", "6bar6"],
+            "field4": 12345678
+        }))
+        store.write(1*86400*1000, ujson.dumps({
+            "field1": "3bar3",
+            "field2": "4foo4",
+            "field3": ["8foo8", "7bar7"],
+            "field4": 12345679
+        }))
+
+        q = minemeld.traced.queryprocessor.Query(
+            store,
+            "field3:foo -field4:679",
             3*86400*1000, 0,
             100,
             'uuid-test',
