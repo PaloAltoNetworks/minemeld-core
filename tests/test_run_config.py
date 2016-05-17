@@ -28,6 +28,17 @@ import minemeld.run.config
 MYDIR = os.path.dirname(__file__)
 
 
+def _fake_getenv(env, value):
+    environment = {
+        'MINEMELD_PROTOTYPE_PATH': MYDIR
+    }
+
+    if env in environment:
+        return environment[env]
+
+    return value
+
+
 class MineMeldRunConfigTests(unittest.TestCase):
     def test_defaults_from_file(self):
         emptypath = os.path.join(MYDIR, 'empty.yml')
@@ -37,12 +48,12 @@ class MineMeldRunConfigTests(unittest.TestCase):
         self.assertEqual(config['fabric']['class'], 'AMQP')
         self.assertEqual(config['fabric']['config'], {'num_connections': 5})
         self.assertEqual(config['mgmtbus']['transport']['class'], 'AMQP')
-        self.assertEqual(config['mgmtbus']['transport']['config'], {})
+        self.assertEqual(config['mgmtbus']['transport']['config'], {'num_connections': 1})
         self.assertEqual(config['mgmtbus']['master'], {})
         self.assertEqual(config['mgmtbus']['slave'], {})
 
     @mock.patch.object(os, 'getenv',
-                       return_value=MYDIR)
+                       return_value=MYDIR, side_effect=_fake_getenv)
     def test_prototype_1(self, getenv_mock):
         protopath = os.path.join(MYDIR, 'test-prototype-1.yml')
 

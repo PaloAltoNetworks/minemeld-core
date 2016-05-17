@@ -13,8 +13,6 @@
 #  limitations under the License.
 
 """
-minemeld.mgmtbus
-
 This module implements master and slave hub classes for MineMeld engine
 management bus.
 
@@ -48,6 +46,7 @@ LOG = logging.getLogger(__name__)
 MGMTBUS_PREFIX = "mbus:"
 MGMTBUS_TOPIC = MGMTBUS_PREFIX+'bus'
 MGMTBUS_MASTER = MGMTBUS_PREFIX+'master'
+MGMTBUS_LOG_TOPIC = MGMTBUS_PREFIX+'log'
 
 
 class MgmtbusMaster(object):
@@ -345,6 +344,12 @@ class MgmtbusSlaveHub(object):
 
         self.comm = minemeld.comm.factory(self.comm_class, self.comm_config)
 
+    def request_log_channel(self):
+        LOG.debug("Adding log channel")
+        return self.comm.request_pub_channel(
+            MGMTBUS_LOG_TOPIC
+        )
+
     def request_channel(self, node):
         self.comm.request_rpc_server_channel(
             MGMTBUS_PREFIX+'slave:'+node.name,
@@ -360,6 +365,9 @@ class MgmtbusSlaveHub(object):
             method_prefix='mgmtbus_',
             fanout=MGMTBUS_TOPIC
         )
+
+    def add_failure_listener(self, f):
+        self.comm.add_failure_listener(f)
 
     def start(self):
         self.comm.start()

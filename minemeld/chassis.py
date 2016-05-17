@@ -59,6 +59,8 @@ class Chassis(object):
             mgmtbusconfig['transport']['class'],
             mgmtbusconfig['transport']['config']
         )
+        self.mgmtbus.add_failure_listener(self.mgmtbus_failed)
+        self.log_channel = self.mgmtbus.request_log_channel()
 
     def _dynamic_load(self, classname):
         modname, classname = classname.rsplit('.', 1)
@@ -98,7 +100,7 @@ class Chassis(object):
         self.mgmtbus.start()
 
     def request_mgmtbus_channel(self, ft):
-        return self.mgmtbus.request_channel(ft)
+        self.mgmtbus.request_channel(ft)
 
     def request_rpc_channel(self, ftname, ft, allowed_methods=None):
         if allowed_methods is None:
@@ -117,7 +119,22 @@ class Chassis(object):
         return self.fabric.send_rpc(sftname, dftname, method, params,
                                     block=block, timeout=timeout)
 
+    def log(self, timestamp, nodename, log_type, value):
+        self.log_channel.publish(
+            method='log',
+            params={
+                'timestamp': timestamp,
+                'source': nodename,
+                'log_type': log_type,
+                'log': value
+            }
+        )
+
     def fabric_failed(self):
+        self.stop()
+
+    def mgmtbus_failed(self):
+        LOG.critical('chassis - mgmtbus failed')
         self.stop()
 
     def fts_init(self):

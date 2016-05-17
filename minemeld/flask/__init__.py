@@ -12,6 +12,8 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import sys
+
 from flask import Flask
 from flask import g
 
@@ -231,8 +233,6 @@ try:
 
     MMStateFanout = werkzeug.LocalProxy(get_mmstatefanout)
 
-    from . import status  # noqa
-
 except ImportError:
     LOG.exception("amqp, psutil and gevent needed for the status entrypoint")
 
@@ -313,3 +313,7 @@ from . import prototypeapi  # noqa
 
 # validate
 from . import validateapi  # noqa
+
+if 'psutil' in sys.modules and 'amqp' in sys.modules:
+    from . import status  # noqa
+    from . import tracedapi  # noqa

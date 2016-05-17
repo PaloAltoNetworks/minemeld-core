@@ -28,7 +28,7 @@ class MineMeldFTBaseTests(unittest.TestCase):
     @mock.patch.object(minemeld.ft.base.BaseFT, 'configure',
                        return_value=None)
     def test_init(self, configure_mock):
-        config = {minemeld.ft.base.BaseFT}
+        config = {}
         chassis = mock.Mock()
 
         bcls = minemeld.ft.base.BaseFT

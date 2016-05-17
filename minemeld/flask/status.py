@@ -1,4 +1,4 @@
-#  Copyright 2015 Palo Alto Networks, Inc
+#  Copyright 2015-2016 Palo Alto Networks, Inc
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ import logging
 import psutil
 import os
 import yaml
+import uuid
 
 from flask import Response
 from flask import stream_with_context
@@ -27,6 +28,7 @@ import flask.ext.login
 from . import app
 from . import MMMaster
 from . import MMStateFanout
+from . import SR
 
 # for hup API
 from . import MMRpcClient
@@ -54,6 +56,42 @@ def stream_events():
 def get_events():
     r = Response(stream_with_context(stream_events()),
                  mimetype="text/event-stream")
+    return r
+
+
+def _stream_redis_events(subscription):
+    pubsub = SR.pubsub(ignore_subscribe_messages=True)
+    pubsub.subscribe(subscription)
+
+    yield 'data: ok\n\n'
+
+    for message in pubsub.listen():
+        message = message['data']
+
+        if message == '<EOQ>':
+            break
+
+        yield 'data: '+message+'\n\n'
+
+    yield 'data: { "msg": "<EOQ>" }\n\n'
+
+    pubsub.unsubscribe(subscription)
+    pubsub.close()
+
+
+@app.route('/status/events/query/<quuid>')
+@flask.ext.login.login_required
+def get_query_events(quuid):
+    try:
+        uuid.UUID(quuid)
+    except ValueError:
+        return jsonify(error={'message': 'Bad query uuid'}), 400
+
+    swc_response = stream_with_context(
+        _stream_redis_events('mm-traced-q.'+quuid),
+    )
+    r = Response(swc_response, mimetype='text/event-stream')
+
     return r
 
 
@@ -100,7 +138,7 @@ def get_minemeld_running_config():
     return jsonify(result=rcconfig)
 
 
-# this should be move on a different endpoint
+# this should be moved to a different endpoint
 @app.route('/status/<nodename>/hup')
 @flask.ext.login.login_required
 def hup_node(nodename):
