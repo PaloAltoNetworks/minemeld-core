@@ -256,6 +256,10 @@ class Store(object):
         return True
 
     def _process_queue(self):
+        # this is for perf improvement
+        if self.add_queue.empty():
+            return
+
         try:
             while True:
                 prio, (ftable, name, create_if_missing) = \
@@ -289,11 +293,8 @@ class Store(object):
         if self._stop.is_set():
             raise RuntimeError('stopping')
 
-        dt = datetime.datetime.fromtimestamp(
-            timestamp/1000.0,
-            pytz.UTC
-        )
-        day = '%04d-%02d-%02d' % (dt.year, dt.month, dt.day)
+        tssec = timestamp/1000
+        day = '%d' % (tssec - (tssec % 86400))
 
         table = self._get_table(day, 'write')
 
