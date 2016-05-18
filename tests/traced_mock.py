@@ -81,6 +81,7 @@ class MockTable(object):
     @staticmethod
     def oldest_table():
         tables = [t.name for t in MOCK_TABLES]
+        LOG.debug(tables)
         if len(tables) == 0:
             return None
 

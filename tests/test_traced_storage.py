@@ -107,20 +107,23 @@ class MineMeldTracedStorage(unittest.TestCase):
         self.assertEqual(table.ref_count(), 0)
 
     def test_table_oldest(self):
+        old_ = '%016x' % (3*86400)
+        new_ = '%016x' % (4*86400)
+
         oldest = minemeld.traced.storage.Table.oldest_table()
         self.assertEqual(oldest, None)
 
-        table = minemeld.traced.storage.Table('2009-09-26', create_if_missing=True)
+        table = minemeld.traced.storage.Table(old_, create_if_missing=True)
         table.close()
 
-        table = minemeld.traced.storage.Table('2009-09-24', create_if_missing=True)
+        table = minemeld.traced.storage.Table(new_, create_if_missing=True)
         table.close()
 
         oldest = minemeld.traced.storage.Table.oldest_table()
-        self.assertEqual(oldest, '2009-09-24')
+        self.assertEqual(oldest, old_)
 
-        shutil.rmtree('2009-09-24')
-        shutil.rmtree('2009-09-26')
+        shutil.rmtree(old_)
+        shutil.rmtree(new_)
 
     def test_store_simple(self):
         store = minemeld.traced.storage.Store()
@@ -131,27 +134,27 @@ class MineMeldTracedStorage(unittest.TestCase):
     def test_store_write(self, table_mock):
         store = minemeld.traced.storage.Store()
         store.write(0*86400*1000, 'log0')
-        self.assertEqual(traced_mock.MOCK_TABLES[0].name, '1970-01-01')
+        self.assertEqual(traced_mock.MOCK_TABLES[0].name, '%016x' % 0)
 
         store.write(1*86400*1000, 'log1')
-        self.assertEqual(traced_mock.MOCK_TABLES[1].name, '1970-01-02')
+        self.assertEqual(traced_mock.MOCK_TABLES[1].name, '%016x' % (86400*1))
 
         store.write(2*86400*1000, 'log2')
-        self.assertEqual(traced_mock.MOCK_TABLES[2].name, '1970-01-03')
+        self.assertEqual(traced_mock.MOCK_TABLES[2].name, '%016x' % (86400*2))
 
         store.write(3*86400*1000, 'log3')
-        self.assertEqual(traced_mock.MOCK_TABLES[3].name, '1970-01-04')
+        self.assertEqual(traced_mock.MOCK_TABLES[3].name, '%016x' % (86400*3))
 
         store.write(4*86400*1000, 'log4')
-        self.assertEqual(traced_mock.MOCK_TABLES[4].name, '1970-01-05')
+        self.assertEqual(traced_mock.MOCK_TABLES[4].name, '%016x' % (86400*4))
 
         store.write(5*86400*1000, 'log5')
-        self.assertEqual(traced_mock.MOCK_TABLES[5].name, '1970-01-06')
-        self.assertNotIn('1970-01-01', store.current_tables)
+        self.assertEqual(traced_mock.MOCK_TABLES[5].name, '%016x' % (86400*5))
+        self.assertNotIn('%016x' % 0, store.current_tables)
 
         store.write(6*86400*1000, 'log6')
-        self.assertEqual(traced_mock.MOCK_TABLES[6].name, '1970-01-07')
-        self.assertNotIn('1970-01-02', store.current_tables)
+        self.assertEqual(traced_mock.MOCK_TABLES[6].name, '%016x' % (86400*6))
+        self.assertNotIn('%016x' % 86400, store.current_tables)
 
         store.stop()
         self.assertEqual(len(store.current_tables), 0)
@@ -167,7 +170,7 @@ class MineMeldTracedStorage(unittest.TestCase):
         store.write(3*86400*1000, 'log2')
         store.write(4*86400*1000, 'log3')
         store.write(5*86400*1000, 'log4')
-        self.assertEqual(minemeld.traced.storage.Table.oldest_table(), '1970-01-02')
+        self.assertEqual(minemeld.traced.storage.Table.oldest_table(), '%016x' % 86400)
 
         iterator = store.iterate_backwards(
             ref='test-iter1',
@@ -199,7 +202,7 @@ class MineMeldTracedStorage(unittest.TestCase):
         store = minemeld.traced.storage.Store()
         store.write(0*86400*1000, 'log0')
         store.write(2*86400*1000, 'log1')
-        self.assertEqual(minemeld.traced.storage.Table.oldest_table(), '1970-01-01')
+        self.assertEqual(minemeld.traced.storage.Table.oldest_table(), '%016x' % 0)
 
         iterator = store.iterate_backwards(
             ref='test-iter1',
