@@ -32,7 +32,8 @@ class Writer(object):
         self.comm.request_sub_channel(
             topic,
             self,
-            allowed_methods=['log']
+            allowed_methods=['log'],
+            name='mbus:log:writer'
         )
 
     def log(self, timestamp, **kwargs):
