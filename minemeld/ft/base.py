@@ -601,6 +601,14 @@ class BaseFT(object):
         raise NotImplementedError('%s: hup - not implemented' % self.name)
 
     def trace(self, action, indicator, **kwargs):
+        if self.state not in [ft_states.STARTED, ft_states.CHECKPOINT]:
+            LOG.debug(
+                "%s - trace called in wrong state %s",
+                self.name,
+                self.state
+            )
+            return
+
         trace = {
             'indicator': indicator,
             'op': action,
