@@ -32,9 +32,7 @@ import pytz
 
 LOG = logging.getLogger(__name__)
 
-START_KEY = '%016x%08x' % (0, 0)
-
-TD_1DAY = datetime.timedelta(days=1)
+START_KEY = '%016x%015x' % (0, 0)
 
 TABLE_MAX_COUNTER_KEY = 'MAX_COUNTER'
 
@@ -127,7 +125,19 @@ class Table(object):
     @staticmethod
     def oldest_table():
         # XXX we should switch to something iterative
-        tables = os.listdir('.')
+        entries = os.listdir('.')
+        if len(entries) == 0:
+            return None
+
+        tables = []
+        for e in entries:
+            try:
+                int(e, 16)
+            except:
+                continue
+
+            tables.append(e)
+
         if len(tables) == 0:
             return None
 
@@ -294,7 +304,7 @@ class Store(object):
             raise RuntimeError('stopping')
 
         tssec = timestamp/1000
-        day = '%d' % (tssec - (tssec % 86400))
+        day = '%016x' % (tssec - (tssec % 86400))
 
         table = self._get_table(day, 'write')
 
@@ -311,13 +321,8 @@ class Store(object):
         if self._stop.is_set():
             raise RuntimeError('stopping')
 
-        current_day = datetime.datetime.fromtimestamp(
-            timestamp/1000.0,
-            pytz.UTC
-        )
-        current_day = current_day.replace(
-            hour=0, minute=0, second=0, microsecond=0
-        )
+        tssec = timestamp/1000
+        current_day = (tssec - (tssec % 86400))
 
         oldest_table = Table.oldest_table()
         if oldest_table is None:
@@ -325,16 +330,21 @@ class Store(object):
             return
 
         while True:
-            table_name = '%04d-%02d-%02d' % (
-                current_day.year,
-                current_day.month,
-                current_day.day
-            )
+            table_name = '%016x' % current_day
             if table_name < oldest_table:
                 yield {'msg': 'No more logs to check'}
                 return
 
-            yield {'msg': 'Checking %s' % table_name}
+            day = datetime.datetime.fromtimestamp(
+                current_day,
+                pytz.UTC
+            )
+            day = '%04d-%02d-%02d' % (
+                day.year,
+                day.month,
+                day.day
+            )
+            yield {'msg': 'Checking %s' % day}
 
             try:
                 table = self._get_table(
@@ -343,14 +353,12 @@ class Store(object):
                     create_if_missing=False
                 )
             except TableNotFound:
-                if current_day.year == 1970 and \
-                   current_day.month == 1 and \
-                   current_day.day == 1:
+                if current_day == 0:
                     # XXX this is unreachable
                     yield {'msg': 'This should be unreachable'}
                     return
 
-                current_day -= TD_1DAY
+                current_day -= 86400
                 continue
 
             table_iterator = table.backwards_iterator(
@@ -367,13 +375,11 @@ class Store(object):
 
             self._release(table, ref)
 
-            if current_day.year == 1970 and \
-               current_day.month == 1 and \
-               current_day.day == 1:
+            if current_day == 0:
                 yield {'msg': 'We haved reached the origins of time'}
                 return
 
-            current_day -= TD_1DAY
+            current_day -= 86400
 
     def release_all(self, ref):
         if self._stop.is_set():
