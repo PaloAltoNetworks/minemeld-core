@@ -31,6 +31,8 @@ import mock
 import json
 import ujson
 import logging
+import guppy
+import gc
 
 import minemeld.traced.queryprocessor
 
@@ -54,6 +56,7 @@ class MineMeldTracedStorage(unittest.TestCase):
     @mock.patch.object(gevent, 'Greenlet')
     def test_query_1(self, glet_mock, SR_mock):
         store = traced_mock.store_factory()
+
         q = minemeld.traced.queryprocessor.Query(
             store,
             "log",
@@ -63,6 +66,7 @@ class MineMeldTracedStorage(unittest.TestCase):
             {}
         )
         q._run()
+
         self.assertGreater(len(SR_mock.mock_calls), 1)
 
         num_logs = 0

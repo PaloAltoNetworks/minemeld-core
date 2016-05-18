@@ -292,7 +292,7 @@ class MineMeldFTSTTests(unittest.TestCase):
             start = random.randint(0, end)
             sid = uuid.uuid4().bytes
             st.put(sid, start, end)
-            t2 = time.time()
+        t2 = time.time()
         print "TIME: Inserted %d intervals in %d" % (num_intervals, (t2-t1-dt))
 
         num_queries = 100000

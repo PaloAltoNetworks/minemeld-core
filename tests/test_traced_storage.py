@@ -24,6 +24,8 @@ import time
 import mock
 import logging
 
+from nose.plugins.attrib import attr
+
 import minemeld.traced.storage
 
 import traced_mock
@@ -103,6 +105,22 @@ class MineMeldTracedStorage(unittest.TestCase):
 
         table.remove_reference('ref2')
         self.assertEqual(table.ref_count(), 0)
+
+    def test_table_oldest(self):
+        oldest = minemeld.traced.storage.Table.oldest_table()
+        self.assertEqual(oldest, None)
+
+        table = minemeld.traced.storage.Table('2009-09-26', create_if_missing=True)
+        table.close()
+
+        table = minemeld.traced.storage.Table('2009-09-24', create_if_missing=True)
+        table.close()
+
+        oldest = minemeld.traced.storage.Table.oldest_table()
+        self.assertEqual(oldest, '2009-09-24')
+
+        shutil.rmtree('2009-09-24')
+        shutil.rmtree('2009-09-26')
 
     def test_store_simple(self):
         store = minemeld.traced.storage.Store()
@@ -198,3 +216,24 @@ class MineMeldTracedStorage(unittest.TestCase):
         self.assertRaises(StopIteration, next, iterator)
 
         store.stop()
+
+    @attr('slow')
+    def test_stress_1(self):
+        num_lines = 200000
+        store = minemeld.traced.storage.Store()
+
+        t1 = time.time()
+        for j in xrange(num_lines):
+            value = '{ "log": %d }' % random.randint(0, 0xFFFFFFFF)
+        t2 = time.time()
+        dt = t2-t1
+
+        t1 = time.time()
+        for j in xrange(num_lines):
+            value = '{ "log": %d }' % random.randint(0, 0xFFFFFFFF)
+            store.write(j, value)
+        t2 = time.time()
+        print "TIME: Inserted %d lines in %d sec" % (num_lines, (t2-t1-dt))
+
+        store.stop()
+        shutil.rmtree('1970-01-01')
