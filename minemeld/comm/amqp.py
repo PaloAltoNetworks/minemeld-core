@@ -303,10 +303,14 @@ class AMQPRpcServerChannel(object):
 
 
 class AMQPSubChannel(object):
-    def __init__(self, topic, listeners=[]):
+    def __init__(self, topic, listeners=None, name=None):
+        if listeners is None:
+            listeners = []
+
         self.topic = topic
         self.channel = None
         self.listeners = listeners
+        self.name = name
 
         self.num_callbacks = 0
 
@@ -357,8 +361,19 @@ class AMQPSubChannel(object):
             'fanout',
             auto_delete=True
         )
+
+        qdeclare_args = {
+            'exclusive': False
+        }
+        if self.name is not None:
+            qdeclare_args['queue'] = self.name
+            qdeclare_args['auto_delete'] = False
+            qdeclare_args['arguments'] = {
+                'x-expires': 10*60*1000  # 10 minutes
+            }
+
         q = self.channel.queue_declare(
-            exclusive=False
+            **qdeclare_args
         )
 
         LOG.debug("Subscribing to %s with queue %s",
@@ -429,7 +444,8 @@ class AMQP(object):
 
         return self.pub_channels[topic]
 
-    def request_sub_channel(self, topic, obj=None, allowed_methods=None):
+    def request_sub_channel(self, topic, obj=None, allowed_methods=None,
+                            name=None):
         if allowed_methods is None:
             allowed_methods = []
 
@@ -439,7 +455,8 @@ class AMQP(object):
 
         subchannel = AMQPSubChannel(
             topic,
-            [(obj, allowed_methods)]
+            [(obj, allowed_methods)],
+            name=name
         )
         self.sub_channels[topic] = subchannel
 
