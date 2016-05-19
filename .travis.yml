@@ -41,4 +41,6 @@ after_deploy:
     - "export FILENAME=minemeld-core-$TRAVIS_TAG-linux-x86_64.tar.gz"
     - "export MD5SUM=$(md5sum dist/$FILENAME | awk '{ print $1 }')"
     - "export SHA256SUM=$(sha256sum dist/$FILENAME | awk '{ print $1 }')"
+    - 'if [[ "$TRAVIS_TAG" == *"b"* ]]; then export STAGE=beta0_9; else export STAGE=0_9; fi'
+    - echo $STAGE
     - 'curl -i -f "https://$MINEMELD_AUTOUPDATE_API_HOST/0_9/package?file=$FILENAME&version=$TRAVIS_TAG&md5=$MD5SUM&sha256=$SHA256SUM&package=minemeld-engine" -H "x-api-key: $MINEMELD_AUTOUPDATE_API_KEY"'
