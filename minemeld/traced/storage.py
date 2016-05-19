@@ -213,9 +213,7 @@ class Store(object):
         return future_table.get()
 
     def _get_table(self, day, ref, create_if_missing=True):
-        self.current_tables_lock.acquire()
         table = self.current_tables.get(day, None)
-        self.current_tables_lock.release()
 
         if table is None:
             prio = 99 if ref != 'write' else 1
