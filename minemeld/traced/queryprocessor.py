@@ -71,10 +71,13 @@ class Query(gevent.Greenlet):
             matching_re = c
             if field_specific.match(c) is not None:
                 field, value = c.split(':', 1)
-                matching_re = '"%(field)s":(?:\[(?:".*",)*)?"*[^"]*%(value)s' % {
-                    'field': field,
-                    'value': value
-                }
+                matching_re = (
+                    '"%(field)s":(?:\[(?:".*",)*)?"*[^"]*%(value)s' %
+                    {
+                        'field': field,
+                        'value': value
+                    }
+                )
 
             self.parsed_query.append({
                 're': re.compile(matching_re, re.IGNORECASE),
