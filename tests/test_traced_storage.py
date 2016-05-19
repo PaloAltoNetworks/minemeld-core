@@ -220,6 +220,25 @@ class MineMeldTracedStorage(unittest.TestCase):
 
         store.stop()
 
+    @mock.patch.object(minemeld.traced.storage, 'Table', side_effect=traced_mock.table_factory)
+    def test_store_iterate_backwards_empty(self, table_mock):
+        _oldest_table_mock = mock.MagicMock(side_effect=traced_mock.MockTable.oldest_table)
+        table_mock.attach_mock(_oldest_table_mock, 'oldest_table')
+
+        store = minemeld.traced.storage.Store()
+        self.assertEqual(minemeld.traced.storage.Table.oldest_table(), None)
+
+        iterator = store.iterate_backwards(
+            ref='test-iter1',
+            timestamp=3*86400*1000,
+            counter=0xFFFFFFFFFFFFFFFF
+        )
+        self.assertEqual(next(iterator)['msg'], 'No more logs to check')
+        self.assertRaises(StopIteration, next, iterator)
+        table_mock.assert_not_called()
+
+        store.stop()
+
     @attr('slow')
     def test_stress_1(self):
         num_lines = 200000

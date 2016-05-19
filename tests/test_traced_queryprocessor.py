@@ -394,6 +394,38 @@ class MineMeldTracedStorage(unittest.TestCase):
         self.assertEqual(num_logs, 1)
         self.assertEqual(eoq, True)
 
+    @mock.patch.object(redis, 'StrictRedis')
+    @mock.patch.object(gevent, 'Greenlet')
+    def test_query_empty(self, glet_mock, SR_mock):
+        store = traced_mock.store_factory()
+
+        q = minemeld.traced.queryprocessor.Query(
+            store,
+            "field3:foo -field4:679",
+            3*86400*1000, 0,
+            100,
+            'uuid-test',
+            {}
+        )
+        q._run()
+
+        num_logs = 0
+        eoq = False
+        for call in SR_mock.mock_calls[1:]:
+            name, args, kwargs = call
+            self.assertEqual(name, '().publish')
+            self.assertEqual(args[0], 'mm-traced-q.uuid-test')
+
+            if args[1] == '<EOQ>':
+                eoq = True
+            else:
+                line = json.loads(args[1])
+                if 'log' in line:
+                    num_logs += 1
+
+        self.assertEqual(num_logs, 0)
+        self.assertEqual(eoq, True)
+
     @mock.patch.object(minemeld.traced.queryprocessor, 'Query', side_effect=traced_mock.query_factory)
     def test_queryprocessor_1(self, query_mock):
         comm = comm_mock.comm_factory({})
