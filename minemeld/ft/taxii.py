@@ -78,6 +78,8 @@ class TaxiiClient(basepoller.BasePollerFT):
             'high': 80
         })
 
+        self._load_side_config()
+
     def _load_side_config(self):
         try:
             with open(self.side_config_path, 'r') as f:
