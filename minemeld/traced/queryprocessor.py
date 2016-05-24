@@ -32,6 +32,10 @@ LOG = logging.getLogger(__name__)
 
 QUERY_QUEUE = 'mmtraced:query'
 
+_REGEX_SPECIAL_CHARS = [
+    '[', '\\', '^', '$', '.', '|', '?', '*', '+', '(', ')'
+]
+
 
 class Query(gevent.Greenlet):
     def __init__(self, store, query, timestamp, counter,
@@ -71,13 +75,29 @@ class Query(gevent.Greenlet):
             matching_re = c
             if field_specific.match(c) is not None:
                 field, value = c.split(':', 1)
+
+                efield = []
+                for c in field:
+                    if c in _REGEX_SPECIAL_CHARS:
+                        efield.append('\\')
+                    efield.append(c)
+                efield = ''.join(efield)
+
+                evalue = []
+                for c in value:
+                    if c in _REGEX_SPECIAL_CHARS:
+                        evalue.append('\\')
+                    evalue.append(c)
+                evalue = ''.join(evalue)
+
                 matching_re = (
                     '"%(field)s":(?:\[(?:".*",)*)?"*[^"]*%(value)s' %
                     {
-                        'field': field,
-                        'value': value
+                        'field': efield,
+                        'value': evalue
                     }
                 )
+                LOG.debug(matching_re)
 
             self.parsed_query.append({
                 're': re.compile(matching_re, re.IGNORECASE),
