@@ -26,6 +26,7 @@ import json
 
 from . import condition
 from . import ft_states
+from . import utils
 
 
 LOG = logging.getLogger(__name__)
@@ -349,6 +350,8 @@ class BaseFT(object):
         if self.output is None:
             return
 
+        self.trace('EMIT_UPDATE', indicator, value=value)
+
         indicator, value = self.apply_outfilters(
             origin=self.name,
             method='update',
@@ -374,6 +377,8 @@ class BaseFT(object):
     def emit_withdraw(self, indicator, value=None):
         if self.output is None:
             return
+
+        self.trace('EMIT_WITHDRAW', indicator, value=value)
 
         indicator, value = self.apply_outfilters(
             origin=self.name,
@@ -411,6 +416,8 @@ class BaseFT(object):
         LOG.debug('%s {%s} - update from %s value %s',
                   self.name, self.state, source, value)
 
+        self.trace('RECVD_UPDATE', indicator, source_node=source, value=value)
+
         if self.state not in [ft_states.STARTED, ft_states.CHECKPOINT]:
             return
 
@@ -431,6 +438,7 @@ class BaseFT(object):
         )
 
         if fltindicator is None:
+            self.trace('DROP_UPDATE', indicator, source_node=source, value=value)
             self.filtered_withdraw(
                 source=source,
                 indicator=indicator,
@@ -438,6 +446,7 @@ class BaseFT(object):
             )
             return
 
+        self.trace('ACCEPT_UPDATE', indicator, source_node=source, value=value)
         self.filtered_update(
             source=source,
             indicator=fltindicator,
@@ -452,6 +461,8 @@ class BaseFT(object):
     def withdraw(self, source=None, indicator=None, value=None):
         LOG.debug('%s {%s} - withdraw from %s value %s',
                   self.name, self.state, source, value)
+
+        self.trace('RECVD_WITHDRAW', indicator, source_node=source, value=value)
 
         if self.state not in [ft_states.STARTED, ft_states.CHECKPOINT]:
             return
@@ -468,6 +479,7 @@ class BaseFT(object):
         )
 
         if fltindicator is None:
+            self.trace('DROP_WITHDRAW', indicator, source_node=source, value=value)
             return
 
         if fltvalue is not None:
@@ -475,6 +487,7 @@ class BaseFT(object):
                 if k.startswith("_"):
                     fltvalue.pop(k)
 
+        self.trace('ACCEPT_WITHDRAW', indicator, source_node=source, value=value)
         self.filtered_withdraw(
             source=source,
             indicator=indicator,
@@ -587,6 +600,27 @@ class BaseFT(object):
     def hup(self, source=None):
         raise NotImplementedError('%s: hup - not implemented' % self.name)
 
+    def trace(self, action, indicator, **kwargs):
+        if self.state not in [ft_states.STARTED, ft_states.CHECKPOINT]:
+            LOG.debug(
+                "%s - trace called in wrong state %s",
+                self.name,
+                self.state
+            )
+            return
+
+        trace = {
+            'indicator': indicator,
+            'op': action,
+        }
+        trace.update(kwargs)
+        self.chassis.log(
+            timestamp=utils.utc_millisec(),
+            nodename=self.name,
+            log_type='TRACE',
+            value=trace
+        )
+
     def start(self):
         LOG.debug("%s - start called", self.name)
 
@@ -597,6 +631,7 @@ class BaseFT(object):
         self.state = ft_states.STARTED
 
     def stop(self):
+        LOG.debug("%s - stop called", self.name)
         if self.state not in [ft_states.IDLE, ft_states.STARTED]:
             LOG.error("stop on not IDLE or STARTED FT")
             raise AssertionError("stop on not IDLE or STARTED FT")

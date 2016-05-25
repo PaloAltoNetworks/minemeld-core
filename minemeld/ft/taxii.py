@@ -17,7 +17,9 @@ import copy
 import urlparse
 import datetime
 import pytz
+import os.path
 import lxml.etree
+import yaml
 
 import libtaxii
 import libtaxii.clients
@@ -48,11 +50,51 @@ class TaxiiClient(basepoller.BasePollerFT):
         self.collection = self.config.get('collection', None)
         self.prefix = self.config.get('prefix', self.name)
         self.ca_file = self.config.get('ca_file', None)
+
+        self.key_file = self.config.get('key_file', None)
+        if isinstance(self.key_file, bool) and self.key_file:
+            self.key_file = os.path.join(
+                os.environ['MM_CONFIG_DIR'],
+                '%s-key.pem' % self.name
+            )
+
+        self.cert_file = self.config.get('cert_file', None)
+        if isinstance(self.cert_file, bool) and self.cert_file:
+            self.cert_file = os.path.join(
+                os.environ['MM_CONFIG_DIR'],
+                '%s-key.pem' % self.name
+            )
+
+        self.side_config_path = self.config.get('side_config', None)
+        if self.side_config_path is None:
+            self.side_config_path = os.path.join(
+                os.environ['MM_CONFIG_DIR'],
+                '%s_side_config.yml' % self.name
+            )
+
         self.confidence_map = self.config.get('confidence_map', {
             'low': 40,
             'medium': 60,
             'high': 80
         })
+
+        self._load_side_config()
+
+    def _load_side_config(self):
+        try:
+            with open(self.side_config_path, 'r') as f:
+                sconfig = yaml.safe_load(f)
+
+        except Exception as e:
+            LOG.error('%s - Error loading side config: %s', self.name, str(e))
+            return
+
+        username = sconfig.get('username', None)
+        password = sconfig.get('password', None)
+        if username is not None and password is not None:
+            self.username = username
+            self.password = password
+            LOG.info('Loaded credentials from side config')
 
     def _build_taxii_client(self):
         result = libtaxii.clients.HttpClient()
@@ -63,11 +105,40 @@ class TaxiiClient(basepoller.BasePollerFT):
             result.set_use_https(True)
 
         if self.username and self.password:
-            result.set_auth_type(libtaxii.clients.HttpClient.AUTH_BASIC)
-            result.set_auth_credentials({
-                'username': self.username,
-                'password': self.password
-            })
+            if self.key_file and self.cert_file:
+                result.set_auth_type(
+                    libtaxii.clients.HttpClient.AUTH_CERT_BASIC
+                )
+                result.set_auth_credentials({
+                    'username': self.username,
+                    'password': self.password,
+                    'key_file': self.key_file,
+                    'cert_file': self.cert_file
+                })
+
+            else:
+                result.set_auth_type(
+                    libtaxii.clients.HttpClient.AUTH_BASIC
+                )
+                result.set_auth_credentials({
+                    'username': self.username,
+                    'password': self.password
+                })
+
+        else:
+            if self.key_file and self.cert_file:
+                result.set_auth_type(
+                    libtaxii.clients.HttpClient.AUTH_CERT
+                )
+                result.set_auth_credentials({
+                    'key_file': self.key_file,
+                    'cert_file': self.cert_file
+                })
+
+            else:
+                result.set_auth_type(
+                    libtaxii.clients.HttpClient.AUTH_NONE
+                )
 
         if self.ca_file is not None:
             result.set_verify_server(
@@ -485,3 +556,8 @@ class TaxiiClient(basepoller.BasePollerFT):
         self.last_taxii_run = now
 
         return result
+
+    def hup(self, source=None):
+        LOG.info('%s - hup received, reload side config', self.name)
+        self._load_side_config()
+        super(TaxiiClient, self).hup(source)

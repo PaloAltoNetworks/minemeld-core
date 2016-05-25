@@ -1,4 +1,4 @@
-#  Copyright 2015 Palo Alto Networks, Inc
+#  Copyright 2015-2016 Palo Alto Networks, Inc
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -11,6 +11,10 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+
+"""
+This module implements AMQP communication class for mgmtbus and fabric.
+"""
 
 from __future__ import absolute_import
 
@@ -28,6 +32,7 @@ LOG = logging.getLogger(__name__)
 class AMQPPubChannel(object):
     def __init__(self, topic):
         self.topic = topic
+
         self.channel = None
         self.ioloop = None
 
@@ -38,13 +43,17 @@ class AMQPPubChannel(object):
             return
 
         self.channel = conn.channel()
-        self.channel.exchange_declare(self.topic, 'fanout', auto_delete=True)
+        self.channel.exchange_declare(
+            self.topic,
+            'fanout',
+            auto_delete=True
+        )
 
     def disconnect(self):
         if self.channel is None:
             return
 
-        self.channel.exchange_delete(self.topic)
+        # self.channel.exchange_delete(self.topic)
         self.channel.close()
         self.channel = None
 
@@ -294,10 +303,14 @@ class AMQPRpcServerChannel(object):
 
 
 class AMQPSubChannel(object):
-    def __init__(self, topic, listeners=[]):
+    def __init__(self, topic, listeners=None, name=None):
+        if listeners is None:
+            listeners = []
+
         self.topic = topic
         self.channel = None
         self.listeners = listeners
+        self.name = name
 
         self.num_callbacks = 0
 
@@ -348,8 +361,19 @@ class AMQPSubChannel(object):
             'fanout',
             auto_delete=True
         )
+
+        qdeclare_args = {
+            'exclusive': False
+        }
+        if self.name is not None:
+            qdeclare_args['queue'] = self.name
+            qdeclare_args['auto_delete'] = False
+            qdeclare_args['arguments'] = {
+                'x-expires': 10*60*1000  # 10 minutes
+            }
+
         q = self.channel.queue_declare(
-            exclusive=False
+            **qdeclare_args
         )
 
         LOG.debug("Subscribing to %s with queue %s",
@@ -414,18 +438,25 @@ class AMQP(object):
 
     def request_pub_channel(self, topic):
         if topic not in self.pub_channels:
-            self.pub_channels[topic] = AMQPPubChannel(topic)
+            self.pub_channels[topic] = AMQPPubChannel(
+                topic
+            )
 
         return self.pub_channels[topic]
 
-    def request_sub_channel(self, topic, obj=None, allowed_methods=[]):
+    def request_sub_channel(self, topic, obj=None, allowed_methods=None,
+                            name=None):
+        if allowed_methods is None:
+            allowed_methods = []
+
         if topic in self.sub_channels:
             self.sub_channels[topic].add_listener(obj, allowed_methods)
             return
 
         subchannel = AMQPSubChannel(
             topic,
-            [(obj, allowed_methods)]
+            [(obj, allowed_methods)],
+            name=name
         )
         self.sub_channels[topic] = subchannel
 

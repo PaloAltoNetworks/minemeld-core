@@ -13,7 +13,6 @@
 #  limitations under the License.
 
 import time
-import calendar
 import operator
 import functools
 import datetime
@@ -28,7 +27,7 @@ EPOCH = datetime.datetime.utcfromtimestamp(0).replace(tzinfo=pytz.UTC)
 
 
 def utc_millisec():
-    return int(calendar.timegm(time.gmtime())*1000)
+    return int(time.time()*1000)
 
 
 def dt_to_millisec(dt):

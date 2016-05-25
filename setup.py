@@ -45,7 +45,9 @@ setup(
     entry_points={
         'console_scripts': [
             'mm-run = minemeld.run.launcher:main',
-            'mm-console = minemeld.run.console:main'
+            'mm-console = minemeld.run.console:main',
+            'mm-traced = minemeld.traced.main:main',
+            'mm-traced-purge = minemeld.traced.purge:main'
         ]
     }
 )
