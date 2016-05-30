@@ -94,7 +94,7 @@ class AzureXML(basepoller.BasePollerFT):
                       self.name, r.status_code, r.content)
             raise
 
-        html_soup = bs4.BeautifulSoup(r.content)
+        html_soup = bs4.BeautifulSoup(r.content, "lxml")
         a = html_soup.find('a', class_='failoverLink')
         if a is None:
             LOG.error('%s - failoverLink not found', self.name)
