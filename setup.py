@@ -12,7 +12,8 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from setuptools import setup, find_packages
+from setuptools import Extension, setup, find_packages
+from Cython.Build import cythonize
 
 import sys
 import os.path
@@ -25,13 +26,22 @@ with open('requirements.txt') as f:
 with open('README.md') as f:
     _long_description = f.read()
 
+GDNS = Extension(
+    name='minemeld.packages.gdns._ares',
+    sources=['minemeld/packages/gdns/_ares.pyx'],
+    include_dirs=[],
+    libraries=['cares'],
+    define_macros=[('HAVE_NETDB_H', '')],
+    depends=['minemeld/packages/gdns/dnshelper.c']
+)
+
 setup(
     name='minemeld-core',
     version=__version__,
     url='https://github.com/PaloAltoNetworks-BD/minemeld-core',
     author='Palo Alto Networks',
     author_email='techbizdev@paloaltonetworks.com',
-    description='Low-latency threat indicators processor',
+    description='An extensible indicator processing framework',
     classifiers=[
         'Development Status :: 3 - Alpha',
         'License :: OSI Approved :: Apache Software License',
@@ -42,6 +52,7 @@ setup(
     long_description=_long_description,
     packages=find_packages(),
     install_requires=_requirements,
+    ext_modules=cythonize([GDNS]),
     entry_points={
         'console_scripts': [
             'mm-run = minemeld.run.launcher:main',
