@@ -3,3 +3,4 @@ sphinx-rtd-theme==0.1.8
 tox==2.1.1
 mock==1.3.0
 git+https://github.com/PaloAltoNetworks-BD/platter#egg=platter
+cython==0.24
