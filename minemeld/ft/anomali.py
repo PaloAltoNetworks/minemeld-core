@@ -36,6 +36,11 @@ _API_ENDPOINT = '/api/v2/intelligence/'
 
 
 class Intelligence(basepoller.BasePollerFT):
+    def __init__(self, name, chassis, config):
+        super(Intelligence, self).__init__(name, chassis, config)
+
+        self.last_run = None
+
     def configure(self):
         super(Intelligence, self).configure()
 
@@ -162,18 +167,26 @@ class Intelligence(basepoller.BasePollerFT):
         if self.api_key is None or self.username is None:
             raise RuntimeError('%s - credentials not set' % self.name)
 
-        now = datetime.datetime.fromtimestamp(now/1000.0, pytz.UTC)
-        dtinterval = datetime.timedelta(seconds=self.initial_interval)
-        origin = now - dtinterval
+        if self.last_run is None:
+            now = datetime.datetime.fromtimestamp(now/1000.0, pytz.UTC)
+            dtinterval = datetime.timedelta(seconds=self.initial_interval)
+            origin = now - dtinterval
+        else:
+            origin = datetime.datetime.fromtimestamp(
+                self.last_run/1000.0,
+                pytz.UTC
+            )
+
+        q = '(modified_ts>=%s)' % origin.strftime('%Y-%m-%dT%H:%M:%S')
+        if self.query:
+            q = '(%s AND %s)' % (q, self.query)
 
         params = dict(
             username=self.username,
             api_key=self.api_key,
             limit=100,
-            modified_ts__gte=origin.strftime('%Y-%m-%dT%H:%M:%S')
+            q=q
         )
-        if self.query is not None:
-            params['q'] = self.query
         LOG.debug('%s - query params: %s', self.name, params)
 
         rkwargs = dict(
@@ -201,7 +214,7 @@ class Intelligence(basepoller.BasePollerFT):
             cjson = r.json()
             if 'objects' not in cjson:
                 LOG.error('%s - no objects in response', self.name)
-                raise StopIteration()
+                return
 
             objects = cjson['objects']
             for o in objects:
@@ -223,8 +236,6 @@ class Intelligence(basepoller.BasePollerFT):
                 _API_BASE+cjson['meta']['next'],
                 **rkwargs
             )
-
-        return
 
     def hup(self, source=None):
         LOG.info('%s - hup received, reload side config', self.name)
