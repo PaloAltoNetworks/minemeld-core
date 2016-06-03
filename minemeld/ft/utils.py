@@ -35,6 +35,21 @@ def dt_to_millisec(dt):
     return int(delta.total_seconds()*1000)
 
 
+def interval_in_sec(val):
+    multipliers = {
+        '': 1,
+        'm': 60,
+        'h': 3600,
+        'd': 86400
+    }
+
+    mo = re.match("([0-9]+)([dmh]?)", val)
+    if mo is None:
+        return None
+
+    return int(mo.group(1))*multipliers[mo.group(2)]
+
+
 def age_out_in_millisec(val):
     multipliers = {
         '': 1000,
