@@ -44,13 +44,14 @@ class TaxiiClient(basepoller.BasePollerFT):
     def configure(self):
         super(TaxiiClient, self).configure()
 
-        self.initial_interval = interval_in_sec(initial_interval)
-        if initial_interval is None:
+        self.initial_interval = self.config.get('initial_interval', '1d')
+        self.initial_interval = interval_in_sec(self.initial_interval)
+        if self.initial_interval is None:
             LOG.error(
                 '%s - wrong initial_interval format: %s',
-                self.name, initial_interval
+                self.name, self.initial_interval
             )
-            self.initial_interval = 3600
+            self.initial_interval = 86400
 
         self.discovery_service = self.config.get('discovery_service', None)
         self.username = self.config.get('username', None)
