@@ -26,7 +26,7 @@ import requests
 import logging
 
 from . import basepoller
-from .utils import interval_in_sec, utc_millisec, dt_to_millisec
+from .utils import interval_in_sec, dt_to_millisec
 
 LOG = logging.getLogger(__name__)
 
