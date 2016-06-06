@@ -147,26 +147,35 @@ class RWLock(object):
 _AGE_OUT_BASES = ['last_seen', 'first_seen']
 
 
-def parse_age_out(s):
+def parse_age_out(s, age_out_bases=None, default_base=None):
     if s is None:
         return None
+
+    if age_out_bases is None:
+        age_out_bases = _AGE_OUT_BASES
+
+    if default_base is None:
+        default_base = 'first_seen'
+
+    if default_base not in age_out_bases:
+        raise ValueError('%s not in %s' % (default_base, age_out_bases))
 
     result = {}
 
     toks = s.split('+', 1)
     if len(toks) == 1:
         t = toks[0].strip()
-        if t in _AGE_OUT_BASES:
+        if t in age_out_bases:
             result['base'] = t
             result['offset'] = 0
         else:
-            result['base'] = 'first_seen'
+            result['base'] = default_base
             result['offset'] = age_out_in_millisec(t)
             if result['offset'] is None:
                 raise ValueError('Invalid age out offset %s' % t)
     else:
         base = toks[0].strip()
-        if base not in _AGE_OUT_BASES:
+        if base not in age_out_bases:
             raise ValueError('Invalid age out base %s' % base)
         result['base'] = base
         result['offset'] = age_out_in_millisec(toks[1].strip())
