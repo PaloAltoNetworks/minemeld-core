@@ -31,7 +31,7 @@ from .utils import interval_in_sec, dt_to_millisec
 LOG = logging.getLogger(__name__)
 
 
-_API_BASE = 'https://pentest.threatstream.com'
+_API_BASE = 'https://api.threatstream.com'
 _API_ENDPOINT = '/api/v2/intelligence/'
 
 
