@@ -28,7 +28,7 @@ import libtaxii.messages_11
 import stix.core.stix_package
 
 from . import basepoller
-from .utils import dt_to_millisec
+from .utils import dt_to_millisec, interval_in_sec
 
 LOG = logging.getLogger(__name__)
 
@@ -43,6 +43,15 @@ class TaxiiClient(basepoller.BasePollerFT):
 
     def configure(self):
         super(TaxiiClient, self).configure()
+
+        self.initial_interval = self.config.get('initial_interval', '1d')
+        self.initial_interval = interval_in_sec(self.initial_interval)
+        if self.initial_interval is None:
+            LOG.error(
+                '%s - wrong initial_interval format: %s',
+                self.name, self.initial_interval
+            )
+            self.initial_interval = 86400
 
         self.discovery_service = self.config.get('discovery_service', None)
         self.username = self.config.get('username', None)
@@ -539,7 +548,7 @@ class TaxiiClient(basepoller.BasePollerFT):
 
         last_run = self.last_taxii_run
         if last_run is None:
-            last_run = now-86400000
+            last_run = now-(self.initial_interval*1000)
 
         begin = datetime.datetime.fromtimestamp(last_run/1000)
         begin = begin.replace(tzinfo=pytz.UTC)

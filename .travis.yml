@@ -13,6 +13,8 @@ addons:
     - libxslt1-dev
     - libssl-dev
     - libffi-dev
+    - libc-ares-dev
+    - libc-ares2
 
 before_install:
   - sudo apt-get -y install python2.7/trusty python2.7-dev/trusty python2.7-minimal/trusty libpython2.7/trusty libpython2.7-dev/trusty libpython2.7-minimal/trusty libpython2.7-stdlib/trusty
@@ -24,7 +26,7 @@ install:
 
 script:
   - /usr/bin/env python -V
-  - platter build -r requirements-web.txt
+  - platter build -r requirements-web.txt --prebuild-script scripts/prebuild-script.sh --postbuild-script scripts/postbuild-script.sh
 
 deploy:
   provider: s3

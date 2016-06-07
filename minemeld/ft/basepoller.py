@@ -166,6 +166,10 @@ class BasePollerFT(base.BaseFT):
         chassis (object): parent chassis instance
         config (dict): node config.
     """
+
+    _AGE_OUT_BASES = None
+    _DEFAULT_AGE_OUT_BASE = None
+
     def __init__(self, name, chassis, config):
         self.glet = None
         self.ageout_glet = None
@@ -194,7 +198,11 @@ class BasePollerFT(base.BaseFT):
         self.age_out = {
             'interval': _age_out.get('interval', 3600),
             'sudden_death': _age_out.get('sudden_death', True),
-            'default': parse_age_out(_age_out.get('default', '30d'))
+            'default': parse_age_out(
+                _age_out.get('default', '30d'),
+                age_out_bases=self._AGE_OUT_BASES,
+                default_base=self._DEFAULT_AGE_OUT_BASE
+            )
         }
         for k, v in _age_out.iteritems():
             if k in self.age_out:

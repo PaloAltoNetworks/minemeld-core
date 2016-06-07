@@ -1,4 +1,4 @@
-#  Copyright 2015 Palo Alto Networks, Inc
+#  Copyright 2015-2016 Palo Alto Networks, Inc
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -12,7 +12,13 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from setuptools import setup, find_packages
+from setuptools import Extension, setup, find_packages
+
+try:
+    from Cython.Build import cythonize
+except ImportError:
+    # this is for platter
+    cythonize = lambda x: x
 
 import sys
 import os.path
@@ -25,13 +31,22 @@ with open('requirements.txt') as f:
 with open('README.md') as f:
     _long_description = f.read()
 
+GDNS = Extension(
+    name='minemeld.packages.gdns._ares',
+    sources=['minemeld/packages/gdns/_ares.pyx'],
+    include_dirs=[],
+    libraries=['cares'],
+    define_macros=[('HAVE_NETDB_H', '')],
+    depends=['minemeld/packages/gdns/dnshelper.c']
+)
+
 setup(
     name='minemeld-core',
     version=__version__,
     url='https://github.com/PaloAltoNetworks-BD/minemeld-core',
     author='Palo Alto Networks',
     author_email='techbizdev@paloaltonetworks.com',
-    description='Low-latency threat indicators processor',
+    description='An extensible indicator processing framework',
     classifiers=[
         'Development Status :: 3 - Alpha',
         'License :: OSI Approved :: Apache Software License',
@@ -42,6 +57,7 @@ setup(
     long_description=_long_description,
     packages=find_packages(),
     install_requires=_requirements,
+    ext_modules=cythonize([GDNS]),
     entry_points={
         'console_scripts': [
             'mm-run = minemeld.run.launcher:main',
