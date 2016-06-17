@@ -1,14 +1,14 @@
-mm-run.py
+mm-run
 =========
 
-mm-run.py is a simple script that can be used as frontend to the minemeld library.
+mm-run is a simple script that can be used as frontend to the minemeld library.
 
 Usage
 -----
 
 ::
 
-    $ mm-run.py --help
+    $ mm-run --help
     usage: mm-run.py [-h] [--version] [--multiprocessing NP] [--verbose] CONFIG
     
     Low-latency threat indicators processor
@@ -37,18 +37,11 @@ reinitialized if the 2 files are different. If CONFIG instead is a path to a
 configuration file, the configuration will be considered as new and the processing
 is reinitialized.
 
-fabric & mgmtbus
-~~~~~~~~~~~~~~~~
-
-**fabric** and **mgmtbus** sections in the configuration file define the class
-to be used for the fabric and the mgmtbus, and the optional argumentes to be passed
-to the constructors.
-
 nodes
 ~~~~~
 
-The **nodes** contains the desription of the processing DAG. It is composed by a list
-of descriptions of nodes (processing nodes).
+The **nodes** section contains the desription of the processing DAG. It is composed
+by a list of descriptions of nodes.
 
 Each node config has the following general format:
 
@@ -63,6 +56,19 @@ Each node config has the following general format:
         - node1
         - node2
       output: true|false # if the node should generate updates & withdraws
+
+Node can also be based on prototypes, in that case the *config* and *class*
+sections are omitted as they are specified inside the prototype.
+
+::
+
+    nodename: # name of the node
+      prototype: prototype1 # name of the prototype to be used
+      inputs:
+        # list of upstream nodes
+        - node1
+        - node2
+      output: true|false # if the node should generate updates & withdraws    
 
 Example 1
 ^^^^^^^^^
@@ -85,8 +91,8 @@ This describes a node with the following properties:
 
 :name: spamhaus_DROP
 :class: HTTP
-:inputs: *none*, this is a source node (aka miner)
-:output: yes, this node should emit indicators
+:inputs: *none*, this is a Miner
+:output: enabled, this node will emit indicators
 :config: specific configuration for this node class
 
 Example 2
@@ -115,11 +121,20 @@ Example 2
 
 :name: inboundaggregator
 :class: AggregatorIPv4
-:inputs: list of nodes this node should receive indicators from
-:output: yes, this node should emit indicators
+:inputs: this node will receive indicators from spamhaus_DROP, spamhaus_EDROP, ...
+:output: enabled, this node will emit indicators
 :config: specific configuration for this node class
 
-Architecture
-------------
+Example 3
+^^^^^^^^^
 
-.. image:: images/chassis-architecture.png
+::
+
+    spamhaus_DROP:
+      output: true
+      prototype: spamhaus.DROP
+
+:name: spamhaus_DROP
+:inputs: *none*, this is a Miner
+:output: enabled, this node will emit indicators
+:prototype: *config* and *class* of this node will be loaded from the spamhaus.DROP prototype
