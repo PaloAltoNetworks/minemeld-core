@@ -4,86 +4,56 @@ Architecture
 Processing graph
 ----------------
 
-The core processing engine of MineMeld is based on DAG of nodes. Indicators
-are retrieved by miner nodes (Mx in the pictures) and then pushed to
-downstream nodes via *update* messages. When an indicator stop being considered
-live, it is withdrawn sending a *withdraw* message to downstream nodes.
+The core processing engine of MineMeld is based on a Direct Acyclic Graph
+of nodes. Indicators are retrieved or received by Miner nodes and then pushed to
+downstream nodes via *update* messages. Nodes can also signal to downstream
+nodes the removal of an indicator (in case of expiration, ...) by sending
+a *withdraw* message.
 
-Typically each node maintains its own table of live indicators, where the
-definition of *live indicator* could change according to the node
-implementation. The processing engine could be thought as a graph of
-continuosly updating materialized views.
+Each node in the graph is independent from other nodes, there is no global
+state or global clock inside the engine. All the nodes are independent and
+asynchrnous. Each node is also responsabile for maintaining its own state.
+This architecture trades memory and disk for flexibility.
 
-.. image:: images/dag.png
+.. image:: images/updates.png
+
+.. image:: images/withdraws.png
 
 Node
 ----
 
-Each node could have 0 or more inputs and 0 or more output. Rather obviuosly
-if a node has 0 inputs it is considered a miner node, if a node has 0 ouput
-it is considered an output node.
+Each node may have 0 or more inputs and 0 or more output. Rather obviuosly
+if a node has 0 inputs it is considered a Miner node, if a node has 0 ouput
+it is considered an Output node.
 
-Each node also offers a RPC interface, for directed out of band requests, and
+Each node also offers a RPC interface, for direct out of band requests, and
 a connection to a *management bus* for status checks and management commands
 coming from the *management bus master*.
 
 .. image:: images/nodes.png
 
-The connections between nodes are implemented with a pubsub mechanism. Each
-node sends its downstream message to a *topic* named as the node, and all
-the downstream nodes are subscribers of this topic.
+The connections between nodes are implemented with a pubsub mechanism over
+the *fabric*. Each node sends its downstream message to a *topic* named as
+the node, and all the downstream nodes are subscribers of this topic.
 
 .. image:: images/topics.png
 
-Node messages
--------------
+Runtime architecture
+--------------------
 
-Each node can send downstream the following messages.
+To take advantage of all the cores available on the system, the engine
+by default automatically splits the nodes of the graph into multiple
+processes called *chassis*. Each *chassis* has a dedicated connection
+to the *fabric* and to the *management bus*.
 
-update
-******
+The *master* process monitors the health and the metrics of each *chassis*
+using the *management bus*. The *master* process is also responsible for
+synchronzing the nodes when the engine starts and stops, to ensure that
+the state of the graph is consistent. At shutdown this is achieved
+using a super simplified version of the Chandy-Lamport checkpoint
+algorithm.
 
-update(indicator, value)
+Both the *management bus* and the *fabric* are implemented using an
+external message broker, RabbitMQ.
 
-:indicator: string
-:value: a dictionary of attributes for the indicator
-
-Notifies a new indicator or an update of the attributes associated to an
-indicator.
-
-withdraw
-********
-
-withdraw(indicator[, value])
-
-:indicator: string
-:value: (optional) a dictionary of attributes for the indicator
-
-Notifies a withdraw of the indicator
-
-checkpoint
-**********
-
-checkpoint(id)
-
-Used as a processing barrier for the graph when the graph is being stopped.
-
-Node statistics
----------------
-
-Each node keeps a variable number of statistics to track its internal
-operations:
-
-:update.tx: number of update messages transmitted downstream
-:update.rx: number of update messages received from upstream
-:update.processed: number of update messages recevied and processed
-    (not dropped by filters)
-:withdraw.tx: number of withdraw messages transmitted downstream
-:withdraw.rx: number of withdraw messages received from upstream
-:withdraw.processed: number of withdraw messages received from upstream
-    and processed (not dropped by filters)
-:added: number of indicators added to the node table
-:removed: number of indicators removed from the node table
-:length: number of indicators in node table
-
-If a statistic is not present its value is 0.
+.. image:: images/chassis-architecture.png
