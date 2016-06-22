@@ -22,6 +22,8 @@ import logging
 import re
 import itertools
 
+from minemeld import __version__ as MM_VERSION
+
 from . import basepoller
 
 LOG = logging.getLogger(__name__)
@@ -36,6 +38,9 @@ class HttpFT(basepoller.BasePollerFT):
             Default: 20
         :verify_cert: boolean, if *true* feed HTTPS server certificate is
             verified. Default: *true*
+        :user_agent: string, value for the User-Agent header in HTTP
+            request. If ``MineMeld``, MineMeld/<version> is used.
+            Default: python ``requests`` default.
         :ignore_regex: Python regular expression for lines that should be
             ignored. Default: *null*
         :indicator: an *extraction dictionary* to extract the indicator from
@@ -95,6 +100,7 @@ class HttpFT(basepoller.BasePollerFT):
         self.url = self.config.get('url', None)
         self.polling_timeout = self.config.get('polling_timeout', 20)
         self.verify_cert = self.config.get('verify_cert', True)
+        self.user_agent = self.config.get('user_agent', None)
 
         self.ignore_regex = self.config.get('ignore_regex', None)
         if self.ignore_regex is not None:
@@ -168,6 +174,17 @@ class HttpFT(basepoller.BasePollerFT):
             verify=self.verify_cert,
             timeout=self.polling_timeout
         )
+
+        if self.user_agent is not None:
+            if self.user_agent == 'MineMeld':
+                rkwargs['headers'] = {
+                    'User-Agent': 'MineMeld/%s' % MM_VERSION
+                }
+
+            else:
+                rkwargs['headers'] = {
+                    'User-Agent': self.user_agent
+                }
 
         r = requests.get(
             self.url,
