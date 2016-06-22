@@ -13,6 +13,7 @@
 #  limitations under the License.
 
 import logging
+import re
 import cStringIO
 
 from flask import request
@@ -28,7 +29,67 @@ LOG = logging.getLogger(__name__)
 FEED_INTERVAL = 100
 
 
-def generate_feed(feed, start, num, desc, value):
+_PROTOCOL_RE = re.compile('^(?:[a-z]+:)*//')
+_INVALID_TOKEN_RE = re.compile('(?:[^\./+=\?&]+\*[^\./+=\?&]*)|(?:[^\./+=\?&]*\*[^\./+=\?&]+)')
+
+
+def generate_panosurl_feed(feed, start, num, desc, value):
+    zrange = SR.zrange
+    if desc:
+        zrange = SR.zrevrange
+
+    if num is None:
+        num = (1 << 32)-1
+
+    cstart = start
+
+    while cstart < (start+num):
+        LOG.debug("cstart: %s start+num: %s", cstart, start+num)
+        LOG.debug("interval: %s desc: %s",
+                  min(start+num - cstart, FEED_INTERVAL), desc)
+        ilist = zrange(feed, cstart,
+                       cstart-1+min(start+num - cstart, FEED_INTERVAL))
+
+        for i in ilist:
+            i = i.lower()
+
+            i = _PROTOCOL_RE.sub('', i)
+            i = _INVALID_TOKEN_RE.sub('*', i)
+
+            yield i+'\n'
+
+        if len(ilist) < 100:
+            break
+
+        cstart += 100
+
+
+def generate_plain_feed(feed, start, num, desc, value):
+    zrange = SR.zrange
+    if desc:
+        zrange = SR.zrevrange
+
+    if num is None:
+        num = (1 << 32)-1
+
+    cstart = start
+
+    while cstart < (start+num):
+        LOG.debug("cstart: %s start+num: %s", cstart, start+num)
+        LOG.debug("interval: %s desc: %s",
+                  min(start+num - cstart, FEED_INTERVAL), desc)
+        ilist = zrange(feed, cstart,
+                       cstart-1+min(start+num - cstart, FEED_INTERVAL))
+
+        yield '\n'.join(ilist)+'\n'
+
+        if len(ilist) < 100:
+            break
+
+        cstart += 100
+
+
+def generate_json_feed(feed, start, num, desc, value):
     zrange = SR.zrange
     if desc:
         zrange = SR.zrevrange
@@ -49,36 +110,33 @@ def generate_feed(feed, start, num, desc, value):
         ilist = zrange(feed, cstart,
                        cstart-1+min(start+num - cstart, FEED_INTERVAL))
 
-        if value is None:
-            yield '\n'.join(ilist)+'\n'
-        else:
-            result = cStringIO.StringIO()
+        result = cStringIO.StringIO()
 
-            for i in ilist:
-                v = SR.hget(feed+'.value', i)
-                if v is None:
-                    v = 'null'
+        for i in ilist:
+            v = SR.hget(feed+'.value', i)
+            if v is None:
+                v = 'null'
 
-                if value == 'json' and not firstelement:
-                    result.write(',\n')
+            if value == 'json' and not firstelement:
+                result.write(',\n')
 
-                if value == 'json-seq':
-                    result.write('\x1E')
+            if value == 'json-seq':
+                result.write('\x1E')
 
-                result.write('{"indicator":"')
-                result.write(i)
-                result.write('","value":')
-                result.write(v)
-                result.write('}')
+            result.write('{"indicator":"')
+            result.write(i)
+            result.write('","value":')
+            result.write(v)
+            result.write('}')
 
-                if value == 'json-seq':
-                    result.write('\n')
+            if value == 'json-seq':
+                result.write('\n')
 
-                firstelement = False
+            firstelement = False
 
-            yield result.getvalue()
+        yield result.getvalue()
 
-            result.close()
+        result.close()
 
         if len(ilist) < 100:
             break
@@ -87,6 +145,22 @@ def generate_feed(feed, start, num, desc, value):
 
     if value == 'json':
         yield ']\n'
+
+
+_FEED_FORMATS = {
+    'json': {
+        'formatter': generate_json_feed,
+        'mimetype': 'application/json'
+    },
+    'json-seq': {
+        'formatter': generate_json_feed,
+        'mimetype': 'application/json-seq'
+    },
+    'panosurl': {
+        'formatter': generate_panosurl_feed,
+        'mimetype': 'text/plain'
+    }
+}
 
 
 @app.route('/feeds/<feed>', methods=['GET'])
@@ -131,18 +205,18 @@ def get_feed_content(feed):
     desc = (False if desc is None else True)
 
     value = request.values.get('v')
-    if value is not None and value not in ['json', 'json-seq']:
+    if value is not None and value not in _FEED_FORMATS:
         return jsonify(error="unknown format %s" % value), 400
 
     mimetype = 'text/plain'
-    if value == 'json':
-        mimetype = 'application/json'
-    elif value == 'json-seq':
-        mimetype = 'application/json-seq'
+    formatter = generate_plain_feed
+    if value in _FEED_FORMATS:
+        formatter = _FEED_FORMATS[value]['formatter']
+        mimetype = _FEED_FORMATS[value]['mimetype']
 
     return Response(
         stream_with_context(
-            generate_feed(feed, start, num, desc, value)
+            formatter(feed, start, num, desc, value)
         ),
         mimetype=mimetype
     )
