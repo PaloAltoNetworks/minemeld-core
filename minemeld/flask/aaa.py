@@ -35,9 +35,22 @@ else:
     )
     USERS = passlib.apache.HtpasswdFile(path=_users_db)
 
+
+_feeds_users_db = config.get('FEEDS_USERS_DB', None)
+if _feeds_users_db is None:
+    FEEDS_USERS = passlib.apache.HtpasswdFile(new=True)
+else:
+    _feeds_users_db = os.path.join(
+        os.path.dirname(os.environ.get('MM_CONFIG', '')),
+        _feeds_users_db
+    )
+    FEEDS_USERS = passlib.apache.HtpasswdFile(path=_feeds_users_db)
+
 LOGIN_MANAGER = flask.ext.login.LoginManager()
 LOGIN_MANAGER.session_protection = None
 API_AUTH_ENABLED = config.get('API_AUTH_ENABLED', True)
+FEEDS_AUTH_ENABLED = config.get('FEEDS_AUTH_ENABLED', False)
+TAXII_AUTH_ENABLED = config.get('TAXII_AUTH_ENABLED', False)
 
 
 class MMAuthenticatedUser(object):
@@ -57,8 +70,66 @@ class MMAuthenticatedUser(object):
         return False
 
 
+def _feeds_request_loader(request):
+    if not FEEDS_AUTH_ENABLED:
+        return MMAuthenticatedUser(id='feeds_auth_disabled')
+
+    api_key = request.headers.get('Authorization')
+    if api_key is not None:
+        api_key = api_key.replace('Basic', '', 1)
+
+        try:
+            api_key = base64.b64decode(api_key)
+        except TypeError:
+            return None
+
+        try:
+            user, password = api_key.split(':', 1)
+        except ValueError:
+            return None
+
+        if not FEEDS_USERS.check_password(user, password):
+            return None
+
+        return MMAuthenticatedUser(id=user)
+
+    return None
+
+
+def _taxii_request_loader(request):
+    if not TAXII_AUTH_ENABLED:
+        return MMAuthenticatedUser(id='taxii_auth_disabled')
+
+    api_key = request.headers.get('Authorization')
+    if api_key is not None:
+        api_key = api_key.replace('Basic', '', 1)
+
+        try:
+            api_key = base64.b64decode(api_key)
+        except TypeError:
+            return None
+
+        try:
+            user, password = api_key.split(':', 1)
+        except ValueError:
+            return None
+
+        if not FEEDS_USERS.check_password(user, password):
+            return None
+
+        return MMAuthenticatedUser(id=user)
+
+    return None
+
+
 @LOGIN_MANAGER.request_loader
 def request_loader(request):
+    if request.path.startswith('/taxii-'):
+        return _taxii_request_loader(request)
+
+    if request.path.startswith('/feeds/'):
+        return _feeds_request_loader(request)
+
     if not API_AUTH_ENABLED:
         return MMAuthenticatedUser(id='api_auth_disabled')
 

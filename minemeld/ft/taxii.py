@@ -12,6 +12,8 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+from __future__ import absolute_import
+
 import logging
 import copy
 import urlparse
@@ -20,15 +22,27 @@ import pytz
 import os.path
 import lxml.etree
 import yaml
+import uuid
+import redis
+import gevent
+import gevent.event
 
 import libtaxii
 import libtaxii.clients
 import libtaxii.messages_11
 
 import stix.core.stix_package
+import stix.indicator
+import stix.common.vocabs
+
+import cybox.core
+import cybox.objects.address_object
+import cybox.objects.domain_name_object
+import cybox.objects.uri_object
 
 from . import basepoller
-from .utils import dt_to_millisec, interval_in_sec
+from . import base
+from .utils import dt_to_millisec, interval_in_sec, utc_millisec
 
 LOG = logging.getLogger(__name__)
 
@@ -189,9 +203,6 @@ class TaxiiClient(basepoller.BasePollerFT):
         if self.collection_mgmt_service is None:
             raise RuntimeError('%s - collection management service not found' %
                                self.name)
-
-        LOG.debug('%s - collection_mgmt_service: %s',
-                  self.name, self.collection_mgmt_service)
 
     def _check_collections(self, tc):
         msg_id = libtaxii.messages_11.generate_message_id()
@@ -570,3 +581,282 @@ class TaxiiClient(basepoller.BasePollerFT):
         LOG.info('%s - hup received, reload side config', self.name)
         self._load_side_config()
         super(TaxiiClient, self).hup(source)
+
+
+def _stix_ip_observable(id_, indicator, value):
+    category = cybox.objects.address_object.Address.CAT_IPV4
+    if value['type'] == 'IPv6':
+        category = cybox.objects.address_object.Address.CAT_IPV6
+
+    ao = cybox.objects.address_object.Address(
+        address_value=indicator,
+        category=category
+    )
+
+    o = cybox.core.Observable(
+        title='{}: {}'.format(value['type'], indicator),
+        id_=id_,
+        item=ao
+    )
+
+    return o
+
+
+def _stix_domain_observable(id_, indicator, value):
+    do = cybox.objects.domain_name_object.DomainName(
+        value=indicator,
+        type_="FQDN"
+    )
+
+    o = cybox.core.Observable(
+        title='FQDN: ' + indicator,
+        id_=id_,
+        item=do
+    )
+
+    return o
+
+
+def _stix_url_observable(id_, indicator, value):
+    uo = cybox.objects.uri_object.URI(
+        value=indicator,
+        type_=cybox.objects.uri_object.URI.TYPE_URL
+    )
+
+    o = cybox.core.Observable(
+        title='URL: ' + indicator,
+        id_=id_,
+        item=uo
+    )
+
+    return o
+
+
+_TYPE_MAPPING = {
+    'IPv4': {
+        'indicator_type': stix.common.vocabs.IndicatorType.TERM_IP_WATCHLIST,
+        'mapper': _stix_ip_observable
+    },
+    'IPv6': {
+        'indicator_type': stix.common.vocabs.IndicatorType.TERM_IP_WATCHLIST,
+        'mapper': _stix_ip_observable
+    },
+    'URL': {
+        'indicator_type': stix.common.vocabs.IndicatorType.TERM_DOMAIN_WATCHLIST,
+        'mapper': _stix_url_observable
+    },
+    'domain': {
+        'indicator_type': stix.common.vocabs.IndicatorType.TERM_URL_WATCHLIST,
+        'mapper': _stix_domain_observable
+    }
+}
+
+
+class DataFeed(base.BaseFT):
+    def __init__(self, name, chassis, config):
+        self.redis_skey = name
+        self.redis_skey_value = name+'.value'
+        self.redis_skey_chkp = name+'.chkp'
+
+        self.SR = None
+        self.ageout_glet = None
+
+        super(DataFeed, self).__init__(name, chassis, config)
+
+    def configure(self):
+        super(DataFeed, self).configure()
+
+        self.redis_host = self.config.get('redis_host', 'localhost')
+        self.redis_port = self.config.get('redis_port', 6379)
+        self.redis_password = self.config.get('redis_password', None)
+        self.redis_db = self.config.get('redis_db', 0)
+
+        self.namespace = self.config.get('namespace', 'minemeld')
+        self.namespaceuri = self.config.get(
+            'namespaceuri',
+            'https://go.paloaltonetworks.com/minemeld'
+        )
+
+        self.age_out_interval = self.config.get('age_out_interval', '24h')
+        self.age_out_interval = interval_in_sec(self.age_out_interval)
+        if self.age_out_interval < 60:
+            LOG.info('%s - age out interval too small, forced to 60 seconds')
+            self.age_out_interval = 60
+
+    def connect(self, inputs, output):
+        output = False
+        super(DataFeed, self).connect(inputs, output)
+
+    def read_checkpoint(self):
+        self._connect_redis()
+        self.last_checkpoint = self.SR.get(self.redis_skey_chkp)
+        self.SR.delete(self.redis_skey_chkp)
+
+    def create_checkpoint(self, value):
+        self._connect_redis()
+        self.SR.set(self.redis_skey_chkp, value)
+
+    def _connect_redis(self):
+        if self.SR is not None:
+            return
+
+        self.SR = redis.StrictRedis(
+            host=self.redis_host,
+            port=self.redis_port,
+            password=self.redis_password,
+            db=self.redis_db
+        )
+
+    def _read_oldest_indicator(self):
+        olist = self.SR.zrevrange(
+            self.redis_skey, 0, 0,
+            withscores=True
+        )
+        LOG.debug('%s - oldest: %s', self.name, olist)
+        if len(olist) == 0:
+            return None, None
+
+        return int(olist[0][1]), olist[0][0]
+
+    def initialize(self):
+        self._connect_redis()
+
+    def rebuild(self):
+        self._connect_redis()
+        self.SR.delete(self.redis_skey)
+        self.SR.delete(self.redis_skey_value)
+
+    def reset(self):
+        self._connect_redis()
+        self.SR.delete(self.redis_skey)
+        self.SR.delete(self.redis_skey_value)
+
+    def _add_indicator(self, score, id_, indicator, value):
+        type_ = value['type']
+        type_mapper = _TYPE_MAPPING.get(type_, None)
+        if type_mapper is None:
+            LOG.error('%s - Unsupported indicator type: %s', self.name, type_)
+            return
+
+        nsdict = {}
+        nsdict[self.namespaceuri] = self.namespace
+        stix.utils.set_id_namespace(nsdict)
+
+        sp = stix.core.STIXPackage()
+        sindicator = stix.indicator.indicator.Indicator(
+            id_=id_,
+            title='{}: {}'.format(
+                value['type'],
+                indicator
+            ),
+            description='{} indicator from {}'.format(
+                value['type'],
+                ', '.join(value['sources'])
+            ),
+            timestamp=datetime.datetime.utcnow().replace(tzinfo=pytz.utc)
+        )
+
+        confidence = value.get('confidence', None)
+        if confidence is None:
+            LOG.error('%s - indicator without confidence', self.name)
+            sindicator.confidence = "Unknown"  # We shouldn't be here
+        elif confidence < 50:
+            sindicator.confidence = "Low"
+        elif confidence < 75:
+            sindicator.confidence = "Medium"
+        else:
+            sindicator.confidence = "High"
+
+        sindicator.add_indicator_type(type_mapper['indicator_type'])
+
+        oid = '{}:observable-{}'.format(
+            self.namespace,
+            uuid.uuid4()
+        )
+        sindicator.add_observable(
+            type_mapper['mapper'](oid, indicator, value)
+        )
+
+        sp.add_indicator(sindicator)
+
+        with self.SR.pipeline() as p:
+            p.multi()
+
+            p.zadd(self.redis_skey, score, id_)
+            p.hset(self.redis_skey_value, id_, sp.to_xml())
+
+            result = p.execute()[0]
+
+        self.statistics['added'] += result
+
+    def _delete_indicator(self, indicator_id):
+        with self.SR.pipeline() as p:
+            p.multi()
+
+            p.zrem(self.redis_skey, indicator_id)
+            p.hdel(self.redis_skey_value, indicator_id)
+
+            result = p.execute()[0]
+
+        self.statistics['removed'] += result
+
+    def _age_out_run(self):
+        while True:
+            now = utc_millisec()
+            low_watermark = now - self.age_out_interval*1000
+
+            otimestamp, oindicator = self._read_oldest_indicator()
+            LOG.debug(
+                '{} - low watermark: {} otimestamp: {}'.format(
+                    self.name,
+                    low_watermark,
+                    otimestamp
+                )
+            )
+            while otimestamp is not None and otimestamp < low_watermark:
+                self._delete_indicator(oindicator)
+                otimestamp, oindicator = self._read_oldest_indicator()
+
+            wait_time = 30
+            if otimestamp is not None:
+                next_expiration = (
+                    (otimestamp + self.age_out_interval*1000) - now
+                )
+                wait_time = max(wait_time, next_expiration/1000 + 1)
+            LOG.debug('%s - sleeping for %d secs', self.name, wait_time)
+
+            gevent.sleep(wait_time)
+
+    @base._counting('update.processed')
+    def filtered_update(self, source=None, indicator=None, value=None):
+        now = utc_millisec()
+        id_ = '{}:indicator-{}'.format(
+            self.namespace,
+            uuid.uuid4()
+        )
+
+        self._add_indicator(now, id_, indicator, value)
+
+    @base._counting('withdraw.ignored')
+    def filtered_withdraw(self, source=None, indicator=None, value=None):
+        # this is a TAXII data feed, old indicators never expire
+        pass
+
+    def length(self, source=None):
+        return self.SR.zcard(self.redis_skey)
+
+    def start(self):
+        super(DataFeed, self).start()
+
+        self.ageout_glet = gevent.spawn(self._age_out_run)
+
+    def stop(self):
+        super(DataFeed, self).stop()
+
+        self.ageout_glet.kill()
+
+        LOG.info(
+            "%s - # indicators: %d",
+            self.name,
+            self.SR.zcard(self.redis_skey)
+        )

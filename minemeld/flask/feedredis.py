@@ -21,6 +21,8 @@ from flask import jsonify
 from flask import Response
 from flask import stream_with_context
 
+import flask.ext.login
+
 from . import app
 from . import SR
 from . import MMMaster
@@ -164,6 +166,7 @@ _FEED_FORMATS = {
 
 
 @app.route('/feeds/<feed>', methods=['GET'])
+@flask.ext.login.login_required
 def get_feed_content(feed):
     # check if feed exists
     status = MMMaster.status()

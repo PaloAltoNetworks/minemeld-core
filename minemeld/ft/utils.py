@@ -36,6 +36,9 @@ def dt_to_millisec(dt):
 
 
 def interval_in_sec(val):
+    if isinstance(val, int):
+        return val
+
     multipliers = {
         '': 1,
         'm': 60,
