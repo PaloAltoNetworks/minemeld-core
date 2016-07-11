@@ -23,4 +23,25 @@ if _config_path is not None:
     with open(_config_path, 'r') as f:
         CONFIG = yaml.safe_load(f)
 
-get = CONFIG.get
+
+def get(key, default=None):
+    try:
+        result = CONFIG[key]
+    except KeyError:
+        pass
+    else:
+        return result
+
+    try:
+        result = os.environ[key]
+    except KeyError:
+        pass
+    else:
+        if result == 'False':
+            result = False
+        if result == 'True':
+            result = True
+
+        return result
+
+    return default

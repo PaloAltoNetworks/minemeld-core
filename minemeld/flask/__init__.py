@@ -268,9 +268,12 @@ try:
     # load entry points
     from . import feedredis  # noqa
     from . import configapi  # noqa
+    from . import taxiidiscovery  # noqa
+    from . import taxiicollmgmt  # noqa
+    from . import taxiipoll  # noqa
 
 except ImportError:
-    LOG.exception("redis is needed for feed and config entrypoint")
+    LOG.exception("redis is needed for feed and config entrypoints")
 
 try:
     import psutil  # noqa
