@@ -422,7 +422,7 @@ class BaseFT(object):
             return
 
         if source in self.inputs_checkpoint:
-            LOG.error("update recieved from checkpointed source")
+            LOG.error("update received from checkpointed source")
             raise AssertionError("update received from checkpointed source")
 
         if value is not None:
