@@ -82,7 +82,7 @@ def _indicators_feed(feed, excbegtime, incendtime):
 def data_feed_11(rmsgid, cname, excbegtime, incendtime):
     tfeeds = get_taxii_feeds()
     if cname not in tfeeds:
-        return 'Invalid message', 400
+        return 'Invalid message, unknown feed', 400
 
     if not incendtime:
         incendtime = datetime.datetime.utcnow().replace(tzinfo=pytz.utc)
