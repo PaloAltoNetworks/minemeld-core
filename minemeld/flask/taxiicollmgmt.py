@@ -13,6 +13,7 @@
 #  limitations under the License.
 
 import logging
+import re
 
 import libtaxii
 import libtaxii.messages_11
@@ -28,6 +29,8 @@ from .taxiiutils import taxii_check, taxii_make_response, get_taxii_feeds
 
 LOG = logging.getLogger(__name__)
 
+HOST_RE = re.compile('^[a-zA-Z\d-]{1,63}(?:\.[a-zA-Z\d-]{1,63})*(?::[0-9]{1,5})*$')
+
 
 @app.route('/taxii-collection-management-service', methods=['POST'])
 @flask.ext.login.login_required
@@ -35,14 +38,17 @@ LOG = logging.getLogger(__name__)
 def taxii_collection_mgmt_service():
     server_host = config.get('TAXII_HOST', None)
     if server_host is None:
-        server_host = request.headers.get('X-Server', None)
+        server_host = request.headers.get('Host', None)
         if server_host is None:
-            return 'Missing X-Server header', 400
+            return 'Missing Host header', 400
+
+        if HOST_RE.match(server_host) is None:
+            return 'Invalid Host header', 400
 
     tm = libtaxii.messages_11.get_message_from_xml(request.data)
     if tm.message_type != \
        libtaxii.constants.MSG_COLLECTION_INFORMATION_REQUEST:
-        return 'Invalid message', 400
+        return 'Invalid message, invalid Message Type', 400
 
     cir = libtaxii.messages_11.CollectionInformationResponse(
         libtaxii.messages_11.generate_message_id(),

@@ -459,11 +459,13 @@ class SyslogMiner(base.BaseFT):
             return None
 
         fields = f.get('fields', None)
-        if fields is not None and type(fields) != list:
-            LOG.error('%s - wrong fields format in rule %s, ignored',
-                      self.name, name)
-            return None
-        result['fields'] = [fld for fld in fields if type(fld) == str]
+        if fields is not None:
+            if type(fields) != list:
+                LOG.error('%s - wrong fields format in rule %s, ignored',
+                          self.name, name)
+                return None
+
+            result['fields'] = [fld for fld in fields if type(fld) == str]
 
         return result
 

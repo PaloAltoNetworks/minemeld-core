@@ -26,7 +26,7 @@ install:
 
 script:
   - /usr/bin/env python -V
-  - platter build -r requirements-web.txt --prebuild-script scripts/prebuild-script.sh --postbuild-script scripts/postbuild-script.sh
+  - platter build -r requirements-web.txt --prebuild-script scripts/prebuild-script.sh
 
 deploy:
   provider: s3
@@ -43,6 +43,5 @@ after_deploy:
     - "export FILENAME=minemeld-core-$TRAVIS_TAG-linux-x86_64.tar.gz"
     - "export MD5SUM=$(md5sum dist/$FILENAME | awk '{ print $1 }')"
     - "export SHA256SUM=$(sha256sum dist/$FILENAME | awk '{ print $1 }')"
-    - 'if [[ "$TRAVIS_TAG" == *"b"* ]]; then export STAGE=beta0_9; else export STAGE=0_9; fi'
-    - echo $STAGE
-    - 'curl -i -f "https://$MINEMELD_AUTOUPDATE_API_HOST/$STAGE/package?file=$FILENAME&version=$TRAVIS_TAG&md5=$MD5SUM&sha256=$SHA256SUM&package=minemeld-engine" -H "x-api-key: $MINEMELD_AUTOUPDATE_API_KEY"'
+    - "echo $MD5SUM"
+    - "echo $SHA256SUM"

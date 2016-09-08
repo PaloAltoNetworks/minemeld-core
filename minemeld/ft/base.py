@@ -422,8 +422,8 @@ class BaseFT(object):
             return
 
         if source in self.inputs_checkpoint:
-            LOG.error("update recevied from checkpointed source")
-            raise AssertionError("update recevied from checkpointed source")
+            LOG.error("update received from checkpointed source")
+            raise AssertionError("update received from checkpointed source")
 
         if value is not None:
             for k in value.keys():
@@ -468,8 +468,8 @@ class BaseFT(object):
             return
 
         if source in self.inputs_checkpoint:
-            LOG.error("withdraw recevied from checkpointed source")
-            raise AssertionError("withdraw recevied from checkpointed source")
+            LOG.error("withdraw received from checkpointed source")
+            raise AssertionError("withdraw received from checkpointed source")
 
         fltindicator, fltvalue = self.apply_infilters(
             origin=source,
