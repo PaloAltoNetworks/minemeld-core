@@ -1,4 +1,4 @@
-#  Copyright 2015 Palo Alto Networks, Inc
+#  Copyright 2015-2016 Palo Alto Networks, Inc
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -153,6 +153,19 @@ def request_loader(request):
         return MMAuthenticatedUser(id=user)
 
     return None
+
+
+@LOGIN_MANAGER.user_loader
+def user_loader(id_):
+    LOG.debug('Loaded user: %s', id_)
+    return MMAuthenticatedUser(id=id_)
+
+
+def check_user(username, password):
+    if not USERS.check_password(username, password):
+        return None
+
+    return MMAuthenticatedUser(id=username)
 
 
 @LOGIN_MANAGER.unauthorized_handler
