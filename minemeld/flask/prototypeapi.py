@@ -24,10 +24,13 @@ from flask import jsonify
 from flask import request
 
 from . import app
+from . import config
+
 
 LOG = logging.getLogger(__name__)
 
 PROTOTYPE_ENV = 'MINEMELD_PROTOTYPE_PATH'
+LOCAL_PROTOTYPE_PATH = 'MINEMELD_LOCAL_PROTOTYPE_PATH'
 
 
 @app.route('/prototype', methods=['GET'])
@@ -136,17 +139,27 @@ def add_prototype(prototypename):
         return jsonify(error={'message': 'invalid library'}), 400
     library_filename = library+'.yml'
 
-    paths = os.getenv(PROTOTYPE_ENV, None)
-    if paths is None:
-        raise RuntimeError('%s environment variable not set' %
-                           (PROTOTYPE_ENV))
-    paths = paths.split(':')
+    local_path = config.get(LOCAL_PROTOTYPE_PATH)
+    if local_path is None:
+        paths = os.getenv(PROTOTYPE_ENV, None)
+        if paths is None:
+            raise RuntimeError(
+                '%s environment variable not set' %
+                (PROTOTYPE_ENV)
+            )
 
-    library_path = None
-    for p in paths:
-        library_path = os.path.join(p, library_filename)
-        if os.path.isfile(library_path):
-            break
+        paths = paths.split(':')
+        for p in paths:
+            if '/local/' in p:
+                local_path = p
+                break
+
+        if local_path is None:
+            raise RuntimeError(
+                'No local path in %s' % PROTOTYPE_ENV
+            )
+
+    library_path = os.path.join(local_path, library_filename)
 
     if os.path.isfile(library_path):
         with open(library_path, 'r') as f:
