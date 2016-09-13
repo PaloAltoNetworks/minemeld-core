@@ -584,39 +584,53 @@ class TaxiiClient(basepoller.BasePollerFT):
         super(TaxiiClient, self).hup(source)
 
 
-def _stix_ip_observable(id_, indicator, value):
+def _stix_ip_observable(namespace, indicator, value):
     category = cybox.objects.address_object.Address.CAT_IPV4
     if value['type'] == 'IPv6':
         category = cybox.objects.address_object.Address.CAT_IPV6
 
+    indicators = [indicator]
     if '-' in indicator:
         # looks like an IP Range, let's try to make it a CIDR
         a1, a2 = indicator.split('-', 1)
         if a1 == a2:
             # same IP
-            indicator = a1
+            indicators = [a1]
         else:
             # use netaddr builtin algo to summarize range into CIDR
             iprange = netaddr.IPRange(a1, a2)
             cidrs = iprange.cidrs()
-            if len(cidrs) == 1:
-                indicator = str(cidrs[0])
+            indicators = map(str, cidrs)
 
-    ao = cybox.objects.address_object.Address(
-        address_value=indicator,
-        category=category
+    observables = []
+    for i in indicators:
+        id_ = '{}:observable-{}'.format(
+            namespace,
+            uuid.uuid4()
+        )
+
+        ao = cybox.objects.address_object.Address(
+            address_value=i,
+            category=category
+        )
+
+        o = cybox.core.Observable(
+            title='{}: {}'.format(value['type'], i),
+            id_=id_,
+            item=ao
+        )
+
+        observables.append(o)
+
+    return observables
+
+
+def _stix_domain_observable(namespace, indicator, value):
+    id_ = '{}:observable-{}'.format(
+        namespace,
+        uuid.uuid4()
     )
 
-    o = cybox.core.Observable(
-        title='{}: {}'.format(value['type'], indicator),
-        id_=id_,
-        item=ao
-    )
-
-    return o
-
-
-def _stix_domain_observable(id_, indicator, value):
     do = cybox.objects.domain_name_object.DomainName()
     do.value = indicator
     do.type_ = 'FQDN'
@@ -627,10 +641,15 @@ def _stix_domain_observable(id_, indicator, value):
         item=do
     )
 
-    return o
+    return [o]
 
 
-def _stix_url_observable(id_, indicator, value):
+def _stix_url_observable(namespace, indicator, value):
+    id_ = '{}:observable-{}'.format(
+        namespace,
+        uuid.uuid4()
+    )
+
     uo = cybox.objects.uri_object.URI(
         value=indicator,
         type_=cybox.objects.uri_object.URI.TYPE_URL
@@ -642,7 +661,7 @@ def _stix_url_observable(id_, indicator, value):
         item=uo
     )
 
-    return o
+    return [o]
 
 
 _TYPE_MAPPING = {
@@ -744,7 +763,7 @@ class DataFeed(base.BaseFT):
         self.SR.delete(self.redis_skey)
         self.SR.delete(self.redis_skey_value)
 
-    def _add_indicator(self, score, id_, indicator, value):
+    def _add_indicator(self, score, indicator, value):
         type_ = value['type']
         type_mapper = _TYPE_MAPPING.get(type_, None)
         if type_mapper is None:
@@ -756,41 +775,44 @@ class DataFeed(base.BaseFT):
         stix.utils.set_id_namespace(nsdict)
 
         sp = stix.core.STIXPackage()
-        sindicator = stix.indicator.indicator.Indicator(
-            id_=id_,
-            title='{}: {}'.format(
-                value['type'],
-                indicator
-            ),
-            description='{} indicator from {}'.format(
-                value['type'],
-                ', '.join(value['sources'])
-            ),
-            timestamp=datetime.datetime.utcnow().replace(tzinfo=pytz.utc)
-        )
 
-        confidence = value.get('confidence', None)
-        if confidence is None:
-            LOG.error('%s - indicator without confidence', self.name)
-            sindicator.confidence = "Unknown"  # We shouldn't be here
-        elif confidence < 50:
-            sindicator.confidence = "Low"
-        elif confidence < 75:
-            sindicator.confidence = "Medium"
-        else:
-            sindicator.confidence = "High"
+        observables = type_mapper['mapper'](self.namespace, indicator, value)
 
-        sindicator.add_indicator_type(type_mapper['indicator_type'])
+        for o in observables:
+            id_ = '{}:indicator-{}'.format(
+                self.namespace,
+                uuid.uuid4()
+            )
 
-        oid = '{}:observable-{}'.format(
-            self.namespace,
-            uuid.uuid4()
-        )
-        sindicator.add_observable(
-            type_mapper['mapper'](oid, indicator, value)
-        )
+            sindicator = stix.indicator.indicator.Indicator(
+                id_=id_,
+                title='{}: {}'.format(
+                    value['type'],
+                    indicator
+                ),
+                description='{} indicator from {}'.format(
+                    value['type'],
+                    ', '.join(value['sources'])
+                ),
+                timestamp=datetime.datetime.utcnow().replace(tzinfo=pytz.utc)
+            )
 
-        sp.add_indicator(sindicator)
+            confidence = value.get('confidence', None)
+            if confidence is None:
+                LOG.error('%s - indicator without confidence', self.name)
+                sindicator.confidence = "Unknown"  # We shouldn't be here
+            elif confidence < 50:
+                sindicator.confidence = "Low"
+            elif confidence < 75:
+                sindicator.confidence = "Medium"
+            else:
+                sindicator.confidence = "High"
+
+            sindicator.add_indicator_type(type_mapper['indicator_type'])
+
+            sindicator.add_observable(o)
+
+            sp.add_indicator(sindicator)
 
         with self.SR.pipeline() as p:
             p.multi()
@@ -843,12 +865,8 @@ class DataFeed(base.BaseFT):
     @base._counting('update.processed')
     def filtered_update(self, source=None, indicator=None, value=None):
         now = utc_millisec()
-        id_ = '{}:indicator-{}'.format(
-            self.namespace,
-            uuid.uuid4()
-        )
 
-        self._add_indicator(now, id_, indicator, value)
+        self._add_indicator(now, indicator, value)
 
     @base._counting('withdraw.ignored')
     def filtered_withdraw(self, source=None, indicator=None, value=None):
