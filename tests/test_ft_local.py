@@ -80,7 +80,7 @@ class MineMeldYamlFTTests(unittest.TestCase):
     @mock.patch.object(gevent, 'spawn_later')
     @mock.patch.object(gevent, 'sleep', side_effect=gevent.GreenletExit())
     @mock.patch('gevent.event.Event', side_effect=gevent_event_mock_factory)
-    @mock.patch.object(calendar, 'timegm', side_effect=logical_millisec)
+    @mock.patch('minemeld.ft.basepoller.utc_millisec', side_effect=logical_millisec)
     def test_yaml(self, um_mock, sleep_mock, event_mock,
                   spawnl_mock, spawn_mock):
         global CUR_LOGICAL_TIME

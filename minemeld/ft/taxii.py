@@ -1,4 +1,4 @@
-#  Copyright 2015 Palo Alto Networks, Inc
+#  Copyright 2015-2016 Palo Alto Networks, Inc
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ import uuid
 import redis
 import gevent
 import gevent.event
+import netaddr
 
 import libtaxii
 import libtaxii.clients
@@ -588,6 +589,19 @@ def _stix_ip_observable(id_, indicator, value):
     if value['type'] == 'IPv6':
         category = cybox.objects.address_object.Address.CAT_IPV6
 
+    if '-' in indicator:
+        # looks like an IP Range, let's try to make it a CIDR
+        a1, a2 = indicator.split('-', 1)
+        if a1 == a2:
+            # same IP
+            indicator = a1
+        else:
+            # use netaddr builtin algo to summarize range into CIDR
+            iprange = netaddr.IPRange(a1, a2)
+            cidrs = iprange.cidrs()
+            if len(cidrs) == 1:
+                indicator = str(cidrs[0])
+
     ao = cybox.objects.address_object.Address(
         address_value=indicator,
         category=category
@@ -603,10 +617,9 @@ def _stix_ip_observable(id_, indicator, value):
 
 
 def _stix_domain_observable(id_, indicator, value):
-    do = cybox.objects.domain_name_object.DomainName(
-        value=indicator,
-        type_="FQDN"
-    )
+    do = cybox.objects.domain_name_object.DomainName()
+    do.value = indicator
+    do.type_ = 'FQDN'
 
     o = cybox.core.Observable(
         title='FQDN: ' + indicator,
