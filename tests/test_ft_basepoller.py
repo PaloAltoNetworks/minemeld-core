@@ -26,7 +26,6 @@ import time
 import shutil
 import logging
 import gc
-import calendar
 
 import minemeld.ft.basepoller
 
@@ -38,7 +37,7 @@ CUR_LOGICAL_TIME = 0
 
 
 def logical_millisec(*args):
-    return CUR_LOGICAL_TIME
+    return CUR_LOGICAL_TIME*1000
 
 
 def gevent_event_mock_factory():
@@ -155,7 +154,7 @@ class MineMeldFTBasePollerTests(unittest.TestCase):
     @mock.patch.object(gevent, 'spawn_later')
     @mock.patch.object(gevent, 'sleep', side_effect=gevent.GreenletExit())
     @mock.patch('gevent.event.Event', side_effect=gevent_event_mock_factory)
-    @mock.patch.object(calendar, 'timegm', side_effect=logical_millisec)
+    @mock.patch('minemeld.ft.basepoller.utc_millisec', side_effect=logical_millisec)
     def test_delta_feed(self, um_mock, event_mock, sleep_mock, spawnl_mock, spawn_mock):
         global CUR_LOGICAL_TIME
 
@@ -231,7 +230,7 @@ class MineMeldFTBasePollerTests(unittest.TestCase):
     @mock.patch.object(gevent, 'spawn_later')
     @mock.patch.object(gevent, 'sleep', side_effect=gevent.GreenletExit())
     @mock.patch('gevent.event.Event', side_effect=gevent_event_mock_factory)
-    @mock.patch.object(calendar, 'timegm', side_effect=logical_millisec)
+    @mock.patch('minemeld.ft.basepoller.utc_millisec', side_effect=logical_millisec)
     def test_rolling_feed(self, um_mock, event_mock, sleep_mock,
                           spawnl_mock, spawn_mock):
         global CUR_LOGICAL_TIME
@@ -308,7 +307,7 @@ class MineMeldFTBasePollerTests(unittest.TestCase):
     @mock.patch.object(gevent, 'spawn_later')
     @mock.patch.object(gevent, 'sleep', side_effect=gevent.GreenletExit())
     @mock.patch('gevent.event.Event', side_effect=gevent_event_mock_factory)
-    @mock.patch.object(calendar, 'timegm', side_effect=logical_millisec)
+    @mock.patch('minemeld.ft.basepoller.utc_millisec', side_effect=logical_millisec)
     def test_permanent_feed(self, um_mock, event_mock,
                             sleep_mock, spawnl_mock, spawn_mock):
         global CUR_LOGICAL_TIME
