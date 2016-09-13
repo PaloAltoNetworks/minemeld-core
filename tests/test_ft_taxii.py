@@ -196,8 +196,10 @@ class MineMeldFTTaxiiTests(unittest.TestCase):
 
         stixdict = xmltodict.parse(args[2])
         indicator = stixdict['stix:STIX_Package']['stix:Indicators']['stix:Indicator']
-        cyboxprops = indicator['indicator:Observable']['cybox:Object']['cybox:Properties']
-        self.assertEqual(cyboxprops['AddressObj:Address_Value'], '1.1.1.0-1.1.1.33')
+        cyboxprops = indicator[0]['indicator:Observable']['cybox:Object']['cybox:Properties']
+        self.assertEqual(cyboxprops['AddressObj:Address_Value'], '1.1.1.0/27')
+        cyboxprops = indicator[1]['indicator:Observable']['cybox:Object']['cybox:Properties']
+        self.assertEqual(cyboxprops['AddressObj:Address_Value'], '1.1.1.32/31')
         SR_mock.reset_mock()
 
         b.stop()
@@ -251,6 +253,59 @@ class MineMeldFTTaxiiTests(unittest.TestCase):
         indicator = stixdict['stix:STIX_Package']['stix:Indicators']['stix:Indicator']
         cyboxprops = indicator['indicator:Observable']['cybox:Object']['cybox:Properties']
         self.assertEqual(cyboxprops['DomainNameObj:Value'], 'example.com')
+        SR_mock.reset_mock()
+
+        b.stop()
+
+    @mock.patch.object(redis, 'StrictRedis')
+    @mock.patch.object(gevent, 'Greenlet')
+    def test_datafeed_update_url(self, glet_mock, SR_mock):
+        config = {}
+        chassis = mock.Mock()
+
+        chassis.request_sub_channel.return_value = None
+        ochannel = mock.Mock()
+        chassis.request_pub_channel.return_value = ochannel
+        chassis.request_rpc_channel.return_value = None
+        rpcmock = mock.Mock()
+        rpcmock.get.return_value = {'error': None, 'result': 'OK'}
+        chassis.send_rpc.return_value = rpcmock
+
+        b = minemeld.ft.taxii.DataFeed(FTNAME, chassis, config)
+
+        inputs = ['a']
+        output = False
+
+        b.connect(inputs, output)
+        b.mgmtbus_initialize()
+
+        b.start()
+        # __init__ + get chkp + delete chkp
+        self.assertEqual(len(SR_mock.mock_calls), 3)
+        SR_mock.reset_mock()
+
+        # unicast
+        b.update(
+            'a',
+            indicator='www.example.com/admin.php',
+            value={
+                'type': 'URL',
+                'confidence': 100,
+                'share_level': 'green',
+                'sources': ['test.1']
+            }
+        )
+        for call in SR_mock.mock_calls:
+            name, args, kwargs = call
+            if name == '().pipeline().__enter__().hset':
+                break
+        else:
+            self.fail(msg='hset not found')
+
+        stixdict = xmltodict.parse(args[2])
+        indicator = stixdict['stix:STIX_Package']['stix:Indicators']['stix:Indicator']
+        cyboxprops = indicator['indicator:Observable']['cybox:Object']['cybox:Properties']
+        self.assertEqual(cyboxprops['URIObj:Value'], 'www.example.com/admin.php')
         SR_mock.reset_mock()
 
         b.stop()
