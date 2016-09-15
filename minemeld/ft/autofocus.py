@@ -37,6 +37,9 @@ class ExportList(basepoller.BasePollerFT):
         self.api_key = None
         self.label = None
 
+        self.hostname = self.config.get('autofocus_hostname', None)
+        self.verify_cert = self.config.get('verify_cert', None)
+
         self.side_config_path = self.config.get('side_config', None)
         if self.side_config_path is None:
             self.side_config_path = os.path.join(
@@ -141,6 +144,8 @@ class ExportList(basepoller.BasePollerFT):
         }
 
         af = pan.afapi.PanAFapi(
+            hostname=self.hostname,
+            verify_cert=self.verify_cert,
             api_key=self.api_key
         )
 

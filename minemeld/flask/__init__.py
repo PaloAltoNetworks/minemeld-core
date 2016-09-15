@@ -22,6 +22,7 @@ import logging
 
 from . import config
 from . import aaa
+from . import session
 
 
 LOG = logging.getLogger(__name__)
@@ -36,6 +37,7 @@ else:
     app.logger.setLevel(logging.INFO)
 
 aaa.LOGIN_MANAGER.init_app(app)
+session.init_app(app)
 
 
 try:
@@ -310,6 +312,9 @@ try:
 
 except ImportError:
     LOG.exception("supervisor and psutil needed for supervisor entrypoint")
+
+# login
+from . import login
 
 # prototypes
 from . import prototypeapi  # noqa
