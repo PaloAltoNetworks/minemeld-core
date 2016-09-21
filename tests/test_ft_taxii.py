@@ -28,14 +28,90 @@ import gevent
 import greenlet
 import time
 import xmltodict
+import os
+import libtaxii.constants
 
 import minemeld.ft.taxii
 import minemeld.ft
 
 FTNAME = 'testft-%d' % int(time.time())
 
+MYDIR = os.path.dirname(__file__)
+
+
+class MockTaxiiContentBlock(object):
+    def __init__(self, stix_xml):
+        class _Binding(object):
+            def __init__(self, id_):
+                self.binding_id = id_
+
+        self.content = stix_xml
+        self.content_binding = _Binding(libtaxii.constants.CB_STIX_XML_111)
+
 
 class MineMeldFTTaxiiTests(unittest.TestCase):
+    @mock.patch.object(gevent, 'Greenlet')
+    def test_taxiiclient_parse(self, glet_mock):
+        config = {
+            'side_config': 'dummy.yml'
+        }
+        chassis = mock.Mock()
+
+        chassis.request_sub_channel.return_value = None
+        ochannel = mock.Mock()
+        chassis.request_pub_channel.return_value = ochannel
+        chassis.request_rpc_channel.return_value = None
+        rpcmock = mock.Mock()
+        rpcmock.get.return_value = {'error': None, 'result': 'OK'}
+        chassis.send_rpc.return_value = rpcmock
+
+        b = minemeld.ft.taxii.TaxiiClient(FTNAME, chassis, config)
+
+        inputs = []
+        output = False
+
+        b.connect(inputs, output)
+        b.mgmtbus_initialize()
+
+        b.start()
+
+        testfiles = os.listdir(MYDIR)
+        testfiles = filter(
+            lambda x: x.startswith('test_ft_taxii_stix_package_'),
+            testfiles
+        )
+
+        for t in testfiles:
+            with open(os.path.join(MYDIR, t), 'r') as f:
+                sxml = f.read()
+
+            stix_objects = {
+                'observables': {},
+                'indicators': {},
+                'ttps': {}
+            }
+
+            content_blocks = [
+                MockTaxiiContentBlock(sxml)
+            ]
+
+            b._handle_content_blocks(
+                content_blocks,
+                stix_objects
+            )
+
+            params = {
+                'ttps': stix_objects['ttps'],
+                'observables': stix_objects['observables']
+            }
+            indicators = [[iid, iv, params] for iid, iv in stix_objects['indicators'].iteritems()]
+
+            for i in indicators:
+                result = b._process_item(i)
+                self.assertEqual(len(result), 3)
+
+        b.stop()
+
     @mock.patch.object(redis, 'StrictRedis')
     @mock.patch.object(gevent, 'Greenlet')
     def test_datafeed_init(self, glet_mock, SR_mock):

@@ -378,11 +378,12 @@ class TaxiiClient(basepoller.BasePollerFT):
                         os = []
                         ttps = []
 
-                        if i.observable:
-                            os.append(self._decode_observable(i.observable))
                         if i.observables:
                             for o in i.observables:
                                 os.append(self._decode_observable(o))
+                        if i.observable and len(os) == 0:
+                            os.append(self._decode_observable(i.observable))
+
                         if i.indicated_ttps:
                             for t in i.indicated_ttps:
                                 ttps.append(self._decode_ttp(t))
@@ -415,11 +416,31 @@ class TaxiiClient(basepoller.BasePollerFT):
 
         odict = o.to_dict()
 
+        result = {}
+
         oc = odict.get('observable_composition', None)
         if oc:
-            LOG.error('%s - Observable composition not supported yet: %s',
-                      self.name, odict)
-            return None
+            ocoperator = oc.get('operator', None)
+            if ocoperator != 'OR':
+                LOG.error(
+                    '%s - Observable composition with %s not supported yet: %s',
+                    self.name, ocoperator, odict
+                )
+                return None
+
+            result['type'] = '_cyboxOR'
+
+            result['observables'] = []
+            for nestedo in oc['observables']:
+                if 'idref' not in nestedo:
+                    LOG.error(
+                        '%s - only Observable references are supported in Observable Composition: %s',
+                        self.name, odict
+                    )
+                    return None
+                result['observables'].append(nestedo['idref'])
+
+            return result
 
         oo = odict.get('object', None)
         if oo is None:
@@ -435,8 +456,6 @@ class TaxiiClient(basepoller.BasePollerFT):
         if ot is None:
             LOG.error('%s - no type in observable props', self.name)
             return None
-
-        result = {}
 
         if ot == 'DomainNameObjectType':
             result['type'] = 'domain'
@@ -530,6 +549,7 @@ class TaxiiClient(basepoller.BasePollerFT):
             if ttp is not None and 'description' in ttp:
                 value['%s_ttp' % self.prefix] = ttp['description']
 
+        composed_observables = []
         for o in iv['observables']:
             v = copy.copy(value)
 
@@ -539,6 +559,37 @@ class TaxiiClient(basepoller.BasePollerFT):
                 v['%s_observable' % self.prefix] = o['idref']
 
             if ob is None:
+                continue
+
+            if ob['type'] == '_cyboxOR':
+                for o in ob['observables']:
+                    composed_observables.append(o)
+                continue
+
+            v['type'] = ob['type']
+
+            if type(ob['indicator']) == list:
+                indicator = ob['indicator']
+            else:
+                indicator = [ob['indicator']]
+
+            for i in indicator:
+                result.append([i, v])
+
+        for o in composed_observables:
+            v = copy.copy(value)
+
+            ob = stix_objects['observables'].get(o, None)
+            v['%s_observable' % self.prefix] = o
+
+            if ob is None:
+                continue
+
+            if ob['type'] == '_cyboxOR':
+                LOG.error(
+                    '%s - Nested Observable Composition not supported',
+                    self.name
+                )
                 continue
 
             v['type'] = ob['type']
