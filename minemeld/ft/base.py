@@ -218,7 +218,8 @@ class BaseFT(object):
 
         First line of the checkpoint file is a UUID, the *checkpoint* received
         before stopping. The second line is a dictionary in JSON with the class
-        of the node and the config.
+        of the node and the config. The third line is a dictionary in JSON
+        with the persistent state of the node.
 
         Checkpoint files are used to check if the saved state on disk is
         consistent with the current running config. If the state is not
@@ -229,34 +230,58 @@ class BaseFT(object):
         """
         self.last_checkpoint = None
 
-        status = {
+        config = {
             'class': (self.__class__.__module__+'.'+self.__class__.__name__),
             'config': self._original_config
         }
-        status = json.dumps(status, sort_keys=True)
+        config = json.dumps(config, sort_keys=True)
 
         try:
             with open(self.name+'.chkp', 'r') as f:
-                self.last_checkpoint = f.readline().strip()
-                old_status = f.readline().strip()
+                contents = f.read()
+                if contents[0] == '{':
+                    # new format
+                    contents = json.loads(contents)
+                    self.last_checkpoint = contents['checkpoint']
+                    saved_config = contents['config']
+                    saved_state = contents['state']
+
+                else:
+                    # old format
+                    lines = contents.splitlines()
+                    self.last_checkpoint = lines[0]
+
+                    saved_config = ''
+                    if len(lines) > 1:
+                        # this to support a really old format
+                        # where only checkpoint value was saved
+                        saved_config = lines[1]
+
+                    saved_state = None
+
+                LOG.debug('%s - restored checkpoint: %s', self.name, self.last_checkpoint)
 
             os.remove(self.name+'.chkp')
 
             # old_status is missing in old releases
             # stick to the old behavior
-            if old_status and old_status != status:
+            if saved_config and saved_config != config:
                 LOG.info(
-                    '%s - old config does not match new config',
+                    '%s - saved config does not match new config',
                     self.name
                 )
                 self.last_checkpoint = None
-            else:
-                LOG.info(
-                    '%s - old config matches new config',
-                    self.name
-                )
+                return
 
-        except IOError:
+            LOG.info(
+                '%s - saved config matches new config',
+                self.name
+            )
+
+            if saved_state is not None:
+                self._saved_state_restore(saved_state)
+
+        except (ValueError, IOError):
             LOG.exception('%s - Error reading last checkpoint', self.name)
             self.last_checkpoint = None
 
@@ -268,15 +293,26 @@ class BaseFT(object):
         Args:
             value (str): received *checkpoint*
         """
-        status = {
+        config = {
             'class': (self.__class__.__module__+'.'+self.__class__.__name__),
             'config': self._original_config
         }
-        status = json.dumps(status, sort_keys=True)
+
+        contents = {
+            'checkpoint': value,
+            'config': json.dumps(config, sort_keys=True),
+            'state': self._saved_state_create()
+        }
 
         with open(self.name+'.chkp', 'w') as f:
-            f.write(value+'\n')
-            f.write(status)
+            f.write(json.dumps(contents))
+            f.write('\n')
+
+    def _saved_state_restore(self, saved_state):
+        pass
+
+    def _saved_state_create(self):
+        return {}
 
     def configure(self):
         """Applies the config settings stored in `self.config`.
