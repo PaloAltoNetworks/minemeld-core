@@ -177,6 +177,7 @@ class BasePollerFT(base.BaseFT):
         self.active_requests = []
         self.rebuild_flag = False
         self.last_run = None
+        self.last_successful_run = None
         self.last_ageout_run = None
 
         self.poll_event = gevent.event.Event()
@@ -209,6 +210,23 @@ class BasePollerFT(base.BaseFT):
                 continue
             self.age_out[k] = parse_age_out(v)
 
+    def _saved_state_restore(self, saved_state):
+        self.last_run = saved_state.get('last_run', None)
+        self.last_successful_run = saved_state.get(
+            'last_successful_run',
+            None
+        )
+
+    def _saved_state_create(self):
+        return {
+            'last_run': self.last_run,
+            'last_successful_run': self.last_successful_run
+        }
+
+    def _saved_state_reset(self):
+        self.last_successful_run = None
+        self.last_run = None
+
     def _initialize_table(self, truncate=False):
         self.table = table.Table(self.name, truncate=truncate)
         self.table.create_index('_age_out')
@@ -223,6 +241,7 @@ class BasePollerFT(base.BaseFT):
         self._initialize_table(truncate=(self.last_checkpoint is None))
 
     def reset(self):
+        self._saved_state_reset()
         self._initialize_table(truncate=True)
 
     @base.BaseFT.state.setter
@@ -401,6 +420,22 @@ class BasePollerFT(base.BaseFT):
                               self.name, istatus.state)
                     continue
 
+    def _huppable_wait(self):
+        now = utc_millisec()
+        deltat = (self.last_run+self.interval*1000)-now
+
+        while deltat < 0:
+            LOG.warning(
+                'Time for processing exceeded interval for %s',
+                self.name
+            )
+            deltat += self.interval*1000
+
+        hup_called = self.poll_event.wait(timeout=deltat/1000.0)
+        if hup_called:
+            LOG.debug('%s - clearing poll event', self.name)
+            self.poll_event.clear()
+
     def _run(self):
         while self.last_ageout_run is None:
             gevent.sleep(1)
@@ -419,6 +454,17 @@ class BasePollerFT(base.BaseFT):
         finally:
             self.state_lock.unlock()
 
+        if self.last_run is not None:
+            LOG.info(
+                '%s - restored last run, waiting until the next poll time',
+                self.name
+            )
+
+            try:
+                self._huppable_wait()
+            except gevent.GreenletExit:
+                return
+
         tryn = 0
 
         while True:
@@ -431,6 +477,7 @@ class BasePollerFT(base.BaseFT):
 
             try:
                 self._polling_loop()
+                self.last_successful_run = lastrun
 
                 if self.age_out['sudden_death']:
                     self._sudden_death()
@@ -457,23 +504,10 @@ class BasePollerFT(base.BaseFT):
                       self.name, self.table.num_indicators)
 
             self.last_run = lastrun
-
             tryn = 0
 
-            now = utc_millisec()
-            deltat = (lastrun+self.interval*1000)-now
-
-            while deltat < 0:
-                LOG.warning("Time for processing exceeded interval for %s",
-                            self.name)
-                deltat += self.interval*1000
-
             try:
-                hup_called = self.poll_event.wait(timeout=deltat/1000.0)
-                if hup_called:
-                    LOG.debug('%s - clearing poll event', self.name)
-                    self.poll_event.clear()
-
+                self._huppable_wait()
             except gevent.GreenletExit:
                 break
 
