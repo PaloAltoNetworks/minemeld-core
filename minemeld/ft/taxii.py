@@ -472,9 +472,9 @@ class TaxiiClient(basepoller.BasePollerFT):
 
         elif ot == 'AddressObjectType':
             addrcat = op.get('category', None)
+            result['type'] = 'IPv4'
             if addrcat == 'ipv6-addr':
                 result['type'] = 'IPv6'
-            result['type'] = 'IPv4'
 
             source = op.get('is_source', None)
             if source is True:
