@@ -400,6 +400,10 @@ class AMQPSubChannel(object):
 class AMQP(object):
     def __init__(self, config):
         self.num_connections = config.pop('num_connections', 1)
+
+        if 'host' not in config:
+            config['host'] = '127.0.0.1'
+
         self.amqp_config = config
 
         self.rpc_server_channels = {}
