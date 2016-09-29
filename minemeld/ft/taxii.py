@@ -749,7 +749,7 @@ class DataFeed(base.BaseFT):
     def configure(self):
         super(DataFeed, self).configure()
 
-        self.redis_host = self.config.get('redis_host', 'localhost')
+        self.redis_host = self.config.get('redis_host', '127.0.0.1')
         self.redis_port = self.config.get('redis_port', 6379)
         self.redis_password = self.config.get('redis_password', None)
         self.redis_db = self.config.get('redis_db', 0)
