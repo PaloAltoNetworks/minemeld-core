@@ -33,7 +33,7 @@ class LogstashOutput(base.BaseFT):
     def configure(self):
         super(LogstashOutput, self).configure()
 
-        self.logstash_host = self.config.get('logstash_host', 'localhost')
+        self.logstash_host = self.config.get('logstash_host', '127.0.0.1')
         self.logstash_port = int(self.config.get('logstash_port', '5514'))
 
     def connect(self, inputs, output):

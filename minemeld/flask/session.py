@@ -64,7 +64,7 @@ class RedisSessionInterface(flask.sessions.SessionInterface):
 
     def save_session(self, app, session, response):
         domain = self.get_cookie_domain(app)
-        if not 'user_id' in session:
+        if 'user_id' not in session:
             self.redis.delete(self.prefix + session.sid)
 
             if session.modified:
@@ -92,9 +92,12 @@ class RedisSessionInterface(flask.sessions.SessionInterface):
         )
 
 
-def init_app(app):
-    app.session_interface = RedisSessionInterface()
+def init_app(app, redis_url):
+    app.session_interface = RedisSessionInterface(
+        redis_=redis.StrictRedis.from_url(redis_url)
+    )
+
     app.config.update(
-        SESSION_COOKIE_NAME = 'mm-session',
-        SESSION_COOKIE_SECURE = True
+        SESSION_COOKIE_NAME='mm-session',
+        SESSION_COOKIE_SECURE=True
     )

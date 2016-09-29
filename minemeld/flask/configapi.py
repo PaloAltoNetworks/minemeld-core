@@ -671,3 +671,16 @@ def append_config_data(datafilename):
         MMRpcClient.send_cmd(hup, 'hup', {'source': 'minemeld-web'})
 
     return jsonify(result='ok')
+
+
+@_redlock
+def _init_config():
+    try:
+        _config_info(lock=False)
+
+    except ValueError:
+        LOG.info('Loading running config in memory')
+        _load_running_config()
+
+def init_app(app):
+    app.before_first_request(_init_config)

@@ -27,6 +27,9 @@ from . import session
 
 LOG = logging.getLogger(__name__)
 
+REDIS_URL = config.get('REDIS_URL', 'redis://127.0.0.1:6379/0')
+
+
 # create flask app and load config from vmsh.config.api module
 app = Flask(__name__)
 
@@ -37,7 +40,7 @@ else:
     app.logger.setLevel(logging.INFO)
 
 aaa.LOGIN_MANAGER.init_app(app)
-session.init_app(app)
+session.init_app(app, REDIS_URL)
 
 
 try:
@@ -254,8 +257,7 @@ try:
     def get_SR():
         SR = getattr(g, '_redis_client', None)
         if SR is None:
-            redis_url = config.get('REDIS_URL', 'redis://localhost:6379/0')
-            SR = redis.StrictRedis.from_url(redis_url)
+            SR = redis.StrictRedis.from_url(REDIS_URL)
             g._redis_client = SR
         return SR
 
@@ -273,6 +275,8 @@ try:
     from . import taxiidiscovery  # noqa
     from . import taxiicollmgmt  # noqa
     from . import taxiipoll  # noqa
+
+    configapi.init_app(app)
 
 except ImportError:
     LOG.exception("redis is needed for feed and config entrypoints")
