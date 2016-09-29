@@ -472,9 +472,9 @@ class TaxiiClient(basepoller.BasePollerFT):
 
         elif ot == 'AddressObjectType':
             addrcat = op.get('category', None)
+            result['type'] = 'IPv4'
             if addrcat == 'ipv6-addr':
                 result['type'] = 'IPv6'
-            result['type'] = 'IPv4'
 
             source = op.get('is_source', None)
             if source is True:
@@ -749,7 +749,7 @@ class DataFeed(base.BaseFT):
     def configure(self):
         super(DataFeed, self).configure()
 
-        self.redis_host = self.config.get('redis_host', 'localhost')
+        self.redis_host = self.config.get('redis_host', '127.0.0.1')
         self.redis_port = self.config.get('redis_port', 6379)
         self.redis_password = self.config.get('redis_password', None)
         self.redis_db = self.config.get('redis_db', 0)

@@ -49,7 +49,7 @@ class Query(gevent.Greenlet):
         self.starting_counter = counter
         self.num_lines = num_lines
 
-        self.redis_host = redis_config.get('host', 'localhost')
+        self.redis_host = redis_config.get('host', '127.0.0.1')
         self.redis_port = redis_config.get('port', 6379)
         self.redis_password = redis_config.get('password', None)
         self.redis_db = redis_config.get('db', 0)
