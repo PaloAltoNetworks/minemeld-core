@@ -61,6 +61,7 @@ class Chassis(object):
         )
         self.mgmtbus.add_failure_listener(self.mgmtbus_failed)
         self.log_channel = self.mgmtbus.request_log_channel()
+        self.status_channel = self.mgmtbus.request_status_channel()
 
     def _dynamic_load(self, classname):
         modname, classname = classname.rsplit('.', 1)
@@ -127,6 +128,16 @@ class Chassis(object):
                 'source': nodename,
                 'log_type': log_type,
                 'log': value
+            }
+        )
+
+    def publish_status(self, timestamp, nodename, status):
+        self.status_channel.publish(
+            method='status',
+            params={
+                'timestamp': timestamp,
+                'source': nodename,
+                'status': status
             }
         )
 

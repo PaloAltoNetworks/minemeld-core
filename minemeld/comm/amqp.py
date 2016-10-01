@@ -303,7 +303,7 @@ class AMQPRpcServerChannel(object):
 
 
 class AMQPSubChannel(object):
-    def __init__(self, topic, listeners=None, name=None):
+    def __init__(self, topic, listeners=None, name=None, max_length=None):
         if listeners is None:
             listeners = []
 
@@ -311,6 +311,7 @@ class AMQPSubChannel(object):
         self.channel = None
         self.listeners = listeners
         self.name = name
+        self.max_length = max_length
 
         self.num_callbacks = 0
 
@@ -371,6 +372,9 @@ class AMQPSubChannel(object):
             qdeclare_args['arguments'] = {
                 'x-expires': 10*60*1000  # 10 minutes
             }
+
+            if self.max_length is not None:
+                qdeclare_args['arguments']['x-max-length'] = self.max_length
 
         q = self.channel.queue_declare(
             **qdeclare_args
@@ -449,7 +453,7 @@ class AMQP(object):
         return self.pub_channels[topic]
 
     def request_sub_channel(self, topic, obj=None, allowed_methods=None,
-                            name=None):
+                            name=None, max_length=None):
         if allowed_methods is None:
             allowed_methods = []
 
@@ -460,7 +464,8 @@ class AMQP(object):
         subchannel = AMQPSubChannel(
             topic,
             [(obj, allowed_methods)],
-            name=name
+            name=name,
+            max_length=max_length
         )
         self.sub_channels[topic] = subchannel
 
