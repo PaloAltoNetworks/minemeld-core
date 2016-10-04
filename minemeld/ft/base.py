@@ -117,9 +117,9 @@ def _counting(statsname):
     """
     def _counter_out(f):
         def _counter(self, *args, **kwargs):
-            LOG.debug('updating %s', statsname)
             self.statistics[statsname] += 1
             f(self, *args, **kwargs)
+            self.publish_status()
         return _counter
     return _counter_out
 
@@ -204,6 +204,8 @@ class BaseFT(object):
 
         self._state = ft_states.READY
 
+        self._last_status_publish = None
+
     @property
     def state(self):
         return self._state
@@ -212,6 +214,9 @@ class BaseFT(object):
     def state(self, value):
         LOG.info("%s - transitioning to state %d", self.name, value)
         self._state = value
+
+        if value >= ft_states.INIT and value <= ft_states.STOPPED:
+            self.publish_status(force=True)
 
     def read_checkpoint(self):
         """Reads checkpoint file from disk.
@@ -569,6 +574,20 @@ class BaseFT(object):
             'is_source': len(self.inputs) == 0
         }
 
+    def publish_status(self, force=False):
+        now = utils.utc_millisec()
+
+        if self._last_status_publish > now - 5000 and not force:
+            return
+
+        self._last_status_publish = now
+        status = self.mgmtbus_status()
+        self.chassis.publish_status(
+            timestamp=utils.utc_millisec(),
+            nodename=self.name,
+            status=status
+        )
+
     def mgmtbus_initialize(self):
         self.state = ft_states.INIT
         self.initialize()
@@ -587,11 +606,17 @@ class BaseFT(object):
         return 'OK'
 
     def mgmtbus_status(self):
+        try:
+            # if node is not ready yet to publish the length
+            length = self.length()
+        except:
+            length = None
+
         result = {
             'class': (self.__class__.__module__+'.'+self.__class__.__name__),
             'state': self.state,
             'statistics': self.statistics,
-            'length': self.length(),
+            'length': length,
             'inputs': self.inputs,
             'output': (self.output is not None)
         }
