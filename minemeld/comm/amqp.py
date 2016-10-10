@@ -418,6 +418,8 @@ class AMQP(object):
         self.rpc_out_channel = None
         self.active_rpcs = {}
 
+        self._rpc_in_connection = None
+
         self._connections = []
         self.ioloops = []
 
@@ -519,10 +521,14 @@ class AMQP(object):
         return result
 
     def _ioloop(self, j):
-        LOG.debug('start draining events on connection %d', j)
+        LOG.debug('start draining events on connection %r', j)
+
+        conn = self._rpc_in_connection
+        if j is not None:
+            conn = self._connections[j]
 
         while True:
-            self._connections[j].drain_events()
+            conn.drain_events()
 
     def _ioloop_failure(self, g):
         LOG.debug('_ioloop_failure')
@@ -551,10 +557,6 @@ class AMQP(object):
             )
 
         csel = 0
-        for rpcc in self.rpc_server_channels.values():
-            rpcc.connect(self._connections[csel % self.num_connections])
-            csel += 1
-
         for sc in self.sub_channels.values():
             sc.connect(self._connections[csel % self.num_connections])
             csel += 1
@@ -580,10 +582,22 @@ class AMQP(object):
             exclusive=True
         )
 
+        # create RPC servers connection and set the waiter to MAXPRI
+        self._rpc_in_connection = amqp.connection.Connection(**self.amqp_config)
+        self._rpc_in_connection.sock._read_event.priority = gevent.core.MAXPRI
+        self._rpc_in_connection.sock._write_event.priority = gevent.core.MAXPRI
+
+        for rpcc in self.rpc_server_channels.values():
+            rpcc.connect(self._rpc_in_connection)
+
         for j in range(num_conns_total):
             g = gevent.spawn(self._ioloop, j)
             self.ioloops.append(g)
             g.link_exception(self._ioloop_failure)
+
+        g = gevent.spawn(self._ioloop, None)
+        self.ioloops.append(g)
+        g.link_exception(self._ioloop_failure)
 
     def stop(self):
         num_conns_total = sum([
@@ -631,3 +645,6 @@ class AMQP(object):
         for j in range(len(self._connections)):
             self._connections[j].close()
             self._connections[j] = None
+
+        self._rpc_in_connection.close()
+        self._rpc_in_connection = None
