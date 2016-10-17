@@ -181,6 +181,7 @@ class BasePollerFT(base.BaseFT):
         self.last_successful_run = None
         self.last_ageout_run = None
         self._sub_state = None
+        self._sub_state_message = None
 
         self.poll_event = gevent.event.Event()
 
@@ -506,7 +507,12 @@ class BasePollerFT(base.BaseFT):
                 break
 
             except Exception as e:
-                _result = 'ERROR'
+                try:
+                    _error_msg = str(e)
+                except UnicodeDecodeError:
+                    _error_msg = repr(e)
+
+                _result = ('ERROR', _error_msg)
 
                 self.statistics['error.polling'] += 1
 
@@ -536,17 +542,26 @@ class BasePollerFT(base.BaseFT):
         result = super(BasePollerFT, self).mgmtbus_status()
         result['last_run'] = self.last_run
         result['last_successful_run'] = self.last_successful_run
-        result['sub_state'] = self.sub_state
+        result['sub_state'] = self.sub_state[0]
+
+        if self.sub_state[1] is not None:
+            result['sub_state_message'] = self.sub_state[1]
 
         return result
 
     @property
     def sub_state(self):
-        return self._sub_state
+        return (self._sub_state, self._sub_state_message)
 
     @sub_state.setter
     def sub_state(self, value):
-        self._sub_state = value
+        if (type(value) == tuple):
+            self._sub_state = value[0]
+            self._sub_state_message = value[1]
+        else:
+            self._sub_state = value
+            self._sub_state_message = None
+
         self.publish_status(force=True)
 
     def hup(self, source=None):
