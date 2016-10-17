@@ -121,7 +121,9 @@ class Feed(basepoller.BasePollerFT):
                 '%s - token, remote or filters not set, poll not performed',
                 self.name
             )
-            return []
+            raise RuntimeError(
+                '%s - token, remote or filters not set, poll not performed' % self.name
+            )
 
         filters = {}
         filters.update(self.filters)
@@ -145,7 +147,8 @@ class Feed(basepoller.BasePollerFT):
         cifclient = cifsdk.client.Client(
             token=self.token,
             remote=self.remote,
-            verify_ssl=self.verify_cert
+            verify_ssl=self.verify_cert,
+            timeout=900
         )
 
         try:
