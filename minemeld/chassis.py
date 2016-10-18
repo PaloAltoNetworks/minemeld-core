@@ -22,6 +22,7 @@ Nodes communicate using the fabric.
 import logging
 
 import gevent
+import gevent.queue
 import gevent.monkey
 gevent.monkey.patch_all(thread=False, select=False)
 
@@ -60,8 +61,14 @@ class Chassis(object):
             mgmtbusconfig['transport']['config']
         )
         self.mgmtbus.add_failure_listener(self.mgmtbus_failed)
+
+        self.log_channel_queue = gevent.queue.Queue(maxsize=128)
         self.log_channel = self.mgmtbus.request_log_channel()
+        self.log_glet = None
+
+        self.status_channel_queue = gevent.queue.Queue(maxsize=128)
         self.status_channel = self.mgmtbus.request_status_channel()
+        self.status_glet = None
 
     def _dynamic_load(self, classname):
         modname, classname = classname.rsplit('.', 1)
@@ -120,26 +127,44 @@ class Chassis(object):
         return self.fabric.send_rpc(sftname, dftname, method, params,
                                     block=block, timeout=timeout)
 
+    def _log_actor(self):
+        while True:
+            try:
+                params = self.log_channel_queue.get()
+                self.log_channel.publish(
+                    method='log',
+                    params=params
+                )
+
+            except Exception as e:
+                LOG.exception('Error sending log')
+
     def log(self, timestamp, nodename, log_type, value):
-        self.log_channel.publish(
-            method='log',
-            params={
-                'timestamp': timestamp,
-                'source': nodename,
-                'log_type': log_type,
-                'log': value
-            }
-        )
+        self.log_channel_queue.put({
+            'timestamp': timestamp,
+            'source': nodename,
+            'log_type': log_type,
+            'log': value
+        })
+
+    def _status_actor(self):
+        while True:
+            try:
+                params = self.status_channel_queue.get()
+                self.status_channel.publish(
+                    method='status',
+                    params=params
+                )
+
+            except Exception as e:
+                LOG.exception('Error publishing status')
 
     def publish_status(self, timestamp, nodename, status):
-        self.status_channel.publish(
-            method='status',
-            params={
-                'timestamp': timestamp,
-                'source': nodename,
-                'status': status
-            }
-        )
+        self.status_channel_queue.put({
+            'timestamp': timestamp,
+            'source': nodename,
+            'status': status
+        })
 
     def fabric_failed(self):
         self.stop()
@@ -157,19 +182,32 @@ class Chassis(object):
     def stop(self):
         LOG.info("chassis stop called")
 
+        if self.log_glet is not None:
+            self.log_glet.kill()
+
+        if self.status_glet is not None:
+            self.status_glet.kill()
+
         if self.fabric is None:
             return
 
         for _, ft in self.fts.iteritems():
             ft.stop()
 
+        LOG.info('Stopping fabric')
         self.fabric.stop()
+
+        LOG.info('Stopping mgmtbus')
         self.mgmtbus.stop()
 
+        LOG.info('chassis - stopped')
         self.poweroff.set(value='stop')
 
     def start(self):
         LOG.info("chassis start called")
+
+        self.log_glet = gevent.spawn(self._log_actor)
+        self.status_glet = gevent.spawn(self._status_actor)
 
         if self.fabric is None:
             return

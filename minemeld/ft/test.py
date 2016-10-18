@@ -117,3 +117,42 @@ class TestFeed(base.BaseFT):
 
     def length(self, source=None):
         pass
+
+
+class FaultyConfig(base.BaseFT):
+    def configure(self):
+        super(FaultyConfig, self).configure()
+
+        raise RuntimeError('fault !')
+
+    def initialize(self):
+        pass
+
+    def rebuild(self):
+        pass
+
+    def reset(self):
+        pass
+
+    def length(self, source=None):
+        return 0
+
+
+class FaultyInit(base.BaseFT):
+    def __init__(self, name, chassis, config):
+        raise RuntimeError('fault !')
+
+    def configure(self):
+        pass
+
+    def initialize(self):
+        pass
+
+    def rebuild(self):
+        pass
+
+    def reset(self):
+        pass
+
+    def length(self, source=None):
+        return 0

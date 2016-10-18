@@ -56,6 +56,8 @@ def _run_chassis(fabricconfig, mgmtbusconfig, fts):
         try:
             c.start()
             c.poweroff.wait()
+            LOG.info('power off')
+
         except KeyboardInterrupt:
             LOG.error("We should not be here !")
             c.stop()
@@ -186,11 +188,11 @@ def main():
         processes.append(p)
         p.start()
 
-    LOG.info('Waiting for chassis getting ready')
-    gevent.sleep(5)
-
     gevent.signal(signal.SIGINT, _sigint_handler)
     gevent.signal(signal.SIGTERM, _sigterm_handler)
+
+    LOG.info('Waiting for chassis to get ready')
+    gevent.sleep(5)
 
     mbusmaster = _start_mgmtbus_master(
         config['mgmtbus'],
