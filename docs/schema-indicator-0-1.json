@@ -8,7 +8,7 @@
         "type": {
             "description": "type of the indicator",
             "type": "string",
-            "enum": ["IPv4", "IPv6", "domain", "URL"]
+            "enum": ["IPv4", "IPv6", "domain", "URL", "sha256", "sha1", "md5", "ssdeep"]
         },
         "direction": {
             "description": "direction of the session, applies to IPv4",
@@ -42,7 +42,7 @@
         "share_level": {
             "description": "share level of indicator",
             "type": "string",
-            "enum": ["green", "amber", "red"]
+            "enum": ["white", "green", "amber", "red"]
         },
         "country": {
             "type": "string",
