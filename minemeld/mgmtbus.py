@@ -139,11 +139,10 @@ class MgmtbusMaster(object):
             return
 
         revt = self._send_cmd('state_info')
-        success = revt.wait(timeout=30)
+        success = revt.wait(timeout=60)
         if success is None:
-            LOG.error('timeout in state_info, sending reset')
-            self._send_cmd('reset', and_discard=True)
-            return
+            LOG.critical('timeout in state_info, bailing out')
+            raise RuntimeError('timeout in state_info')
         result = revt.get(block=False)
 
         if result['errors'] > 0:

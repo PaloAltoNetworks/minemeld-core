@@ -57,9 +57,12 @@ class AMQPPubChannel(object):
         self.channel.close()
         self.channel = None
 
-    def publish(self, method, params={}):
+    def publish(self, method, params=None):
         if self.channel is None:
             return
+
+        if params is None:
+            params = {}
 
         msg = {
             'method': method,
@@ -83,6 +86,7 @@ class AMQPRpcFanoutClientChannel(object):
 
         self._in_channel = None
         self._out_channel = None
+        self._in_queue = None
 
     def _in_callback(self, msg):
         try:
@@ -125,9 +129,12 @@ class AMQPRpcFanoutClientChannel(object):
 
         gevent.sleep(0)
 
-    def send_rpc(self, method, params={}, num_results=0, and_discard=False):
+    def send_rpc(self, method, params=None, num_results=0, and_discard=False):
         if self._in_channel is None:
             raise RuntimeError('Not connected')
+
+        if params is None:
+            params = {}
 
         id_ = str(uuid.uuid1())
 
@@ -192,8 +199,11 @@ class AMQPRpcFanoutClientChannel(object):
 
 
 class AMQPRpcServerChannel(object):
-    def __init__(self, name, obj, allowed_methods=[],
+    def __init__(self, name, obj, allowed_methods=None,
                  method_prefix='', fanout=None):
+        if allowed_methods is None:
+            allowed_methods = []
+
         self.name = name
         self.obj = obj
         self.channel = None
@@ -253,8 +263,13 @@ class AMQPRpcServerChannel(object):
 
         try:
             result = m(**params)
+
+        except gevent.GreenletExit:
+            raise
+
         except Exception as e:
             self._send_result(reply_to, id_, error=str(e))
+
         else:
             self._send_result(reply_to, id_, result=result)
 
@@ -315,7 +330,10 @@ class AMQPSubChannel(object):
 
         self.num_callbacks = 0
 
-    def add_listener(self, obj, allowed_methods=[]):
+    def add_listener(self, obj, allowed_methods=None):
+        if allowed_methods is None:
+            allowed_methods = []
+
         self.listeners.append((obj, allowed_methods))
 
     def _callback(self, msg):
@@ -343,6 +361,10 @@ class AMQPSubChannel(object):
 
             try:
                 m(**params)
+
+            except gevent.GreenletExit:
+                raise
+
             except:
                 LOG.exception('Exception in handling %s on topic %s '
                               'with params %s', method, self.topic, params)
@@ -416,6 +438,7 @@ class AMQP(object):
         self.rpc_fanout_clients_channels = []
 
         self.rpc_out_channel = None
+        self.rpc_out_queue = None
         self.active_rpcs = {}
 
         self._rpc_in_connection = None
@@ -428,8 +451,11 @@ class AMQP(object):
     def add_failure_listener(self, listener):
         self.failure_listeners.append(listener)
 
-    def request_rpc_server_channel(self, name, obj=None, allowed_methods=[],
+    def request_rpc_server_channel(self, name, obj=None, allowed_methods=None,
                                    method_prefix='', fanout=None):
+        if allowed_methods is None:
+            allowed_methods = []
+
         if name in self.rpc_server_channels:
             return
 
@@ -514,6 +540,7 @@ class AMQP(object):
 
         try:
             result = self.active_rpcs[id_].get(block=block, timeout=timeout)
+
         except gevent.timeout.Timeout:
             self.active_rpcs.pop(id_)
             raise
@@ -552,9 +579,10 @@ class AMQP(object):
         ])
 
         for j in range(num_conns_total):
-            self._connections.append(
-                amqp.connection.Connection(**self.amqp_config)
-            )
+            c = amqp.connection.Connection(**self.amqp_config)
+            c.sock._read_event.priority = gevent.core.MINPRI
+            c.sock._write_event.priority = gevent.core.MINPRI
+            self._connections.append(c)
 
         csel = 0
         for sc in self.sub_channels.values():
