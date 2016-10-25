@@ -53,7 +53,7 @@ class Intelligence(basepoller.BasePollerFT):
         self.query = self.config.get('query', None)
         initial_interval = self.config.get('initial_interval', '3600')
         self.initial_interval = interval_in_sec(initial_interval)
-        if initial_interval is None:
+        if self.initial_interval is None:
             LOG.error(
                 '%s - wrong initial_interval format: %s',
                 self.name, initial_interval
