@@ -273,11 +273,6 @@ class AMQPRpcServerChannel(object):
         else:
             self._send_result(reply_to, id_, result=result)
 
-    def _g_callback(self, msg):
-        gevent.spawn(self._callback, msg)
-
-        gevent.sleep(0)
-
     def connect(self, conn):
         if self.channel is not None:
             return
@@ -304,7 +299,7 @@ class AMQPRpcServerChannel(object):
             )
 
         self.channel.basic_consume(
-            callback=self._g_callback,
+            callback=self._callback,
             no_ack=True,
             exclusive=True
         )
@@ -611,7 +606,9 @@ class AMQP(object):
         )
 
         # create RPC servers connection and set the waiter to MAXPRI
-        self._rpc_in_connection = amqp.connection.Connection(**self.amqp_config)
+        self._rpc_in_connection = amqp.connection.Connection(
+            **self.amqp_config
+        )
         self._rpc_in_connection.sock._read_event.priority = gevent.core.MAXPRI
         self._rpc_in_connection.sock._write_event.priority = gevent.core.MAXPRI
 
