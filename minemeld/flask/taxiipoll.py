@@ -97,9 +97,9 @@ def data_feed_11(rmsgid, cname, excbegtime, incendtime):
         }
         if excbegtime is not None:
             resp_header += (
-                '<taxii_11:Inclusive_End_Timestamp>' +
+                '<taxii_11:Exclusive_Begin_Timestamp>' +
                 excbegtime.isoformat() +
-                '</taxii_11:Inclusive_End_Timestamp>'
+                '</taxii_11:Exclusive_Begin_Timestamp>'
             )
 
         yield resp_header

@@ -74,7 +74,12 @@ try:
         def _send_cmd(self, method, params={}):
             self._open_channel()
 
-            return self.comm.send_rpc('mbus:master', method, params)
+            return self.comm.send_rpc(
+                'mbus:master',
+                method,
+                params,
+                timeout=10.0
+            )
 
         def status(self):
             return self._send_cmd('status')

@@ -32,9 +32,14 @@ from __future__ import absolute_import
 import logging
 import uuid
 import collections
+import time
 
 import gevent
 import gevent.event
+import gevent.lock
+
+import redis
+import ujson
 
 import minemeld.comm
 import minemeld.ft
@@ -47,6 +52,7 @@ MGMTBUS_PREFIX = "mbus:"
 MGMTBUS_TOPIC = MGMTBUS_PREFIX+'bus'
 MGMTBUS_MASTER = MGMTBUS_PREFIX+'master'
 MGMTBUS_LOG_TOPIC = MGMTBUS_PREFIX+'log'
+MGMTBUS_STATUS_TOPIC = MGMTBUS_PREFIX+'status'
 
 
 class MgmtbusMaster(object):
@@ -66,8 +72,14 @@ class MgmtbusMaster(object):
         self.comm_config = comm_config
         self.comm_class = comm_class
 
+        self._status_lock = gevent.lock.Semaphore()
         self.status_glet = None
+        self._status_timestamp = int(time.time())*1000
         self._status = {}
+
+        self.SR = redis.StrictRedis.from_url(
+            self.config.get('REDIS_URL', 'redis://127.0.0.1:6379/0')
+        )
 
         self.comm = minemeld.comm.factory(self.comm_class, self.comm_config)
         self._out_channel = self.comm.request_pub_channel(MGMTBUS_TOPIC)
@@ -79,6 +91,13 @@ class MgmtbusMaster(object):
         )
         self._rpc_client = self.comm.request_rpc_fanout_client_channel(
             MGMTBUS_TOPIC
+        )
+        self.comm.request_sub_channel(
+            MGMTBUS_STATUS_TOPIC,
+            self,
+            allowed_methods=['status'],
+            name=MGMTBUS_STATUS_TOPIC+':master',
+            max_length=100
         )
 
     def rpc_status(self):
@@ -120,11 +139,10 @@ class MgmtbusMaster(object):
             return
 
         revt = self._send_cmd('state_info')
-        success = revt.wait(timeout=30)
+        success = revt.wait(timeout=60)
         if success is None:
-            LOG.error('timeout in state_info, sending reset')
-            self._send_cmd('reset', and_discard=True)
-            return
+            LOG.critical('timeout in state_info, bailing out')
+            raise RuntimeError('timeout in state_info')
         result = revt.get(block=False)
 
         if result['errors'] > 0:
@@ -297,7 +315,11 @@ class MgmtbusMaster(object):
                 LOG.error('timeout in waiting for status updates from nodes')
             else:
                 result = revt.get(block=False)
-                self._status = result['answers']
+
+                with self._status_lock:
+                    self._status_timestamp = int(time.time()*1000)
+                    self._status = result['answers']
+                LOG.debug('Status: %r', self._status)
 
                 try:
                     self._send_collectd_metrics(
@@ -309,6 +331,42 @@ class MgmtbusMaster(object):
                     LOG.exception('Exception in _status_loop')
 
             gevent.sleep(loop_interval)
+
+    def status(self, timestamp, **kwargs):
+        LOG.debug('Received status: %d - %r', timestamp, kwargs)
+
+        source = kwargs.get('source', None)
+        if source is None:
+            LOG.debug('no source in status report - dropped')
+            return
+
+        status = kwargs.get('status', None)
+        if status is None:
+            LOG.debug('no status in status report - dropped')
+            return
+
+        if self._status_lock.locked():
+            return
+
+        with self._status_lock:
+            if timestamp < self._status_timestamp:
+                return
+
+            self._status['mbus:slave:'+source] = status
+            LOG.debug('updated status %s: %r', source, status)
+
+            try:
+                self.SR.publish(
+                    'mm-engine-status.'+source,
+                    ujson.dumps({
+                        'source': source,
+                        'timestamp': timestamp,
+                        'status': status
+                    })
+                )
+
+            except:
+                LOG.exception('Error publishing status to Redis')
 
     def start_status_monitor(self):
         """Starts status monitor greenlet.
@@ -348,6 +406,12 @@ class MgmtbusSlaveHub(object):
         LOG.debug("Adding log channel")
         return self.comm.request_pub_channel(
             MGMTBUS_LOG_TOPIC
+        )
+
+    def request_status_channel(self):
+        LOG.debug("Adding status channel")
+        return self.comm.request_pub_channel(
+            MGMTBUS_STATUS_TOPIC
         )
 
     def request_channel(self, node):

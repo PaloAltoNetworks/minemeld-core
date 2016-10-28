@@ -55,12 +55,12 @@ class DTIAPI(basepoller.BasePollerFT):
         self.include_suspicious = self.config.get('include_suspicious', True)
         initial_interval = self.config.get('initial_interval', '2d')
         self.initial_interval = interval_in_sec(initial_interval)
-        if initial_interval is None:
+        if self.initial_interval is None:
             LOG.error(
                 '%s - wrong initial_interval format: %s',
                 self.name, initial_interval
             )
-            self.initial_interval = 3600
+            self.initial_interval = interval_in_sec('2d')
 
         self.source_name = 'themediatrust.dti'
 

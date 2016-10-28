@@ -176,9 +176,12 @@ class BasePollerFT(base.BaseFT):
 
         self.active_requests = []
         self.rebuild_flag = False
+
         self.last_run = None
         self.last_successful_run = None
         self.last_ageout_run = None
+        self._sub_state = None
+        self._sub_state_message = None
 
         self.poll_event = gevent.event.Event()
 
@@ -337,6 +340,11 @@ class BasePollerFT(base.BaseFT):
                 return False
         return True
 
+    def _update_attributes(self, current, _new):
+        current.update(_new)
+
+        return current
+
     def _polling_loop(self):
         LOG.info("Polling %s", self.name)
 
@@ -395,7 +403,9 @@ class BasePollerFT(base.BaseFT):
                     eq = self._compare_attributes(v, attributes)
 
                     v['_last_run'] = now
-                    v.update(attributes)
+
+                    v = self._update_attributes(v, attributes)
+
                     v['_age_out'] = self._calc_age_out(indicator, v)
 
                     self.table.put(indicator, v)
@@ -448,6 +458,9 @@ class BasePollerFT(base.BaseFT):
         try:
             if self.rebuild_flag:
                 LOG.debug("rebuild flag set, resending current indicators")
+
+                self.sub_state = 'REBUILDING'
+
                 # reinit flag is set, emit update for all the known indicators
                 for i, v in self.table.query(include_value=True):
                     self.emit_update(i, v)
@@ -455,6 +468,8 @@ class BasePollerFT(base.BaseFT):
             self.state_lock.unlock()
 
         if self.last_run is not None:
+            self.sub_state = 'WAITING'
+
             LOG.info(
                 '%s - restored last run, waiting until the next poll time',
                 self.name
@@ -476,6 +491,8 @@ class BasePollerFT(base.BaseFT):
                 break
 
             try:
+                self.sub_state = 'POLLING'
+
                 self._polling_loop()
                 self.last_successful_run = lastrun
 
@@ -484,10 +501,19 @@ class BasePollerFT(base.BaseFT):
 
                 self._collect_garbage(lastrun)
 
+                _result = 'SUCCESS'
+
             except gevent.GreenletExit:
                 break
 
             except Exception as e:
+                try:
+                    _error_msg = str(e)
+                except UnicodeDecodeError:
+                    _error_msg = repr(e)
+
+                _result = ('ERROR', _error_msg)
+
                 self.statistics['error.polling'] += 1
 
                 LOG.exception("Exception in polling loop for %s: %s",
@@ -504,6 +530,7 @@ class BasePollerFT(base.BaseFT):
                       self.name, self.table.num_indicators)
 
             self.last_run = lastrun
+            self.sub_state = _result
             tryn = 0
 
             try:
@@ -514,8 +541,28 @@ class BasePollerFT(base.BaseFT):
     def mgmtbus_status(self):
         result = super(BasePollerFT, self).mgmtbus_status()
         result['last_run'] = self.last_run
+        result['last_successful_run'] = self.last_successful_run
+        result['sub_state'] = self.sub_state[0]
+
+        if self.sub_state[1] is not None:
+            result['sub_state_message'] = self.sub_state[1]
 
         return result
+
+    @property
+    def sub_state(self):
+        return (self._sub_state, self._sub_state_message)
+
+    @sub_state.setter
+    def sub_state(self, value):
+        if (type(value) == tuple):
+            self._sub_state = value[0]
+            self._sub_state_message = value[1]
+        else:
+            self._sub_state = value
+            self._sub_state_message = None
+
+        self.publish_status(force=True)
 
     def hup(self, source=None):
         LOG.info('%s - hup received, force polling', self.name)

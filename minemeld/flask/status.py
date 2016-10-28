@@ -18,6 +18,7 @@ import psutil
 import os
 import yaml
 import uuid
+import time
 
 from flask import Response
 from flask import stream_with_context
@@ -59,9 +60,13 @@ def get_events():
     return r
 
 
-def _stream_redis_events(subscription):
+def _stream_redis_events(subscription, pattern=False):
     pubsub = SR.pubsub(ignore_subscribe_messages=True)
-    pubsub.subscribe(subscription)
+
+    if pattern:
+        pubsub.psubscribe(subscription)
+    else:
+        pubsub.subscribe(subscription)
 
     yield 'data: ok\n\n'
 
@@ -75,7 +80,11 @@ def _stream_redis_events(subscription):
 
     yield 'data: { "msg": "<EOQ>" }\n\n'
 
-    pubsub.unsubscribe(subscription)
+    if pattern:
+        pubsub.punsubscribe(subscription)
+    else:
+        pubsub.unsubscribe(subscription)
+
     pubsub.close()
 
 
@@ -88,7 +97,18 @@ def get_query_events(quuid):
         return jsonify(error={'message': 'Bad query uuid'}), 400
 
     swc_response = stream_with_context(
-        _stream_redis_events('mm-traced-q.'+quuid),
+        _stream_redis_events('mm-traced-q.'+quuid)
+    )
+    r = Response(swc_response, mimetype='text/event-stream')
+
+    return r
+
+
+@app.route('/status/events/status')
+@flask.ext.login.login_required
+def get_status_events():
+    swc_response = stream_with_context(
+        _stream_redis_events('mm-engine-status.*', pattern=True)
     )
     r = Response(swc_response, mimetype='text/event-stream')
 
@@ -104,7 +124,7 @@ def get_system_status():
     res['swap'] = psutil.swap_memory().percent
     res['disk'] = psutil.disk_usage('/').percent
 
-    return jsonify(result=res)
+    return jsonify(result=res, timestamp=int(time.time()*1000))
 
 
 @app.route('/status/minemeld', methods=['GET'])

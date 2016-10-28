@@ -37,6 +37,10 @@ LOG = logging.getLogger(__name__)
 
 def _run_chassis(fabricconfig, mgmtbusconfig, fts):
     try:
+        # lower priority to make master and web
+        # more "responsive"
+        os.nice(5)
+
         c = minemeld.chassis.Chassis(
             fabricconfig['class'],
             fabricconfig['config'],
@@ -52,6 +56,8 @@ def _run_chassis(fabricconfig, mgmtbusconfig, fts):
         try:
             c.start()
             c.poweroff.wait()
+            LOG.info('power off')
+
         except KeyboardInterrupt:
             LOG.error("We should not be here !")
             c.stop()
@@ -153,6 +159,9 @@ def main():
         np = multiprocessing.cpu_count()
     LOG.info("multiprocessing active, #cpu: %d", np)
 
+    np = min(len(config['nodes']), np)
+    LOG.info("Number of chassis: %d", np)
+
     ftlists = [{} for j in range(np)]
     j = 0
     for ft in config['nodes']:
@@ -179,7 +188,10 @@ def main():
         processes.append(p)
         p.start()
 
-    LOG.info('Waiting for chassis getting ready')
+    gevent.signal(signal.SIGINT, _sigint_handler)
+    gevent.signal(signal.SIGTERM, _sigterm_handler)
+
+    LOG.info('Waiting for chassis to get ready')
     gevent.sleep(5)
 
     mbusmaster = _start_mgmtbus_master(
@@ -187,9 +199,6 @@ def main():
         config['nodes'].keys()
     )
     mbusmaster.init_graph(config['newconfig'])
-
-    gevent.signal(signal.SIGINT, _sigint_handler)
-    gevent.signal(signal.SIGTERM, _sigterm_handler)
 
     mbusmaster.start_status_monitor()
 

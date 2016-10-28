@@ -655,6 +655,10 @@ def append_config_data(datafilename):
                 raise RuntimeError('Config data file is not a list')
 
             body = request.get_json()
+            if body is None:
+                return jsonify(error={
+                    'message': 'No record in request'
+                }), 400
 
             config_data_file.append(body)
 
@@ -663,7 +667,7 @@ def append_config_data(datafilename):
 
     except Exception as e:
         return jsonify(error={
-            'message': 'Error append to config data file: %s' % str(e)
+            'message': 'Error appending to config data file: %s' % str(e)
         }), 500
 
     hup = request.args.get('h', None)
