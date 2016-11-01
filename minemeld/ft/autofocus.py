@@ -132,11 +132,9 @@ class ExportList(basepoller.BasePollerFT):
 
     def _build_iterator(self, now):
         if self.api_key is None or self.label is None:
-            LOG.info(
-                '%s - api_key or label not set, poll not performed',
-                self.name
+            raise RuntimeError(
+                '%s - api_key or label not set, poll not performed' % self.name
             )
-            return []
 
         body = {
             'label': self.label,

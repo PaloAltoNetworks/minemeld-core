@@ -146,11 +146,9 @@ class Export(basepoller.BasePollerFT):
 
     def _build_iterator(self, now):
         if self.url is None:
-            LOG.info(
-                '%s - url not set, poll not performed',
-                self.name
+            raise RuntimeError(
+                '%s - url not set, poll not performed' % self.name
             )
-            return []
 
         rkwargs = dict(
             stream=True,

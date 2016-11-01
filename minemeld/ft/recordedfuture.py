@@ -115,8 +115,9 @@ class IPRiskList(csv.CSVFT):
 
     def _build_iterator(self, now):
         if self.token is None:
-            LOG.info('%s - token not set, poll not performed', self.name)
-            return []
+            raise RuntimeError(
+                '%s - token not set, poll not performed' % self.name
+            )
 
         return super(IPRiskList, self)._build_iterator(now)
 
