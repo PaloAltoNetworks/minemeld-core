@@ -26,7 +26,7 @@ install:
 
 script:
   - /usr/bin/env python -V
-  - platter build --pip-option='--process-dependency-links' -r requirements-web.txt --prebuild-script scripts/prebuild-script.sh
+  - platter build -r requirements-web.txt --prebuild-script scripts/prebuild-script.sh
 
 deploy:
   provider: s3

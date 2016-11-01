@@ -1,1 +1,0 @@
-https://github.com/csirtgadgets/cif-sdk-py/archive/2.0.0b1.zip#egg=cifsdk-2.0.0b1
