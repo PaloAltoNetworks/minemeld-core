@@ -28,9 +28,6 @@ from minemeld import __version__
 with open('requirements.txt') as f:
     _requirements = f.read().splitlines()
 
-with open('dependency-links.txt') as f:
-    _dependency_links = f.read().splitlines()
-
 with open('README.md') as f:
     _long_description = f.read()
 
@@ -60,7 +57,6 @@ setup(
     long_description=_long_description,
     packages=find_packages(),
     install_requires=_requirements,
-    dependency_links=_dependency_links,
     ext_modules=cythonize([GDNS]),
     entry_points={
         'console_scripts': [
