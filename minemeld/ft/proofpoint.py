@@ -182,9 +182,9 @@ class ETIntelligence(basepoller.BasePollerFT):
 
     def _build_iterator(self, now):
         if self.auth_code is None or len(self.monitored_categories) == 0:
-            LOG.info('%s - authorization code or categories not set, '
-                     'poll not performed', self.name)
-            return []
+            raise RuntimeError(
+                '%s - authorization code or categories not set, poll not performed' % self.name
+            )
 
         LOG.info('%s - categories: %s', self.name, self.monitored_categories)
 
