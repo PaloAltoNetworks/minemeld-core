@@ -27,6 +27,7 @@ import redis
 import gevent
 import gevent.event
 import netaddr
+import werkzeug.urls
 
 import libtaxii
 import libtaxii.clients
@@ -835,11 +836,16 @@ class DataFeed(base.BaseFT):
                 uuid.uuid4()
             )
 
+            if value['type'] == 'URL':
+                eindicator = werkzeug.urls.iri_to_uri(indicator, safe_conversion=True)
+            else:
+                eindicator = indicator
+
             sindicator = stix.indicator.indicator.Indicator(
                 id_=id_,
                 title='{}: {}'.format(
                     value['type'],
-                    indicator
+                    eindicator
                 ),
                 description='{} indicator from {}'.format(
                     value['type'],
