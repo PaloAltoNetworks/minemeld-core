@@ -366,6 +366,7 @@ class BasePollerFT(base.BaseFT):
                     raise
 
                 except:
+                    self.statistics['error.parsing'] += 1
                     LOG.exception('%s - Exception parsing %s', self.name, item)
                     continue
 
