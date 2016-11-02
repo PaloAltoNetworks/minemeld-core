@@ -1,0 +1,15 @@
+<response status="success">
+    <result>
+        <entry from_agent="0" ip="192.168.1.1" persistent="1">
+            <tag>
+                <member>mmeld_test</member>
+            </tag>
+        </entry>
+        <entry from_agent="0" ip="192.168.1.2" persistent="1">
+            <tag>
+                <member>mmeld_test</member>
+            </tag>
+        </entry>
+        <count>2</count>
+    </result>
+</response>
