@@ -331,7 +331,7 @@ class BasePollerFT(base.BaseFT):
                 return False
         return True
 
-    def _update_attributes(self, current, _new):
+    def _update_attributes(self, current, _new, current_run, new_run):
         current.update(_new)
 
         return current
@@ -411,9 +411,13 @@ class BasePollerFT(base.BaseFT):
 
                         eq = self._compare_attributes(v, attributes)
 
+                        old_last_run = v['_last_run']
                         v['_last_run'] = now
 
-                        v = self._update_attributes(v, attributes)
+                        v = self._update_attributes(
+                            v, attributes,
+                            old_last_run, now
+                        )
 
                         v['_age_out'] = self._calc_age_out(indicator, v)
 
