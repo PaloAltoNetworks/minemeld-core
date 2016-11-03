@@ -21,7 +21,9 @@ import logging
 import copy
 import gevent
 import gevent.event
+import gevent.queue
 import random
+import collections
 
 from . import base
 from . import ft_states
@@ -51,10 +53,10 @@ class IndicatorStatus(object):
     NFXAXW = D_MASK | A_MASK | W_MASK
     XFXAXW = D_MASK | F_MASK | A_MASK | W_MASK
 
-    def __init__(self, indicator, attributes, table, now, in_feed_threshold):
+    def __init__(self, indicator, attributes, itable, now, in_feed_threshold):
         self.state = 0
 
-        self.cv = table.get(indicator)
+        self.cv = itable.get(indicator)
         if self.cv is None:
             return
         self.state = self.state | IndicatorStatus.D_MASK
@@ -171,11 +173,13 @@ class BasePollerFT(base.BaseFT):
     _DEFAULT_AGE_OUT_BASE = None
 
     def __init__(self, name, chassis, config):
-        self.glet = None
-        self.ageout_glet = None
+        self.table = None
 
-        self.active_requests = []
-        self.rebuild_flag = False
+        self._actor_queue = gevent.queue.Queue(maxsize=128)
+        self._actor_glet = None
+        self._actor_commands_ts = collections.defaultdict(int)
+        self._poll_glet = None
+        self._age_out_glet = None
 
         self.last_run = None
         self.last_successful_run = None
@@ -240,7 +244,9 @@ class BasePollerFT(base.BaseFT):
         self._initialize_table()
 
     def rebuild(self):
-        self.rebuild_flag = True
+        self._actor_queue.put(
+            (utc_millisec(), 'rebuild')
+        )
         self._initialize_table(truncate=(self.last_checkpoint is None))
 
     def reset(self):
@@ -256,17 +262,13 @@ class BasePollerFT(base.BaseFT):
         self.state_lock.unlock()
         LOG.debug("%s - releasing state write lock", self.name)
 
-    def _age_out_run(self):
-        while True:
-            self.state_lock.rlock()
+    def _age_out(self):
+        with self.state_lock:
             if self.state != ft_states.STARTED:
-                self.state_lock.runlock()
                 return
 
             try:
                 now = utc_millisec()
-
-                LOG.debug('now: %s', now)
 
                 for i, v in self.table.query(index='_age_out',
                                              to_key=now-1,
@@ -285,13 +287,315 @@ class BasePollerFT(base.BaseFT):
                 self.last_ageout_run = now
 
             except gevent.GreenletExit:
-                break
+                raise
 
             except:
-                LOG.exception('Exception in _age_out_loop')
+                LOG.exception('Exception in _age_out')
 
-            finally:
-                self.state_lock.runlock()
+    def _sudden_death(self):
+        if self.last_successful_run is None:
+            return
+
+        with self.state_lock:
+            if self.state != ft_states.STARTED:
+                return
+
+            LOG.debug('checking sudden death for %d', self.last_successful_run)
+
+            for i, v in self.table.query(index='_last_run',
+                                         to_key=self.last_successful_run-1,
+                                         include_value=True):
+                LOG.debug('%s - %s %s sudden death', self.name, i, v)
+
+                v['_age_out'] = self.last_successful_run-1
+                self.table.put(i, v)
+                self.statistics['removed'] += 1
+
+    def _collect_garbage(self):
+        now = utc_millisec()
+
+        with self.state_lock:
+            if self.state != ft_states.STARTED:
+                return
+
+            for i in self.table.query(index='_withdrawn',
+                                      to_key=now,
+                                      include_value=False):
+                LOG.debug('%s - %s collected', self.name, i)
+                self.table.delete(i)
+                self.statistics['garbage_collected'] += 1
+
+    def _compare_attributes(self, oa, na):
+        for k in na:
+            if oa.get(k, None) != na[k]:
+                return False
+        return True
+
+    def _update_attributes(self, current, _new, current_run, new_run):
+        current.update(_new)
+
+        return current
+
+    def _polling_loop(self):
+        LOG.info("Polling %s", self.name)
+
+        now = utc_millisec()
+
+        with self.state_lock:
+            if self.state != ft_states.STARTED:
+                LOG.info(
+                    '%s - state not STARTED, polling not performed',
+                    self.name
+                )
+                return
+
+            iterator = self._build_iterator(now)
+
+            if iterator is None:
+                return False
+
+        for item in iterator:
+            with self.state_lock:
+                if self.state != ft_states.STARTED:
+                    break
+
+                try:
+                    ipairs = self._process_item(item)
+
+                except gevent.GreenletExit:
+                    raise
+
+                except:
+                    LOG.exception('%s - Exception parsing %s', self.name, item)
+                    continue
+
+                for indicator, attributes in ipairs:
+                    if indicator is None:
+                        LOG.debug('%s - indicator is None for item %s',
+                                  self.name, item)
+                        continue
+
+                    in_feed_threshold = self.last_successful_run
+                    if in_feed_threshold is None:
+                        in_feed_threshold = now - self.interval*1000
+
+                    istatus = IndicatorStatus(
+                        indicator=indicator,
+                        attributes=attributes,
+                        itable=self.table,
+                        now=now,
+                        in_feed_threshold=in_feed_threshold
+                    )
+
+                    if istatus.state in [IndicatorStatus.NX,
+                                         IndicatorStatus.NFNANW,
+                                         IndicatorStatus.NFXANW,
+                                         IndicatorStatus.NFXAXW,
+                                         IndicatorStatus.NFNAXW]:
+                        v = copy.copy(self.attributes)
+                        v['sources'] = [self.source_name]
+                        v['last_seen'] = now
+                        v['first_seen'] = now
+                        v['_last_run'] = now
+                        v.update(attributes)
+                        v['_age_out'] = self._calc_age_out(indicator, v)
+
+                        self.statistics['added'] += 1
+                        self.table.put(indicator, v)
+                        self.emit_update(indicator, v)
+
+                        LOG.debug('%s - added %s %s', self.name, indicator, v)
+
+                    elif istatus.state == IndicatorStatus.XFNANW:
+                        v = istatus.cv
+
+                        eq = self._compare_attributes(v, attributes)
+
+                        old_last_run = v['_last_run']
+                        v['_last_run'] = now
+
+                        v = self._update_attributes(
+                            v, attributes,
+                            old_last_run, now
+                        )
+
+                        v['_age_out'] = self._calc_age_out(indicator, v)
+
+                        self.table.put(indicator, v)
+
+                        if not eq:
+                            self.emit_update(indicator, v)
+
+                    elif istatus.state == IndicatorStatus.XFXANW:
+                        v = istatus.cv
+                        v['_last_run'] = now
+                        self.table.put(indicator, v)
+
+                    elif istatus.state in [IndicatorStatus.XFXAXW,
+                                           IndicatorStatus.XFNAXW]:
+                        v = istatus.cv
+                        v['_last_run'] = now
+                        v['_withdrawn'] = now
+                        self.table.put(indicator, v)
+
+                    else:
+                        LOG.error('%s - indicator state unhandled: %s',
+                                  self.name, istatus.state)
+                        continue
+
+        return True
+
+    def _rebuild(self):
+        with self.state_lock:
+            if self.state != ft_states.STARTED:
+                return
+
+            self.sub_state = 'REBUILDING'
+
+            for i, v in self.table.query(include_value=True):
+                self.emit_update(i, v)
+
+    def _poll(self):
+        tryn = 0
+
+        while tryn < self.num_retries:
+            lastrun = utc_millisec()
+
+            try:
+                self.sub_state = 'POLLING'
+
+                performed = self._polling_loop()
+                if performed:
+                    self.last_successful_run = lastrun
+
+                _result = 'SUCCESS'
+                break
+
+            except gevent.GreenletExit:
+                raise
+
+            except Exception as e:
+                try:
+                    _error_msg = str(e)
+                except UnicodeDecodeError:
+                    _error_msg = repr(e)
+
+                _result = ('ERROR', _error_msg)
+
+                self.statistics['error.polling'] += 1
+
+                LOG.exception("Exception in polling loop for %s: %s",
+                              self.name, str(e))
+
+            tryn += 1
+            gevent.sleep(random.randint(1, 5))
+
+        LOG.debug("%s - End of polling - #indicators: %d",
+                  self.name, self.table.num_indicators)
+
+        self.last_run = lastrun
+        self.sub_state = _result
+
+    def _actor_loop(self):
+        while True:
+            timestamp, command = self._actor_queue.get()
+            LOG.info('%s - command: %d %s', self.name, timestamp, command)
+
+            try:
+                last_ts = self._actor_commands_ts[command]
+                if timestamp < last_ts:
+                    LOG.info(
+                        '%s - command %s, old timestamp - ignored',
+                        self.name,
+                        command
+                    )
+                    continue
+
+                if command == 'poll':
+                    self._poll()
+
+                elif command == 'age_out':
+                    self._age_out()
+
+                elif command == 'sudden_death':
+                    self._sudden_death()
+
+                elif command == 'gc':
+                    self._collect_garbage()
+
+                elif command == 'rebuild':
+                    self._rebuild()
+
+                else:
+                    LOG.error('%s - unknown command: %s', self.name, command)
+
+            except gevent.GreenletExit:
+                raise
+
+            except:
+                LOG.exception(
+                    '%s - exception executing command %s', self.name, command
+                )
+
+            self._actor_commands_ts[command] = utc_millisec()
+
+    def _poll_loop(self):
+        # wait to poll until after the first ageout run
+        while self.last_ageout_run is None:
+            gevent.sleep(1)
+
+        # if last_run is not None it means we have restored
+        # a previous state, wait until poll time
+        if self.last_run is not None:
+            self.sub_state = 'WAITING'
+
+            LOG.info(
+                '%s - restored last run, waiting until the next poll time',
+                self.name
+            )
+
+            try:
+                self._huppable_wait(
+                    (self.last_run+self.interval*1000)-utc_millisec()
+                )
+            except gevent.GreenletExit:
+                return
+
+        while True:
+            with self.state_lock:
+                if self.state != ft_states.STARTED:
+                    break
+
+            self._actor_queue.put(
+                (utc_millisec(), 'poll')
+            )
+
+            if self.age_out['sudden_death']:
+                self._actor_queue.put(
+                    (utc_millisec(), 'sudden_death')
+                )
+
+            self._actor_queue.put(
+                (utc_millisec(), 'age_out')
+            )
+            self._actor_queue.put(
+                (utc_millisec(), 'gc')
+            )
+
+            try:
+                self._huppable_wait(self.interval*1000)
+            except gevent.GreenletExit:
+                break
+
+    def _age_out_loop(self):
+        while True:
+            with self.state_lock:
+                if self.state != ft_states.STARTED:
+                    break
+
+            self._actor_queue.put(
+                (utc_millisec(), 'age_out')
+            )
 
             try:
                 gevent.sleep(self.age_out['interval'])
@@ -312,128 +616,7 @@ class BasePollerFT(base.BaseFT):
 
         return b + sel['offset']
 
-    def _sudden_death(self):
-        if self.last_run is None:
-            return
-
-        LOG.debug('checking sudden death')
-
-        for i, v in self.table.query(index='_last_run',
-                                     to_key=self.last_run,
-                                     include_value=True):
-            LOG.debug('%s - %s %s sudden death', self.name, i, v)
-
-            v['_age_out'] = self.last_run-1
-            self.table.put(i, v)
-            self.statistics['removed'] += 1
-
-    def _collect_garbage(self, t0):
-        for i in self.table.query(index='_withdrawn',
-                                  to_key=t0-1,
-                                  include_value=False):
-            self.table.delete(i)
-            self.statistics['garbage_collected'] += 1
-
-    def _compare_attributes(self, oa, na):
-        for k in na:
-            if oa.get(k, None) != na[k]:
-                return False
-        return True
-
-    def _update_attributes(self, current, _new):
-        current.update(_new)
-
-        return current
-
-    def _polling_loop(self):
-        LOG.info("Polling %s", self.name)
-
-        now = utc_millisec()
-
-        iterator = self._build_iterator(now)
-
-        for item in iterator:
-            try:
-                ipairs = self._process_item(item)
-
-            except:
-                LOG.exception('%s - Exception parsing %s', self.name, item)
-                continue
-
-            for indicator, attributes in ipairs:
-                if indicator is None:
-                    LOG.debug('%s - indicator is None for item %s',
-                              self.name, item)
-                    continue
-
-                in_feed_threshold = self.last_run
-                if in_feed_threshold is None:
-                    in_feed_threshold = now - self.interval*1000
-
-                istatus = IndicatorStatus(
-                    indicator=indicator,
-                    attributes=attributes,
-                    table=self.table,
-                    now=now,
-                    in_feed_threshold=in_feed_threshold
-                )
-
-                if istatus.state in [IndicatorStatus.NX,
-                                     IndicatorStatus.NFNANW,
-                                     IndicatorStatus.NFXANW,
-                                     IndicatorStatus.NFXAXW,
-                                     IndicatorStatus.NFNAXW]:
-                    v = copy.copy(self.attributes)
-                    v['sources'] = [self.source_name]
-                    v['last_seen'] = now
-                    v['first_seen'] = now
-                    v['_last_run'] = now
-                    v.update(attributes)
-                    v['_age_out'] = self._calc_age_out(indicator, v)
-
-                    self.statistics['added'] += 1
-                    self.table.put(indicator, v)
-                    self.emit_update(indicator, v)
-
-                    LOG.debug('%s - added %s %s', self.name, indicator, v)
-
-                elif istatus.state == IndicatorStatus.XFNANW:
-                    v = istatus.cv
-
-                    eq = self._compare_attributes(v, attributes)
-
-                    v['_last_run'] = now
-
-                    v = self._update_attributes(v, attributes)
-
-                    v['_age_out'] = self._calc_age_out(indicator, v)
-
-                    self.table.put(indicator, v)
-
-                    if not eq:
-                        self.emit_update(indicator, v)
-
-                elif istatus.state == IndicatorStatus.XFXANW:
-                    v = istatus.cv
-                    v['_last_run'] = now
-                    self.table.put(indicator, v)
-
-                elif istatus.state in [IndicatorStatus.XFXAXW,
-                                       IndicatorStatus.XFNAXW]:
-                    v = istatus.cv
-                    v['_last_run'] = now
-                    v['_withdrawn'] = now
-                    self.table.put(indicator, v)
-
-                else:
-                    LOG.error('%s - indicator state unhandled: %s',
-                              self.name, istatus.state)
-                    continue
-
-    def _huppable_wait(self):
-        now = utc_millisec()
-        deltat = (self.last_run+self.interval*1000)-now
-
+    def _huppable_wait(self, deltat):
         while deltat < 0:
             LOG.warning(
                 'Time for processing exceeded interval for %s',
@@ -441,102 +624,11 @@ class BasePollerFT(base.BaseFT):
             )
             deltat += self.interval*1000
 
+        LOG.info('hup is clear: %r', self.poll_event.is_set())
         hup_called = self.poll_event.wait(timeout=deltat/1000.0)
         if hup_called:
             LOG.debug('%s - clearing poll event', self.name)
             self.poll_event.clear()
-
-    def _run(self):
-        while self.last_ageout_run is None:
-            gevent.sleep(1)
-
-        self.state_lock.rlock()
-        if self.state != ft_states.STARTED:
-            self.state_lock.runlock()
-            return
-
-        try:
-            if self.rebuild_flag:
-                LOG.debug("rebuild flag set, resending current indicators")
-
-                self.sub_state = 'REBUILDING'
-
-                # reinit flag is set, emit update for all the known indicators
-                for i, v in self.table.query(include_value=True):
-                    self.emit_update(i, v)
-        finally:
-            self.state_lock.unlock()
-
-        if self.last_run is not None:
-            self.sub_state = 'WAITING'
-
-            LOG.info(
-                '%s - restored last run, waiting until the next poll time',
-                self.name
-            )
-
-            try:
-                self._huppable_wait()
-            except gevent.GreenletExit:
-                return
-
-        tryn = 0
-
-        while True:
-            lastrun = utc_millisec()
-
-            self.state_lock.rlock()
-            if self.state != ft_states.STARTED:
-                self.state_lock.runlock()
-                break
-
-            try:
-                self.sub_state = 'POLLING'
-
-                self._polling_loop()
-                self.last_successful_run = lastrun
-
-                if self.age_out['sudden_death']:
-                    self._sudden_death()
-
-                self._collect_garbage(lastrun)
-
-                _result = 'SUCCESS'
-
-            except gevent.GreenletExit:
-                break
-
-            except Exception as e:
-                try:
-                    _error_msg = str(e)
-                except UnicodeDecodeError:
-                    _error_msg = repr(e)
-
-                _result = ('ERROR', _error_msg)
-
-                self.statistics['error.polling'] += 1
-
-                LOG.exception("Exception in polling loop for %s: %s",
-                              self.name, str(e))
-                tryn += 1
-                if tryn < self.num_retries:
-                    gevent.sleep(random.randint(1, 5))
-                    continue
-
-            finally:
-                self.state_lock.runlock()
-
-            LOG.debug("%s - End of polling - #indicators: %d",
-                      self.name, self.table.num_indicators)
-
-            self.last_run = lastrun
-            self.sub_state = _result
-            tryn = 0
-
-            try:
-                self._huppable_wait()
-            except gevent.GreenletExit:
-                break
 
     def mgmtbus_status(self):
         result = super(BasePollerFT, self).mgmtbus_status()
@@ -574,22 +666,28 @@ class BasePollerFT(base.BaseFT):
     def start(self):
         super(BasePollerFT, self).start()
 
-        if self.glet is not None:
+        if self._actor_glet is not None:
             return
 
-        self.glet = gevent.spawn_later(random.randint(0, 2), self._run)
-        self.ageout_glet = gevent.spawn(self._age_out_run)
+        self._actor_glet = gevent.spawn(
+            self._actor_loop
+        )
+        self._poll_glet = gevent.spawn_later(
+            random.randint(0, 2),
+            self._poll_loop
+        )
+        self._age_out_glet = gevent.spawn(
+            self._age_out_loop
+        )
 
     def stop(self):
         super(BasePollerFT, self).stop()
 
-        if self.glet is None:
+        if self._actor_glet is None:
             return
 
-        for g in self.active_requests:
-            g.kill()
-
-        self.glet.kill()
-        self.ageout_glet.kill()
+        self._actor_glet.kill()
+        self._poll_glet.kill()
+        self._age_out_glet.kill()
 
         LOG.info("%s - # indicators: %d", self.name, self.table.num_indicators)

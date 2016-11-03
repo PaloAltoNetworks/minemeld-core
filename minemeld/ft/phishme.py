@@ -115,7 +115,7 @@ class Intelligence(basepoller.BasePollerFT):
         super(Intelligence, self)._saved_state_reset()
         self.position = None
 
-    def _update_attributes(self, current, _new):
+    def _update_attributes(self, current, _new, current_run, new_run):
         LOG.debug('current: %r', current)
         LOG.debug('_new: %r', _new)
 

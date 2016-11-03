@@ -153,7 +153,7 @@ class MineMeldFTTaxiiTests(unittest.TestCase):
 
         b.start()
         # __init__ + get chkp + delete chkp
-        self.assertEqual(len(SR_mock.mock_calls), 3)
+        self.assertEqual(len(SR_mock.mock_calls), 5)
         SR_mock.reset_mock()
 
         # unicast
@@ -304,7 +304,7 @@ class MineMeldFTTaxiiTests(unittest.TestCase):
 
         b.start()
         # __init__ + get chkp + delete chkp
-        self.assertEqual(len(SR_mock.mock_calls), 3)
+        self.assertEqual(len(SR_mock.mock_calls), 5)
         SR_mock.reset_mock()
 
         # unicast
@@ -357,7 +357,7 @@ class MineMeldFTTaxiiTests(unittest.TestCase):
 
         b.start()
         # __init__ + get chkp + delete chkp
-        self.assertEqual(len(SR_mock.mock_calls), 3)
+        self.assertEqual(len(SR_mock.mock_calls), 5)
         SR_mock.reset_mock()
 
         # unicast
