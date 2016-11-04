@@ -69,6 +69,7 @@ class TaxiiClient(basepoller.BasePollerFT):
             )
             self.initial_interval = 86400
 
+        self.ip_version_auto_detect = self.config.get('ip_version_auto_detect', True)
         self.discovery_service = self.config.get('discovery_service', None)
         self.username = self.config.get('username', None)
         self.password = self.config.get('password', None)
@@ -472,11 +473,6 @@ class TaxiiClient(basepoller.BasePollerFT):
                     return None
 
         elif ot == 'AddressObjectType':
-            addrcat = op.get('category', None)
-            result['type'] = 'IPv4'
-            if addrcat == 'ipv6-addr':
-                result['type'] = 'IPv6'
-
             source = op.get('is_source', None)
             if source is True:
                 result['direction'] = 'inbound'
@@ -492,6 +488,32 @@ class TaxiiClient(basepoller.BasePollerFT):
                 if ov is None:
                     LOG.error('%s - no value in observable value', self.name)
                     return None
+
+            # set the IP Address type
+            if not self.ip_version_auto_detect:
+                addrcat = op.get('category', None)
+                if addrcat == 'ipv6-addr':
+                    result['type'] = 'IPv6'
+                elif addrcat == 'ipv4-addr':
+                    result['type'] = 'IPv4'
+            else:
+                # some feeds do not set the IP Address type and it
+                # defaults to ipv4-addr even if the IP is IPv6
+                # this is to auto detect the type
+                if type(ov) == list:
+                    address = ov[0]
+                else:
+                    address = ov
+
+                parsed = netaddr.IPNetwork(address)
+                if parsed.version == 4:
+                    result['type'] = 'IPv4'
+                elif parsed.version == 6:
+                    result['type'] = 'IPv6'
+
+            if 'type' not in result:
+                LOG.error('%s - no IP category and unknown version')
+                return None
 
         elif ot == 'URIObjectType':
             result['type'] = 'URL'
