@@ -32,6 +32,7 @@ import time
 import xmltodict
 import os
 import libtaxii.constants
+import re
 
 import minemeld.ft.taxii
 import minemeld.ft
@@ -87,6 +88,11 @@ class MineMeldFTTaxiiTests(unittest.TestCase):
             with open(os.path.join(MYDIR, t), 'r') as f:
                 sxml = f.read()
 
+            mo = re.match('test_ft_taxii_stix_package_([A-Za-z0-9]+)_([0-9]+)_.*', t)
+            self.assertNotEqual(mo, None)
+            type_ = mo.group(1)
+            num_indicators = int(mo.group(2))
+
             stix_objects = {
                 'observables': {},
                 'indicators': {},
@@ -110,7 +116,10 @@ class MineMeldFTTaxiiTests(unittest.TestCase):
 
             for i in indicators:
                 result = b._process_item(i)
-                self.assertEqual(len(result), 3)
+
+                self.assertEqual(len(result), num_indicators)
+                for r in result:
+                    self.assertEqual(r[1]['type'], type_)
 
         b.stop()
 
