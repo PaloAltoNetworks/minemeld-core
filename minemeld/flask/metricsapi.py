@@ -90,6 +90,7 @@ def _fetch_metric(cc, metric, type_=None,
 
 
 @app.route('/metrics')
+@flask.ext.login.login_required
 def get_metrics():
     return jsonify(result=_list_metrics())
 

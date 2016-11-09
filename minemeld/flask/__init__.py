@@ -21,6 +21,8 @@ import werkzeug.local
 import logging
 
 from . import config
+config.init()
+
 from . import aaa
 from . import session
 
@@ -30,7 +32,6 @@ LOG = logging.getLogger(__name__)
 REDIS_URL = config.get('REDIS_URL', 'redis://127.0.0.1:6379/0')
 
 
-# create flask app and load config from vmsh.config.api module
 app = Flask(__name__)
 
 app.logger.addHandler(logging.StreamHandler())
@@ -323,13 +324,16 @@ except ImportError:
     LOG.exception("supervisor and psutil needed for supervisor entrypoint")
 
 # login
-from . import login
+from . import login  # noqa
 
 # prototypes
 from . import prototypeapi  # noqa
 
 # validate
 from . import validateapi  # noqa
+
+# aaa api
+from . import aaaapi  # noqa
 
 if 'psutil' in sys.modules and 'amqp' in sys.modules:
     from . import status  # noqa
