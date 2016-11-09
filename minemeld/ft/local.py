@@ -14,7 +14,6 @@
 
 from __future__ import absolute_import
 
-import gevent
 import logging
 import yaml
 import filelock
@@ -71,16 +70,19 @@ class YamlFT(basepoller.BasePollerFT):
 
         try:
             mtime = os.stat(self.path).st_mtime
-        except OSError:
-            LOG.debug('%s - error checking mtime of %s',
-                      self.name, self.path)
+        except OSError as e:
+            if e.errno == 2:  # no such file
+                return None
+
+            LOG.exception('%s - error checking mtime of %s',
+                          self.name, self.path)
             raise RuntimeError(
                 '%s - error checking indicators list' % self.name
             )
 
         if mtime == self.file_monitor_mtime:
             return None
-        
+
         self.file_monitor_mtime = mtime
 
         try:
