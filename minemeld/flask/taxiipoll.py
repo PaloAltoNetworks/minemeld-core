@@ -140,6 +140,9 @@ def taxii_poll_service():
         excbegtime = tm.exclusive_begin_timestamp_label
         incendtime = tm.inclusive_end_timestamp_label
 
+        if not flask.ext.login.current_user.check_feed(cname):
+            return 'Unauthorized', 401
+
         return data_feed_11(tm.message_id, cname, excbegtime, incendtime)
 
     elif taxiict == 'urn:taxii.mitre.org:message:xml:1.0':
