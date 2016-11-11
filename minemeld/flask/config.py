@@ -89,7 +89,6 @@ class APIConfigDict(object):
 
 def _load_config(config_path):
     global CONFIG
-    LOG.debug('%r', config_path)
 
     new_config = {}
 

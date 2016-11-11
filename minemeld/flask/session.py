@@ -96,7 +96,6 @@ def init_app(app, redis_url):
     app.session_interface = RedisSessionInterface(
         redis_=redis.StrictRedis.from_url(redis_url)
     )
-
     app.config.update(
         SESSION_COOKIE_NAME='mm-session',
         SESSION_COOKIE_SECURE=True

@@ -598,6 +598,9 @@ class BasePollerFT(base.BaseFT):
                 (utc_millisec(), 'age_out')
             )
 
+            if self.age_out['interval'] is None:
+                break
+
             try:
                 gevent.sleep(self.age_out['interval'])
             except gevent.GreenletExit:
@@ -677,6 +680,7 @@ class BasePollerFT(base.BaseFT):
             random.randint(0, 2),
             self._poll_loop
         )
+
         self._age_out_glet = gevent.spawn(
             self._age_out_loop
         )
