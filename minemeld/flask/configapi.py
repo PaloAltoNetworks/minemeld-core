@@ -686,5 +686,6 @@ def _init_config():
         LOG.info('Loading running config in memory')
         _load_running_config()
 
+
 def init_app(app):
     app.before_first_request(_init_config)

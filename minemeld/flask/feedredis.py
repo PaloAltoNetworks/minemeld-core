@@ -24,8 +24,10 @@ from flask import stream_with_context
 import flask.ext.login
 
 from . import app
+from . import aaa
 from . import SR
 from . import MMMaster
+from . import config
 
 LOG = logging.getLogger(__name__)
 FEED_INTERVAL = 100
@@ -168,6 +170,9 @@ _FEED_FORMATS = {
 @app.route('/feeds/<feed>', methods=['GET'])
 @flask.ext.login.login_required
 def get_feed_content(feed):
+    if not flask.ext.login.current_user.check_feed(feed):
+        return 'Unauthorized', 401
+
     # check if feed exists
     status = MMMaster.status()
     tr = status.get('result', None)
