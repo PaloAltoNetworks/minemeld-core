@@ -137,7 +137,7 @@ def delete_user(subsystem, username):
     if subsystem is None:
         return jsonify(error='Invalid subsystem'), 400
 
-    with config.lock():    
+    with config.lock():
         users_db = config.get(subsystem.authdb)
         if not users_db.path:
             return jsonify(error='Users database not available')

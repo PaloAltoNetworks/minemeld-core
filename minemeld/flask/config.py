@@ -35,6 +35,7 @@ _AUTH_DBS = {
     'FEEDS_USERS_DB': 'feeds.htpasswd'
 }
 
+
 def get(key, default=None):
     try:
         result = CONFIG[key]
@@ -76,12 +77,12 @@ class APIConfigDict(object):
     def set(self, key, value):
         curvalues = get(self.attribute, {})
         curvalues[key] = value
-        store(self.filename, { self.attribute: curvalues })
+        store(self.filename, {self.attribute: curvalues})
 
     def delete(self, key):
         curvalues = get(self.attribute, {})
         curvalues.pop(key, None)
-        store(self.filename, { self.attribute: curvalues })
+        store(self.filename, {self.attribute: curvalues})
 
     def value(self):
         return get(self.attribute, {})
@@ -199,7 +200,7 @@ def init():
     # init global vars
     API_CONFIG_PATH = os.path.join(config_path, 'api')
     API_CONFIG_LOCK = filelock.FileLock(
-        os.path.join(API_CONFIG_PATH, 'config.lock')
+        os.environ.get('API_CONFIG_LOCK', '/var/run/minemeld/api-config.lock')
     )
 
     _load_config(config_path)

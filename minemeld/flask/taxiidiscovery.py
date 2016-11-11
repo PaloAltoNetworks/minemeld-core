@@ -25,7 +25,7 @@ import flask.ext.login
 
 from . import app
 from . import config
-from .taxiiutils import taxii_check, taxii_make_response
+from .taxiiutils import get_taxii_feeds, taxii_check, taxii_make_response
 
 LOG = logging.getLogger(__name__)
 
@@ -51,6 +51,14 @@ _SERVICE_INSTANCES = [
 @flask.ext.login.login_required
 @taxii_check
 def taxii_discovery_service():
+    taxii_feeds = get_taxii_feeds()
+    authorized = next(
+        (tf for tf in taxii_feeds if flask.ext.login.current_user.check_feed(tf)),
+        None
+    )
+    if authorized is None:
+        return 'Unauthorized', 401
+
     server_host = config.get('TAXII_HOST', None)
     if server_host is None:
         server_host = request.headers.get('Host', None)

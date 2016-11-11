@@ -277,6 +277,8 @@ try:
     from . import taxiicollmgmt  # noqa
     from . import taxiipoll  # noqa
 
+    configapi.init_app(app)
+
 except ImportError:
     LOG.exception("redis is needed for feed and config entrypoints")
 
@@ -341,5 +343,3 @@ def app_init():
         app.logger.setLevel(logging.DEBUG)
     else:
         app.logger.setLevel(logging.INFO)
-
-    configapi.init_app(app)
