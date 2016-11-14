@@ -16,8 +16,6 @@ import flask.ext.login
 
 import logging
 import base64
-import passlib.apache
-import os.path
 
 from . import config
 
@@ -107,14 +105,13 @@ class MMAnonymousFeedUser(MMAuthenticatedUser):
 
 
 def _feeds_request_loader(request):
-    LOG.debug('feed request')
     if not config.get('FEEDS_AUTH_ENABLED', False):
         return MMAnonymousFeedUser(auth_enabled=False)
 
     api_key = request.headers.get('Authorization')
     if api_key is None:
         return MMAnonymousFeedUser(auth_enabled=True)
-    
+
     api_key = api_key.replace('Basic', '', 1)
 
     try:
@@ -128,8 +125,10 @@ def _feeds_request_loader(request):
         return None
 
     if not config.get('FEEDS_USERS_DB').check_password(user, password):
-        if not config.get('USERS_DB').check_password(user, password):
-            return None
+        if config.get('USERS_DB').check_password(user, password):
+            return MMAuthenticatedAdminUser(_id=user)
+
+        return None
 
     return MMAuthenticatedFeedUser(_id=user)
 

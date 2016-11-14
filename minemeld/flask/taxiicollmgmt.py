@@ -36,6 +36,14 @@ HOST_RE = re.compile('^[a-zA-Z\d-]{1,63}(?:\.[a-zA-Z\d-]{1,63})*(?::[0-9]{1,5})*
 @flask.ext.login.login_required
 @taxii_check
 def taxii_collection_mgmt_service():
+    taxii_feeds = get_taxii_feeds()
+    authorized_feeds = filter(
+        flask.ext.login.current_user.check_feed,
+        taxii_feeds
+    )
+    if len(authorized_feeds) == 0:
+        return 'Unauthorized', 401
+
     server_host = config.get('TAXII_HOST', None)
     if server_host is None:
         server_host = request.headers.get('Host', None)
@@ -55,8 +63,7 @@ def taxii_collection_mgmt_service():
         tm.message_id
     )
 
-    taxii_feeds = get_taxii_feeds()
-    for feed in taxii_feeds:
+    for feed in authorized_feeds:
         cii = libtaxii.messages_11.CollectionInformation(
             feed,
             '{} Data Feed'.format(feed),

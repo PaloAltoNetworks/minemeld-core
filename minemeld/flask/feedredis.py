@@ -24,10 +24,8 @@ from flask import stream_with_context
 import flask.ext.login
 
 from . import app
-from . import aaa
 from . import SR
 from . import MMMaster
-from . import config
 
 LOG = logging.getLogger(__name__)
 FEED_INTERVAL = 100
