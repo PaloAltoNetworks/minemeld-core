@@ -105,13 +105,16 @@ class DevicePusher(gevent.Greenlet):
             "<type>update</type>",
             "<payload>"
         ]
+        persistent = ''
+        if type_ == 'register':
+            persistent = ' persistent="%d"' % (1 if self.persistent else 0)
         message.append('<%s>' % type_)
 
         if addresses is not None and len(addresses) != 0:
             akeys = sorted(addresses.keys())
             for a in akeys:
                 message.append(
-                    '<entry ip="%s" persistent="%d">' % (a, 1 if self.persistent else 0)
+                    '<entry ip="%s"%s>' % (a, persistent)
                 )
 
                 tags = sorted(addresses[a])
