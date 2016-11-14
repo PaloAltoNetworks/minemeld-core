@@ -138,6 +138,8 @@ class DevicePusher(gevent.Greenlet):
         except pan.xapi.PanXapiError as e:
             if 'already exists, ignore' in str(e):
                 pass
+            elif 'does not exist, ignore unreg' in str(e):
+                pass
             elif 'Failed to register' in str(e):
                 pass
             else:
@@ -147,6 +149,17 @@ class DevicePusher(gevent.Greenlet):
 
     def _tags_from_value(self, value):
         result = []
+
+        def _tag(t, v):
+            if type(v) == unicode:
+                v = v.encode('ascii', 'replace')
+            else:
+                v = str(v)
+
+            v = SUBRE.sub('_', v)
+            tag = '%s%s_%s' % (self.prefix, t, v)
+
+            return tag
 
         for t in self.attributes:
             if t in value:
@@ -159,21 +172,23 @@ class DevicePusher(gevent.Greenlet):
                     else:
                         tag = '%s%s_high' % (self.prefix, t)
 
+                    result.append(tag)
+
                 else:
-                    if type(value[t]) == unicode:
-                        v = value[t].encode('ascii', 'replace')
+                    LOG.debug('%s %s %s', t, value[t], type(value[t]))
+                    if isinstance(value[t], list):
+                        for v in value[t]:
+                            LOG.debug('%s', v)
+                            result.append(_tag(t, v))
                     else:
-                        v = str(value[t])
-                    v = SUBRE.sub('_', v)
-
-                    tag = '%s%s_%s' % (self.prefix, t, v)
-
-                result.append(tag)
+                        result.append(_tag(t, value[t]))
 
             else:
                 result.append('%s%s_unknown' % (self.prefix, t))
 
-        return result
+        LOG.debug('%s', result)
+
+        return set(result)  # XXX eliminate duplicates
 
     def _push(self, op, address, value):
         tags = []
@@ -370,7 +385,10 @@ class DagPusher(base.BaseFT):
             for t in self.tag_attributes:
                 cv = current_value.get(t, None)
                 nv = value.get(t, None)
-                uflag |= cv != nv
+                if isinstance(cv, list) or isinstance(nv, list):
+                    uflag |= set(cv) != set(nv)
+                else:
+                    uflag |= cv != nv
 
         for p in self.device_pushers:
             if uflag:
