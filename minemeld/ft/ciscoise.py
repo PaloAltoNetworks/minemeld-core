@@ -83,7 +83,7 @@ class ErsSgt(basepoller.BasePollerFT):
 
         try:
             api = minemeld.packages.ise.ers.IseErs(**self.kwargs)
-        except IseErsError as e:
+        except minemeld.packages.ise.ers.IseErsError as e:
             # missing arguments
             x = '%s: poll not performed: %s' % (self.name, e)
             LOG.info('%s', x)
