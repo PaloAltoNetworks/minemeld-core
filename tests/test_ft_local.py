@@ -43,7 +43,7 @@ MYDIR = os.path.dirname(__file__)
 
 
 def logical_millisec(*args):
-    return CUR_LOGICAL_TIME
+    return CUR_LOGICAL_TIME*1000
 
 
 def gevent_event_mock_factory():
@@ -124,26 +124,42 @@ class MineMeldYamlFTTests(unittest.TestCase):
         a.mgmtbus_initialize()
         a.start()
         self.assertEqual(spawnl_mock.call_count, 1)
-        self.assertEqual(spawn_mock.call_count, 1)
+        self.assertEqual(spawn_mock.call_count, 2)
 
         CUR_LOGICAL_TIME = 1
-        a._age_out_run()
+        a._age_out()
         self.assertEqual(a.statistics.get('aged_out', 0), 0)
         self.assertEqual(um_mock.call_count, 1)
 
         CUR_LOGICAL_TIME = 2
-        a._run()
+        a._poll()
+        a._sudden_death()
+        a._age_out()
+        a._collect_garbage()
         self.assertEqual(a.statistics['added'], len(localdb))
         self.assertEqual(a.statistics.get('removed', 0), 0)
 
+        lsp = a.last_successful_run
+
         CUR_LOGICAL_TIME = 3
-        a._age_out_run()
+        a._poll()
+        a._sudden_death()
+        a._age_out()
+        a._collect_garbage()
         self.assertEqual(a.statistics.get('aged_out', 0), 0)
+        self.assertEqual(a.statistics.get('removed', 0), 0)
+        self.assertEqual(a.statistics.get('garbage_collected', 0), 0)
+        self.assertEqual(a.last_successful_run, lsp)
+
+        LOG.debug('%d', a.statistics['added'])
 
         shutil.copyfile(localdb_path2, LOCALDB_NAME)
 
         CUR_LOGICAL_TIME = 4
-        a._run()
+        a._poll()
+        a._sudden_death()
+        a._age_out()
+        a._collect_garbage()
         self.assertEqual(
             a.statistics['added'],
             len(set(localdb) | set(localdb2))
@@ -152,22 +168,25 @@ class MineMeldYamlFTTests(unittest.TestCase):
             a.statistics.get('removed', 0),
             len(set(localdb2)-set(localdb))
         )
-        self.assertEqual(a.statistics.get('garbage_collected', 0), 0)
+        self.assertEqual(a.statistics.get('garbage_collected', 0), 1)
 
         CUR_LOGICAL_TIME = 5
-        a._age_out_run()
+        a._age_out()
         self.assertEqual(a.statistics.get('aged_out', 0), 1)
 
         CUR_LOGICAL_TIME = 6
-        a._age_out_run()
+        a._age_out()
         self.assertEqual(a.statistics.get('aged_out', 0), 1)
 
         CUR_LOGICAL_TIME = 7
-        a._age_out_run()
+        a._age_out()
         self.assertEqual(a.statistics['aged_out'], 1)
 
         CUR_LOGICAL_TIME = 8
-        a._run()
+        a._poll()
+        a._sudden_death()
+        a._age_out()
+        a._collect_garbage()
         self.assertEqual(a.statistics['added'], 3)
         self.assertEqual(a.statistics.get('garbage_collected', 0), 1)
         self.assertEqual(a.length(), 2)

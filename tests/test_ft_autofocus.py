@@ -93,7 +93,7 @@ class MineMeldYamlFTTests(unittest.TestCase):
         a.mgmtbus_initialize()
         a.start()
         self.assertEqual(spawnl_mock.call_count, 1)
-        self.assertEqual(spawn_mock.call_count, 1)
+        self.assertEqual(spawn_mock.call_count, 2)
 
         self.assertEqual(a._type_of_indicator('1.1.1.1'), 'IPv4')
         self.assertEqual(a._type_of_indicator('1.1.1.2-1.1.1.5'), 'IPv4')

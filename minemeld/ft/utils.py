@@ -146,6 +146,12 @@ class RWLock(object):
 
         self.m1.release()
 
+    def __enter__(self):
+        self.rlock()
+
+    def __exit__(self, type, value, traceback):
+        self.runlock()
+
 
 _AGE_OUT_BASES = ['last_seen', 'first_seen']
 

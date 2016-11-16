@@ -16,46 +16,20 @@ import flask.ext.login
 
 import logging
 import base64
-import passlib.apache
-import os
-import os.path
 
 from . import config
 
 
 LOG = logging.getLogger(__name__)
 
-_users_db = config.get('USERS_DB', None)
-if _users_db is None:
-    USERS = passlib.apache.HtpasswdFile(new=True)
-else:
-    _users_db = os.path.join(
-        os.path.dirname(os.environ.get('MM_CONFIG', '')),
-        _users_db
-    )
-    USERS = passlib.apache.HtpasswdFile(path=_users_db)
-
-
-_feeds_users_db = config.get('FEEDS_USERS_DB', None)
-if _feeds_users_db is None:
-    FEEDS_USERS = passlib.apache.HtpasswdFile(new=True)
-else:
-    _feeds_users_db = os.path.join(
-        os.path.dirname(os.environ.get('MM_CONFIG', '')),
-        _feeds_users_db
-    )
-    FEEDS_USERS = passlib.apache.HtpasswdFile(path=_feeds_users_db)
-
 LOGIN_MANAGER = flask.ext.login.LoginManager()
 LOGIN_MANAGER.session_protection = None
-API_AUTH_ENABLED = config.get('API_AUTH_ENABLED', True)
-FEEDS_AUTH_ENABLED = config.get('FEEDS_AUTH_ENABLED', False)
-TAXII_AUTH_ENABLED = config.get('TAXII_AUTH_ENABLED', False)
+ANONYMOUS = 'mm-anonymous'
 
 
 class MMAuthenticatedUser(object):
-    def __init__(self, id=None):
-        self._id = unicode(id)
+    def __init__(self, _id=None):
+        self._id = unicode(_id)
 
     def get_id(self):
         return self._id
@@ -70,102 +44,140 @@ class MMAuthenticatedUser(object):
         return False
 
 
+class MMAuthenticatedAdminUser(MMAuthenticatedUser):
+    def check_feed(self, feedname):
+        return True
+
+
+class MMAnonymousAdminUser(MMAuthenticatedUser):
+    def __init__(self):
+        super(MMAnonymousAdminUser, self).__init__(_id=ANONYMOUS)
+
+    def is_anonymous(self):
+        return True
+
+    def check_feed(self, feedname):
+        return False
+
+
+class MMAuthenticatedFeedUser(MMAuthenticatedUser):
+    def check_feed(self, feedname):
+        fattributes = config.get('FEEDS_ATTRS', None)
+        if fattributes is None or feedname not in fattributes:
+            return False
+        ftags = set(fattributes[feedname].get('tags', []))
+
+        # if 'any' is present, any authenticated user can access
+        # the feed
+        if 'any' in ftags:
+            return True
+
+        uattributes = config.get('FEEDS_USERS_ATTRS', None)
+        if uattributes is None or self._id not in uattributes:
+            return False
+        tags = set(uattributes[self._id].get('tags', []))
+
+        return len(tags.intersection(ftags)) != 0
+
+
+class MMAnonymousFeedUser(MMAuthenticatedUser):
+    def __init__(self, auth_enabled=False):
+        super(MMAnonymousFeedUser, self).__init__(_id=ANONYMOUS)
+
+        self.auth_enabled = auth_enabled
+
+    def check_feed(self, feedname):
+        if not self.auth_enabled:
+            return True
+
+        fattributes = config.get('FEEDS_ATTRS', None)
+        if fattributes is None or feedname not in fattributes:
+            return False
+        ftags = set(fattributes[feedname].get('tags', []))
+
+        if 'anonymous' in ftags:
+            return True
+
+        return False
+
+    def is_anonymous(self):
+        return True
+
+
 def _feeds_request_loader(request):
-    if not FEEDS_AUTH_ENABLED:
-        return MMAuthenticatedUser(id='feeds_auth_disabled')
+    if not config.get('FEEDS_AUTH_ENABLED', False):
+        return MMAnonymousFeedUser(auth_enabled=False)
 
     api_key = request.headers.get('Authorization')
-    if api_key is not None:
-        api_key = api_key.replace('Basic', '', 1)
+    if api_key is None:
+        return MMAnonymousFeedUser(auth_enabled=True)
 
-        try:
-            api_key = base64.b64decode(api_key)
-        except TypeError:
-            return None
+    api_key = api_key.replace('Basic', '', 1)
 
-        try:
-            user, password = api_key.split(':', 1)
-        except ValueError:
-            return None
+    try:
+        api_key = base64.b64decode(api_key)
+    except TypeError:
+        return None
 
-        if not FEEDS_USERS.check_password(user, password):
-            return None
+    try:
+        user, password = api_key.split(':', 1)
+    except ValueError:
+        return None
 
-        return MMAuthenticatedUser(id=user)
+    if not config.get('FEEDS_USERS_DB').check_password(user, password):
+        if config.get('USERS_DB').check_password(user, password):
+            return MMAuthenticatedAdminUser(_id=user)
 
-    return None
+        return None
 
-
-def _taxii_request_loader(request):
-    if not TAXII_AUTH_ENABLED:
-        return MMAuthenticatedUser(id='taxii_auth_disabled')
-
-    api_key = request.headers.get('Authorization')
-    if api_key is not None:
-        api_key = api_key.replace('Basic', '', 1)
-
-        try:
-            api_key = base64.b64decode(api_key)
-        except TypeError:
-            return None
-
-        try:
-            user, password = api_key.split(':', 1)
-        except ValueError:
-            return None
-
-        if not FEEDS_USERS.check_password(user, password):
-            return None
-
-        return MMAuthenticatedUser(id=user)
-
-    return None
+    return MMAuthenticatedFeedUser(_id=user)
 
 
 @LOGIN_MANAGER.request_loader
 def request_loader(request):
+    # check if this is a feed request
     if request.path.startswith('/taxii-'):
-        return _taxii_request_loader(request)
+        return _feeds_request_loader(request)
 
     if request.path.startswith('/feeds/'):
         return _feeds_request_loader(request)
 
-    if not API_AUTH_ENABLED:
-        return MMAuthenticatedUser(id='api_auth_disabled')
+    # if auth is disabled, proceed
+    if not config.get('API_AUTH_ENABLED', True):
+        return MMAnonymousAdminUser()
 
     api_key = request.headers.get('Authorization')
-    if api_key is not None:
-        api_key = api_key.replace('Basic', '', 1)
+    if api_key is None:
+        return None
 
-        try:
-            api_key = base64.b64decode(api_key)
-        except TypeError:
-            return None
+    api_key = api_key.replace('Basic', '', 1)
 
-        try:
-            user, password = api_key.split(':', 1)
-        except ValueError:
-            return None
+    try:
+        api_key = base64.b64decode(api_key)
+    except TypeError:
+        return None
 
-        if not USERS.check_password(user, password):
-            return None
+    try:
+        user, password = api_key.split(':', 1)
+    except ValueError:
+        return None
 
-        return MMAuthenticatedUser(id=user)
+    if not config.get('USERS_DB').check_password(user, password):
+        return None
 
-    return None
+    return MMAuthenticatedAdminUser(_id=user)
 
 
 @LOGIN_MANAGER.user_loader
-def user_loader(id_):
-    LOG.debug('Loaded user: %s', id_)
-    return MMAuthenticatedUser(id=id_)
+def user_loader(_id):
+    return MMAuthenticatedAdminUser(_id=_id)
 
 
 def check_user(username, password):
-    if not USERS.check_password(username, password):
+    if not config.get('USERS_DB').check_password(username, password):
         return None
 
-    return MMAuthenticatedUser(id=username)
+    return MMAuthenticatedAdminUser(_id=username)
 
 
 @LOGIN_MANAGER.unauthorized_handler

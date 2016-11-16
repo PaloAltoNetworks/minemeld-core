@@ -51,38 +51,46 @@ class YamlFT(basepoller.BasePollerFT):
         return [[indicator, item]]
 
     def _load_yaml(self):
-        lock = filelock.FileLock(self.lock_path)
-
-        with lock.acquire(timeout=10):
+        with filelock.FileLock(self.lock_path).acquire(timeout=10):
             with open(self.path, 'r') as f:
                 result = yaml.safe_load(f)
 
         if type(result) != list:
-            raise RuntimeError('%s - %s should be a list of indicators',
-                               self.name, self.path)
+            raise RuntimeError(
+                '%s - %s should be a list of indicators' %
+                (self.name, self.path)
+            )
 
         return result
 
     def _build_iterator(self, now):
         if self.path is None:
             LOG.warning('%s - no path configured', self.name)
-            return []
+            raise RuntimeError('%s - no path configured' % self.name)
 
         try:
             mtime = os.stat(self.path).st_mtime
-        except OSError:
-            LOG.debug('%s - error checking mtime of %s',
-                      self.name, self.path)
-            return []
+        except OSError as e:
+            if e.errno == 2:  # no such file
+                return None
 
-        if mtime != self.file_monitor_mtime:
-            self.file_monitor_mtime = mtime
+            LOG.exception('%s - error checking mtime of %s',
+                          self.name, self.path)
+            raise RuntimeError(
+                '%s - error checking indicators list' % self.name
+            )
+
+        if mtime == self.file_monitor_mtime:
+            return None
+
+        self.file_monitor_mtime = mtime
 
         try:
             return self._load_yaml()
+
         except:
             LOG.exception('%s - exception loading indicators list', self.name)
-            return []
+            raise
 
 
 class YamlIPv4FT(YamlFT):

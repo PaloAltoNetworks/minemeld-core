@@ -168,6 +168,9 @@ _FEED_FORMATS = {
 @app.route('/feeds/<feed>', methods=['GET'])
 @flask.ext.login.login_required
 def get_feed_content(feed):
+    if not flask.ext.login.current_user.check_feed(feed):
+        return 'Unauthorized', 401
+
     # check if feed exists
     status = MMMaster.status()
     tr = status.get('result', None)

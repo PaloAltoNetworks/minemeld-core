@@ -13,6 +13,7 @@
 #  limitations under the License.
 
 import sys
+import os
 
 from flask import Flask
 from flask import g
@@ -26,22 +27,17 @@ from . import session
 
 
 LOG = logging.getLogger(__name__)
+REDIS_URL = os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0')
 
-REDIS_URL = config.get('REDIS_URL', 'redis://127.0.0.1:6379/0')
 
-
-# create flask app and load config from vmsh.config.api module
 app = Flask(__name__)
-
 app.logger.addHandler(logging.StreamHandler())
-if config.get('DEBUG', False):
-    app.logger.setLevel(logging.DEBUG)
-else:
-    app.logger.setLevel(logging.INFO)
 
-aaa.LOGIN_MANAGER.init_app(app)
+# init app, for some reason this can't be placed inside
+# a before_app_request function
+# XXX investigate
 session.init_app(app, REDIS_URL)
-
+aaa.LOGIN_MANAGER.init_app(app)
 
 try:
     # amqp connection
@@ -323,7 +319,7 @@ except ImportError:
     LOG.exception("supervisor and psutil needed for supervisor entrypoint")
 
 # login
-from . import login
+from . import login  # noqa
 
 # prototypes
 from . import prototypeapi  # noqa
@@ -331,6 +327,19 @@ from . import prototypeapi  # noqa
 # validate
 from . import validateapi  # noqa
 
+# aaa api
+from . import aaaapi  # noqa
+
 if 'psutil' in sys.modules and 'amqp' in sys.modules:
     from . import status  # noqa
     from . import tracedapi  # noqa
+
+
+@app.before_first_request
+def app_init():
+    config.init()
+
+    if config.get('DEBUG', False):
+        app.logger.setLevel(logging.DEBUG)
+    else:
+        app.logger.setLevel(logging.INFO)
