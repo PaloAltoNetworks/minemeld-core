@@ -46,6 +46,7 @@ class DevicePusher(gevent.Greenlet):
             tag=self.device.get('tag', None),
             api_username=self.device.get('api_username', None),
             api_password=self.device.get('api_password', None),
+            api_key=self.device.get('api_key', None),
             port=self.device.get('port', None),
             hostname=self.device.get('hostname', None),
             serial=self.device.get('serial', None)
