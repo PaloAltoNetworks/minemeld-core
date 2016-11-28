@@ -101,7 +101,9 @@ def get_prototype(prototypename):
             'developmentStatus': None,
             'config': None,
             'nodeType': None,
-            'description': None
+            'description': None,
+            'indicatorTypes': None,
+            'tags': None
         }
 
         if 'config' in curr_prototype:
@@ -119,6 +121,12 @@ def get_prototype(prototypename):
 
         if 'description' in curr_prototype:
             result['description'] = curr_prototype['description']
+
+        if 'indicator_types' in curr_prototype:
+            result['indicatorTypes'] = curr_prototype['indicator_types']
+
+        if 'tags' in curr_prototype:
+            result['tags'] = curr_prototype['tags']
 
         return jsonify(result=result), 200
 
@@ -205,6 +213,12 @@ def add_prototype(prototypename):
 
     if 'description' in incoming_prototype:
         new_prototype['description'] = incoming_prototype['description']
+
+    if 'indicatorTypes' in incoming_prototype:
+        new_prototype['indicator_types'] = incoming_prototype['indicatorTypes']
+
+    if 'tags' in incoming_prototype:
+        new_prototype['tags'] = incoming_prototype['tags']
 
     library_contents['prototypes'][prototype] = new_prototype
 
