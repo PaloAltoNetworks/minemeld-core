@@ -26,7 +26,9 @@ LOG = logging.getLogger(__name__)
 
 O365_URL = \
     'https://support.content.office.net/en-us/static/O365IPAddresses.xml'
-BASE_XPATH = "/products/product[@name='%s']"
+XPATH_FUNS_NS = 'http://minemeld.panw.io/o365functions'
+XPATH_FUNS_PREFIX = 'o365f'
+BASE_XPATH = "/products/product[" + XPATH_FUNS_PREFIX + ":lower-case(@name)='%s']"
 
 
 def _build_IPv4(source, address):
@@ -59,9 +61,18 @@ def _build_URL(source, url):
     return item
 
 
+def _xpath_lower_case(context, a):
+    return [e.lower() for e in a]
+
+
 class O365XML(basepoller.BasePollerFT):
     def configure(self):
         super(O365XML, self).configure()
+
+        # register lower-case
+        ns = lxml.etree.FunctionNamespace(XPATH_FUNS_NS)
+        ns['lower-case'] = _xpath_lower_case
+        self.prefixmap = {XPATH_FUNS_PREFIX: XPATH_FUNS_NS}
 
         self.polling_timeout = self.config.get('polling_timeout', 20)
         self.verify_cert = self.config.get('verify_cert', True)
@@ -111,9 +122,10 @@ class O365XML(basepoller.BasePollerFT):
 
         rtree = lxml.etree.parse(r.raw)
         for p in self.products:
-            xpath = BASE_XPATH % p
+            xpath = BASE_XPATH % p.lower()
             pIPv4s = rtree.xpath(
-                xpath + "/addresslist[@type='IPv4']/address"
+                xpath + "/addresslist[@type='IPv4']/address",
+                namespaces=self.prefixmap
             )
             _iterators.append(itertools.imap(
                 functools.partial(_build_IPv4, 'office365.%s' % p),
@@ -121,7 +133,8 @@ class O365XML(basepoller.BasePollerFT):
             ))
 
             pIPv6s = rtree.xpath(
-                xpath + "/addresslist[@type='IPv6']/address"
+                xpath + "/addresslist[@type='IPv6']/address",
+                namespaces=self.prefixmap
             )
             _iterators.append(itertools.imap(
                 functools.partial(_build_IPv6, 'office365.%s' % p),
@@ -129,7 +142,8 @@ class O365XML(basepoller.BasePollerFT):
             ))
 
             pURLs = rtree.xpath(
-                xpath + "/addresslist[@type='URL']/address"
+                xpath + "/addresslist[@type='URL']/address",
+                namespaces=self.prefixmap
             )
             _iterators.append(itertools.imap(
                 functools.partial(_build_URL, 'office365.%s' % p),
