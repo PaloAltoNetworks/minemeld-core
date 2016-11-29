@@ -28,6 +28,7 @@ O365_URL = \
     'https://support.content.office.net/en-us/static/O365IPAddresses.xml'
 XPATH_FUNS_NS = 'http://minemeld.panw.io/o365functions'
 XPATH_FUNS_PREFIX = 'o365f'
+XPATH_PRODUCTS = "/products/product/@name"
 BASE_XPATH = "/products/product[" + XPATH_FUNS_PREFIX + ":lower-case(@name)='%s']"
 
 
@@ -78,6 +79,16 @@ class O365XML(basepoller.BasePollerFT):
         self.verify_cert = self.config.get('verify_cert', True)
         self.products = self.config.get('products', [])
 
+    def _update_attributes(self, current, _new, current_run, new_run):
+        old_source = current['sources']
+
+        current.update(_new)
+
+        if current_run == new_run:
+            current['sources'] = old_source+_new['sources']
+
+        return current
+
     def _process_item(self, item):
         indicator = item.pop('indicator', None)
         return [[indicator, item]]
@@ -121,14 +132,19 @@ class O365XML(basepoller.BasePollerFT):
             raise
 
         rtree = lxml.etree.parse(r.raw)
-        for p in self.products:
+
+        products = self.products
+        if len(products) == 0:
+            products = self._extract_products(rtree)
+
+        for p in products:
             xpath = BASE_XPATH % p.lower()
             pIPv4s = rtree.xpath(
                 xpath + "/addresslist[@type='IPv4']/address",
                 namespaces=self.prefixmap
             )
             _iterators.append(itertools.imap(
-                functools.partial(_build_IPv4, 'office365.%s' % p),
+                functools.partial(_build_IPv4, 'office365.%s' % p.lower()),
                 pIPv4s
             ))
 
@@ -137,7 +153,7 @@ class O365XML(basepoller.BasePollerFT):
                 namespaces=self.prefixmap
             )
             _iterators.append(itertools.imap(
-                functools.partial(_build_IPv6, 'office365.%s' % p),
+                functools.partial(_build_IPv6, 'office365.%s' % p.lower()),
                 pIPv6s
             ))
 
@@ -146,8 +162,13 @@ class O365XML(basepoller.BasePollerFT):
                 namespaces=self.prefixmap
             )
             _iterators.append(itertools.imap(
-                functools.partial(_build_URL, 'office365.%s' % p),
+                functools.partial(_build_URL, 'office365.%s' % p.lower()),
                 pURLs
             ))
 
         return itertools.chain(*_iterators)
+
+    def _extract_products(self, rtree):
+        products = rtree.xpath(XPATH_PRODUCTS)
+        LOG.info('%s - found products: %r', self.name, products)
+        return products
