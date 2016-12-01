@@ -20,6 +20,8 @@ import urlparse
 import datetime
 import pytz
 import os.path
+import lz4
+
 import lxml.etree
 import yaml
 import uuid
@@ -848,7 +850,11 @@ class DataFeed(base.BaseFT):
         nsdict[self.namespaceuri] = self.namespace
         stix.utils.set_id_namespace(nsdict)
 
-        sp = stix.core.STIXPackage()
+        spid = '{}:indicator-{}'.format(
+            self.namespace,
+            uuid.uuid4()
+        )
+        sp = stix.core.STIXPackage(id_=spid)
 
         observables = type_mapper['mapper'](self.namespace, indicator, value)
 
@@ -893,11 +899,12 @@ class DataFeed(base.BaseFT):
 
             sp.add_indicator(sindicator)
 
+        spackage = 'lz4'+lz4.compressHC(sp.to_json())
         with self.SR.pipeline() as p:
             p.multi()
 
-            p.zadd(self.redis_skey, score, id_)
-            p.hset(self.redis_skey_value, id_, sp.to_xml())
+            p.zadd(self.redis_skey, score, spid)
+            p.hset(self.redis_skey_value, spid, spackage)
 
             result = p.execute()[0]
 
