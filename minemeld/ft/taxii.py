@@ -21,7 +21,6 @@ import datetime
 import pytz
 import os.path
 import lz4
-import msgpack
 
 import lxml.etree
 import yaml
