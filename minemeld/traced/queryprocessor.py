@@ -111,7 +111,7 @@ class Query(gevent.Greenlet):
                 return False
         return True
 
-    def _run(self):
+    def _core_run(self):
         LOG.debug("Query %s started", self.uuid)
 
         SR = redis.StrictRedis(
@@ -127,32 +127,40 @@ class Query(gevent.Greenlet):
             self.starting_counter
         )
 
-        num_generated_lines = 0
-        while num_generated_lines < self.num_lines:
-            line = next(line_generator, None)
-            if not line:
-                break
+        try:
+            num_generated_lines = 0
+            while num_generated_lines < self.num_lines:
+                line = next(line_generator, None)
+                if not line:
+                    break
 
-            gevent.sleep(0)
+                gevent.sleep(0)
 
-            if 'log' not in line:
-                SR.publish('mm-traced-q.'+self.uuid, ujson.dumps(line))
-                continue
+                if 'log' not in line:
+                    SR.publish('mm-traced-q.'+self.uuid, ujson.dumps(line))
+                    continue
 
-            if self._check_query(line['log']):
-                SR.publish('mm-traced-q.'+self.uuid, ujson.dumps(line))
-                num_generated_lines += 1
+                if self._check_query(line['log']):
+                    SR.publish('mm-traced-q.'+self.uuid, ujson.dumps(line))
+                    num_generated_lines += 1
 
-        SR.publish(
-            'mm-traced-q.'+self.uuid,
-            '{"msg": "Loaded %d lines"}' % num_generated_lines
-        )
-        SR.publish('mm-traced-q.'+self.uuid, '<EOQ>')
-        LOG.info("Query %s finished - %d", self.uuid, num_generated_lines)
+            SR.publish(
+                'mm-traced-q.'+self.uuid,
+                '{"msg": "Loaded %d lines"}' % num_generated_lines
+            )
 
-        # make sure we release the tables if we stop in the middle
-        # of an iteration
-        self.store.release_all(self.uuid)
+        finally:
+            SR.publish('mm-traced-q.'+self.uuid, '<EOQ>')
+            LOG.info("Query %s finished - %d", self.uuid, num_generated_lines)
+
+    def _run(self):
+        try:
+            self._core_run()
+
+        finally:
+            # make sure we release the tables if we stop in the middle
+            # of an iteration
+            self.store.release_all(self.uuid)
 
 
 class QueryProcessor(object):
