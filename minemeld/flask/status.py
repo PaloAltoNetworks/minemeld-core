@@ -13,7 +13,6 @@
 #  limitations under the License.
 
 import logging
-
 import psutil
 import os
 import yaml
@@ -60,32 +59,55 @@ def get_events():
     return r
 
 
-def _stream_redis_events(subscription, pattern=False):
-    pubsub = SR.pubsub(ignore_subscribe_messages=True)
+class _PubSubWrapper(object):
+    def __init__(self, subscription, pattern=False):
+        self.subscription = subscription
+        self.pattern = pattern
 
-    if pattern:
-        pubsub.psubscribe(subscription)
-    else:
-        pubsub.subscribe(subscription)
+        self.pubsub = SR.pubsub(ignore_subscribe_messages=True)
+        if pattern:
+            self.pubsub.psubscribe(subscription)
+        else:
+            self.pubsub.subscribe(subscription)
 
-    yield 'data: ok\n\n'
+        self.generator = self._msg_generator()
 
-    for message in pubsub.listen():
-        message = message['data']
+    def _listen(self):
+        while self.pubsub.subscribed:
+            response = self.pubsub.get_message(timeout=5.0)
+            yield response
 
-        if message == '<EOQ>':
-            break
+    def _msg_generator(self):
+        yield 'data: ok\n\n'
 
-        yield 'data: '+message+'\n\n'
+        for message in self._listen():
+            if message is None:
+                yield 'data: { "msg": "ping" }\n\n'
+                continue
 
-    yield 'data: { "msg": "<EOQ>" }\n\n'
+            message = message['data']
 
-    if pattern:
-        pubsub.punsubscribe(subscription)
-    else:
-        pubsub.unsubscribe(subscription)
+            if message == '<EOQ>':
+                break
 
-    pubsub.close()
+            yield 'data: '+message+'\n\n'
+
+        yield 'data: { "msg": "<EOQ>" }\n\n'
+
+    def __iter__(self):
+        return self
+
+    def next(self):
+        return next(self.generator)
+
+    def close(self):
+        if self.pattern:
+            self.pubsub.punsubscribe(self.subscription)
+        else:
+            self.pubsub.unsubscribe(self.subscription)
+
+        self.pubsub.close()
+        self.pubsub = None
 
 
 @app.route('/status/events/query/<quuid>')
@@ -97,7 +119,7 @@ def get_query_events(quuid):
         return jsonify(error={'message': 'Bad query uuid'}), 400
 
     swc_response = stream_with_context(
-        _stream_redis_events('mm-traced-q.'+quuid)
+        _PubSubWrapper('mm-traced-q.'+quuid)
     )
     r = Response(swc_response, mimetype='text/event-stream')
 
@@ -108,7 +130,7 @@ def get_query_events(quuid):
 @flask.ext.login.login_required
 def get_status_events():
     swc_response = stream_with_context(
-        _stream_redis_events('mm-engine-status.*', pattern=True)
+        _PubSubWrapper('mm-engine-status.*', pattern=True)
     )
     r = Response(swc_response, mimetype='text/event-stream')
 
