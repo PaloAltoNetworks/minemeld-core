@@ -16,9 +16,11 @@ import logging
 import datetime
 
 import pytz
+import lz4
 
 import libtaxii
 import libtaxii.constants
+import stix.core
 
 from flask import request
 from flask import Response
@@ -71,6 +73,18 @@ def _indicators_feed(feed, excbegtime, incendtime):
 
         for i in indicators:
             value = SR.hget(feed + '.value', i)
+
+            if value.startswith('lz4'):
+                try:
+                    value = lz4.decompress(value[3:])
+                    value = stix.core.STIXPackage.from_json(value)
+                    value = value.to_xml(
+                        ns_dict={'https://go.paloaltonetworks.com/minemeld': 'minemeld'}
+                    )
+
+                except ValueError:
+                    continue
+
             yield value
 
         if len(indicators) < 100:
