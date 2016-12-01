@@ -79,16 +79,6 @@ class O365XML(basepoller.BasePollerFT):
         self.verify_cert = self.config.get('verify_cert', True)
         self.products = self.config.get('products', [])
 
-    def _update_attributes(self, current, _new, current_run, new_run):
-        old_source = current['sources']
-
-        current.update(_new)
-
-        if current_run == new_run:
-            current['sources'] = old_source+_new['sources']
-
-        return current
-
     def _process_item(self, item):
         indicator = item.pop('indicator', None)
         return [[indicator, item]]
@@ -101,7 +91,7 @@ class O365XML(basepoller.BasePollerFT):
 
         return r.prepare()
 
-    def _build_iterator(self, now):
+    def _o365_iterator(self, now):
         _iterators = []
 
         _session = requests.Session()
@@ -167,6 +157,19 @@ class O365XML(basepoller.BasePollerFT):
             ))
 
         return itertools.chain(*_iterators)
+
+    def _build_iterator(self, now):
+        oiterator = self._o365_iterator(now)
+
+        idict = {}
+        for i in oiterator:
+            indicator = i['indicator']
+            cvalue = idict.get(indicator, None)
+            if cvalue is not None:
+                i['sources'] = list(set(i['sources']) | set(cvalue['sources']))
+            idict[indicator] = i
+
+        return itertools.imap(lambda i: i[1], idict.iteritems())
 
     def _extract_products(self, rtree):
         products = rtree.xpath(XPATH_PRODUCTS)
