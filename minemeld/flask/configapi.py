@@ -25,14 +25,15 @@ import copy
 
 import minemeld.run.config
 
-from flask import request
-from flask import jsonify
+from flask import request, jsonify, Blueprint
+from flask.ext.login import login_required
 
-import flask.ext.login
+from .redisclient import SR
+from .mmrpc import MMRpcClient
 
-from . import app
-from . import SR
-from . import MMRpcClient
+
+__all__ = ['BLUEPRINT']
+
 
 LOG = logging.getLogger(__name__)
 FEED_INTERVAL = 100
@@ -40,6 +41,9 @@ REDIS_KEY_PREFIX = 'mm:config:'
 REDIS_KEY_CONFIG = REDIS_KEY_PREFIX+'candidate'
 REDIS_NODES_LIST = 'nodes'
 LOCK_TIMEOUT = 3000
+
+
+BLUEPRINT = Blueprint('config', __name__, url_prefix='/config')
 
 
 class VersionMismatchError(Exception):
@@ -392,8 +396,8 @@ def _set_node(nodenum, nodebody):
     return str(result)
 
 
-@app.route('/config/reload', methods=['GET'])
-@flask.ext.login.login_required
+@BLUEPRINT.route('/reload', methods=['GET'])
+@login_required
 def reload_running_config():
     cname = request.args.get('c', 'running')
 
@@ -412,8 +416,8 @@ def reload_running_config():
     return jsonify(result=str(version))
 
 
-@app.route('/config/commit', methods=['POST'])
-@flask.ext.login.login_required
+@BLUEPRINT.route('/commit', methods=['POST'])
+@login_required
 def commit():
     try:
         body = request.get_json()
@@ -438,8 +442,8 @@ def commit():
     return jsonify(result='OK')
 
 
-@app.route('/config/info', methods=['GET'])
-@flask.ext.login.login_required
+@BLUEPRINT.route('/info', methods=['GET'])
+@login_required
 def get_config_info():
     try:
         result = _config_info(lock=True)
@@ -449,8 +453,8 @@ def get_config_info():
     return jsonify(result=result)
 
 
-@app.route('/config/full', methods=['GET'])
-@flask.ext.login.login_required
+@BLUEPRINT.route('/full', methods=['GET'])
+@login_required
 def get_config_full():
     try:
         result = _config_full(lock=True)
@@ -461,8 +465,8 @@ def get_config_full():
     return jsonify(result=result)
 
 
-@app.route('/config/fabric', methods=['GET'])
-@flask.ext.login.login_required
+@BLUEPRINT.route('/fabric', methods=['GET'])
+@login_required
 def get_fabric():
     try:
         result = _get_stanza('fabric', lock=True)
@@ -475,8 +479,8 @@ def get_fabric():
     return jsonify(result=result)
 
 
-@app.route('/config/mgmtbus', methods=['GET'])
-@flask.ext.login.login_required
+@BLUEPRINT.route('/mgmtbus', methods=['GET'])
+@login_required
 def get_mgmtbus():
     try:
         result = _get_stanza('mgmtbus', lock=True)
@@ -489,8 +493,8 @@ def get_mgmtbus():
     return jsonify(result=result)
 
 
-@app.route('/config/node', methods=['POST'])
-@flask.ext.login.login_required
+@BLUEPRINT.route('/node', methods=['POST'])
+@login_required
 def create_node():
     try:
         body = request.get_json()
@@ -507,8 +511,8 @@ def create_node():
     return jsonify(result=result)
 
 
-@app.route('/config/node/<nodenum>', methods=['GET'])
-@flask.ext.login.login_required
+@BLUEPRINT.route('/node/<nodenum>', methods=['GET'])
+@login_required
 def get_node(nodenum):
     try:
         nodenum = int(nodenum)
@@ -527,8 +531,8 @@ def get_node(nodenum):
     return jsonify(result=result)
 
 
-@app.route('/config/node/<nodenum>', methods=['PUT'])
-@flask.ext.login.login_required
+@BLUEPRINT.route('/node/<nodenum>', methods=['PUT'])
+@login_required
 def set_node(nodenum):
     try:
         nodenum = int(nodenum)
@@ -551,8 +555,8 @@ def set_node(nodenum):
     return jsonify(result=result)
 
 
-@app.route('/config/node/<nodenum>', methods=['DELETE'])
-@flask.ext.login.login_required
+@BLUEPRINT.route('/node/<nodenum>', methods=['DELETE'])
+@login_required
 def delete_node(nodenum):
     try:
         nodenum = int(nodenum)
@@ -573,8 +577,8 @@ def delete_node(nodenum):
     return jsonify(result=result)
 
 
-@app.route('/config/data/<datafilename>', methods=['GET'])
-@flask.ext.login.login_required
+@BLUEPRINT.route('/data/<datafilename>', methods=['GET'])
+@login_required
 def get_config_data(datafilename):
     cpath = os.path.dirname(os.environ.get('MM_CONFIG'))
 
@@ -602,8 +606,8 @@ def get_config_data(datafilename):
     return jsonify(result=result)
 
 
-@app.route('/config/data/<datafilename>', methods=['PUT'])
-@flask.ext.login.login_required
+@BLUEPRINT.route('/data/<datafilename>', methods=['PUT'])
+@login_required
 def save_config_data(datafilename):
     cpath = os.path.dirname(os.environ.get('MM_CONFIG'))
     tdir = os.path.dirname(os.path.join(cpath, datafilename))
@@ -637,8 +641,8 @@ def save_config_data(datafilename):
     return jsonify(result='ok'), 200
 
 
-@app.route('/config/data/<datafilename>/append', methods=['POST'])
-@flask.ext.login.login_required
+@BLUEPRINT.route('/data/<datafilename>/append', methods=['POST'])
+@login_required
 def append_config_data(datafilename):
     cpath = os.path.dirname(os.environ.get('MM_CONFIG'))
     tdir = os.path.dirname(os.path.join(cpath, datafilename))

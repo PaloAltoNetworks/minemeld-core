@@ -19,15 +19,19 @@ import libtaxii
 import libtaxii.messages_11
 import libtaxii.constants
 
-from flask import request
+from flask import request, Blueprint
+from flask.ext.login import login_required, current_user
 
-import flask.ext.login
-
-from . import app
 from . import config
 from .taxiiutils import get_taxii_feeds, taxii_check, taxii_make_response
 
+
+__all__ = ['BLUEPRINT']
+
+
 LOG = logging.getLogger(__name__)
+
+BLUEPRINT = Blueprint('taxiidiscovery', __name__, url_prefix='')
 
 HOST_RE = re.compile('^[a-zA-Z\d-]{1,63}(?:\.[a-zA-Z\d-]{1,63})*(?::[0-9]{1,5})*$')
 
@@ -47,13 +51,13 @@ _SERVICE_INSTANCES = [
 ]
 
 
-@app.route('/taxii-discovery-service', methods=['POST'])
-@flask.ext.login.login_required
+@BLUEPRINT.route('/taxii-discovery-service', methods=['POST'])
+@login_required
 @taxii_check
 def taxii_discovery_service():
     taxii_feeds = get_taxii_feeds()
     authorized = next(
-        (tf for tf in taxii_feeds if flask.ext.login.current_user.check_feed(tf)),
+        (tf for tf in taxii_feeds if current_user.check_feed(tf)),
         None
     )
     if authorized is None:

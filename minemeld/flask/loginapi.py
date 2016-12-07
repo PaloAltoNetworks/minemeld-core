@@ -14,18 +14,21 @@
 
 import logging
 
-from flask import request
-from flask import jsonify
-
+from flask import request, jsonify, Blueprint
 import flask.ext.login
 
-from . import app
 from . import aaa
+
+
+__all__ = ['BLUEPRINT']
+
 
 LOG = logging.getLogger(__name__)
 
+BLUEPRINT = Blueprint('login', __name__, url_prefix='')
 
-@app.route('/login', methods=['GET', 'POST'])
+
+@BLUEPRINT.route('/login', methods=['GET', 'POST'])
 def login():
     username = request.values.get('u')
     if username is None:
@@ -43,7 +46,7 @@ def login():
     return 'OK'
 
 
-@app.route('/logout', methods=['GET'])
+@BLUEPRINT.route('/logout', methods=['GET'])
 def logout():
     flask.ext.login.logout_user()
     return 'OK'

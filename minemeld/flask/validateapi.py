@@ -16,16 +16,18 @@ import logging
 
 import yaml
 
-import flask.ext.login
-
-from flask import jsonify
-from flask import request
-
-from . import app
+from flask.ext.login import login_required
+from flask import jsonify, request, Blueprint
 
 import minemeld.ft.condition
 
+
+__all__ = ['BLUEPRINT']
+
+
 LOG = logging.getLogger(__name__)
+
+BLUEPRINT = Blueprint('validate', __name__, url_prefix='/validate')
 
 
 def _return_validation_error(msg):
@@ -34,8 +36,8 @@ def _return_validation_error(msg):
     }), 400
 
 
-@app.route('/validate/syslogminerrule', methods=['POST'])
-@flask.ext.login.login_required
+@BLUEPRINT.route('/syslogminerrule', methods=['POST'])
+@login_required
 def validate_syslogminerrule():
     try:
         crule = request.data

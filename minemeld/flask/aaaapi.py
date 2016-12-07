@@ -15,13 +15,16 @@
 import logging
 import collections
 
-from flask import request
-from flask import jsonify
+from flask import request, jsonify, Blueprint
+from flask.ext.login import login_required
 
-import flask.ext.login
-
-from . import app
 from . import config
+
+
+__all__ = ['BLUEPRINT']
+
+
+BLUEPRINT = Blueprint('aaa', __name__, url_prefix='/aaa')
 
 LOG = logging.getLogger(__name__)
 
@@ -56,8 +59,8 @@ _SUBSYSTEM_MAP = {
 _FEEDS_ATTRS = config.APIConfigDict(attribute=FEEDS_ATTRS_ATTR, level=50)
 
 
-@app.route('/aaa/users/<subsystem>', methods=['GET'])
-@flask.ext.login.login_required
+@BLUEPRINT.route('/users/<subsystem>', methods=['GET'])
+@login_required
 def get_users(subsystem):
     subsystem = _SUBSYSTEM_MAP.get(subsystem, None)
     if subsystem is None:
@@ -79,8 +82,8 @@ def get_users(subsystem):
     return jsonify(result=result)
 
 
-@app.route('/aaa/users/<subsystem>/<username>', methods=['PUT'])
-@flask.ext.login.login_required
+@BLUEPRINT.route('/users/<subsystem>/<username>', methods=['PUT'])
+@login_required
 def set_user_password(subsystem, username):
     subsystem = _SUBSYSTEM_MAP.get(subsystem, None)
     if subsystem is None:
@@ -102,8 +105,8 @@ def set_user_password(subsystem, username):
         return jsonify(result='ok')
 
 
-@app.route('/aaa/users/<subsystem>/<username>/attributes', methods=['POST'])
-@flask.ext.login.login_required
+@BLUEPRINT.route('/users/<subsystem>/<username>/attributes', methods=['POST'])
+@login_required
 def set_user_attributes(subsystem, username):
     subsystem = _SUBSYSTEM_MAP.get(subsystem, None)
     if subsystem is None:
@@ -130,8 +133,8 @@ def set_user_attributes(subsystem, username):
         return jsonify(result='ok')
 
 
-@app.route('/aaa/users/<subsystem>/<username>', methods=['DELETE'])
-@flask.ext.login.login_required
+@BLUEPRINT.route('/users/<subsystem>/<username>', methods=['DELETE'])
+@login_required
 def delete_user(subsystem, username):
     subsystem = _SUBSYSTEM_MAP.get(subsystem, None)
     if subsystem is None:
@@ -151,8 +154,8 @@ def delete_user(subsystem, username):
         return jsonify(result='ok')
 
 
-@app.route('/aaa/feeds', methods=['GET'])
-@flask.ext.login.login_required
+@BLUEPRINT.route('/feeds', methods=['GET'])
+@login_required
 def get_feeds():
     result = {
         'enabled': config.get(
@@ -164,8 +167,8 @@ def get_feeds():
     return jsonify(result=result)
 
 
-@app.route('/aaa/feeds/<feedname>/attributes', methods=['PUT', 'POST'])
-@flask.ext.login.login_required
+@BLUEPRINT.route('/feeds/<feedname>/attributes', methods=['PUT', 'POST'])
+@login_required
 def set_feed_attributes(feedname):
     with config.lock():
         try:
@@ -181,8 +184,8 @@ def set_feed_attributes(feedname):
         return jsonify(result='ok')
 
 
-@app.route('/aaa/feeds/<feedname>', methods=['DELETE'])
-@flask.ext.login.login_required
+@BLUEPRINT.route('/feeds/<feedname>', methods=['DELETE'])
+@login_required
 def delete_feed(feedname):
     with config.lock():
         _FEEDS_ATTRS.delete(feedname)
@@ -190,8 +193,8 @@ def delete_feed(feedname):
         return jsonify(result='ok')
 
 
-@app.route('/aaa/tags', methods=['GET'])
-@flask.ext.login.login_required
+@BLUEPRINT.route('/tags', methods=['GET'])
+@login_required
 def get_tags():
     tags = set()
 

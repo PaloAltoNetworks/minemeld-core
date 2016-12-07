@@ -16,23 +16,24 @@ import logging
 import re
 import cStringIO
 
-from flask import request
-from flask import jsonify
-from flask import Response
-from flask import stream_with_context
+from flask import request, jsonify, Response, stream_with_context, Blueprint
+from flask.ext.login import login_required, current_user
 
-import flask.ext.login
+from .redisclient import SR
+from .mmrpc import MMMaster
 
-from . import app
-from . import SR
-from . import MMMaster
+
+__all__ = ['BLUEPRINT']
+
 
 LOG = logging.getLogger(__name__)
+
 FEED_INTERVAL = 100
-
-
 _PROTOCOL_RE = re.compile('^(?:[a-z]+:)*//')
 _INVALID_TOKEN_RE = re.compile('(?:[^\./+=\?&]+\*[^\./+=\?&]*)|(?:[^\./+=\?&]*\*[^\./+=\?&]+)')
+
+
+BLUEPRINT = Blueprint('feeds', __name__, url_prefix='/feeds')
 
 
 def generate_panosurl_feed(feed, start, num, desc, value):
@@ -165,10 +166,10 @@ _FEED_FORMATS = {
 }
 
 
-@app.route('/feeds/<feed>', methods=['GET'])
-@flask.ext.login.login_required
+@BLUEPRINT.route('/<feed>', methods=['GET'])
+@login_required
 def get_feed_content(feed):
-    if not flask.ext.login.current_user.check_feed(feed):
+    if not current_user.check_feed(feed):
         return 'Unauthorized', 401
 
     # check if feed exists

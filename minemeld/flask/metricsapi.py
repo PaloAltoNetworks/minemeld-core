@@ -18,20 +18,24 @@ import os.path
 
 import rrdtool
 
-from flask import request
-from flask import jsonify
-
-import flask.ext.login
+from flask import request, jsonify, Blueprint
+from flask.ext.login import login_required
 
 import minemeld.collectd
 
-from . import app
 from . import config
+
+
+__all__ = ['BLUEPRINT']
+
 
 LOG = logging.getLogger(__name__)
 RRD_PATH = config.get('RRD_PATH', '/var/lib/collectd/rrd/minemeld/')
 RRD_SOCKET_PATH = config.get('RRD_SOCKET_PATH', '/var/run/collectd.sock')
 ALLOWED_CF = ['MAX', 'MIN', 'AVERAGE']
+
+
+BLUEPRINT = Blueprint('metrics', __name__, url_prefix='/metrics')
 
 
 def _list_metrics(prefix=None):
@@ -89,14 +93,14 @@ def _fetch_metric(cc, metric, type_=None,
     return result
 
 
-@app.route('/metrics')
-@flask.ext.login.login_required
+@BLUEPRINT.route('/')
+@login_required
 def get_metrics():
     return jsonify(result=_list_metrics())
 
 
-@app.route('/metrics/minemeld/<nodetype>')
-@flask.ext.login.login_required
+@BLUEPRINT.route('/minemeld/<nodetype>')
+@login_required
 def get_node_type_metrics(nodetype):
     cf = str(request.args.get('cf', 'MAX')).upper()
     if cf not in ALLOWED_CF:
@@ -136,8 +140,8 @@ def get_node_type_metrics(nodetype):
     return jsonify(result=result)
 
 
-@app.route('/metrics/minemeld')
-@flask.ext.login.login_required
+@BLUEPRINT.route('/minemeld')
+@login_required
 def get_global_metrics():
     cf = str(request.args.get('cf', 'MAX')).upper()
     if cf not in ALLOWED_CF:
@@ -180,8 +184,8 @@ def get_global_metrics():
     return jsonify(result=result)
 
 
-@app.route('/metrics/<node>')
-@flask.ext.login.login_required
+@BLUEPRINT.route('/<node>')
+@login_required
 def get_node_metrics(node):
     cf = str(request.args.get('cf', 'MAX')).upper()
     if cf not in ALLOWED_CF:
@@ -221,8 +225,8 @@ def get_node_metrics(node):
     return jsonify(result=result)
 
 
-@app.route('/metrics/<node>/<metric>', methods=['GET'])
-@flask.ext.login.login_required
+@BLUEPRINT.route('/<node>/<metric>', methods=['GET'])
+@login_required
 def get_metric(node, metric):
     cf = str(request.args.get('cf', 'MAX')).upper()
     if cf not in ALLOWED_CF:

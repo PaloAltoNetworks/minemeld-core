@@ -193,6 +193,7 @@ def _destroy_node(desc, nodes=None, installed_nodes=None, installed_nodes_gcs=No
 
     return 0
 
+
 def _destroy_old_nodes(oldconfig, newconfig):
     # this destroys resources used by destroyed nodes
     # a nodes has been destroyed if a node with same

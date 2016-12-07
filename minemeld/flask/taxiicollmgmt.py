@@ -19,26 +19,30 @@ import libtaxii
 import libtaxii.messages_11
 import libtaxii.constants
 
-from flask import request
+from flask import request, Blueprint
+from flask.ext.login import login_required, current_user
 
-import flask.ext.login
-
-from . import app
 from . import config
 from .taxiiutils import taxii_check, taxii_make_response, get_taxii_feeds
+
+
+__all__ = ['BLUEPRINT']
+
 
 LOG = logging.getLogger(__name__)
 
 HOST_RE = re.compile('^[a-zA-Z\d-]{1,63}(?:\.[a-zA-Z\d-]{1,63})*(?::[0-9]{1,5})*$')
 
+BLUEPRINT = Blueprint('taxiicollmgmt', __name__, url_prefix='')
 
-@app.route('/taxii-collection-management-service', methods=['POST'])
-@flask.ext.login.login_required
+
+@BLUEPRINT.route('/taxii-collection-management-service', methods=['POST'])
+@login_required
 @taxii_check
 def taxii_collection_mgmt_service():
     taxii_feeds = get_taxii_feeds()
     authorized_feeds = filter(
-        flask.ext.login.current_user.check_feed,
+        current_user.check_feed,
         taxii_feeds
     )
     if len(authorized_feeds) == 0:

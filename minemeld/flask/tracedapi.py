@@ -13,26 +13,26 @@
 #  limitations under the License.
 
 import logging
-
 import uuid
 
-from flask import request
-from flask import jsonify
+from flask import request, jsonify, Blueprint
+from flask.ext.login import login_required
 
-import flask.ext.login
-
-from . import app
-
-# for hup API
-from . import MMRpcClient
+from .mmrpc import MMRpcClient
 
 import minemeld.traced
 
+
+__all__ = ['BLUEPRINT']
+
+
 LOG = logging.getLogger(__name__)
 
+BLUEPRINT = Blueprint('traced', __name__, url_prefix='/traced')
 
-@app.route('/traced/query')
-@flask.ext.login.login_required
+
+@BLUEPRINT.route('/query')
+@login_required
 def traced_query():
     query_uuid = request.args.get('uuid', None)
     if query_uuid is None:
@@ -76,8 +76,8 @@ def traced_query():
     return jsonify(result=result), 200
 
 
-@app.route('/traced/query/<query_uuid>/kill')
-@flask.ext.login.login_required
+@BLUEPRINT.route('/query/<query_uuid>/kill')
+@login_required
 def traced_kill_query(query_uuid):
     try:
         uuid.UUID(query_uuid)
