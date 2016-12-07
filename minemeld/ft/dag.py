@@ -21,6 +21,7 @@ import os
 import re
 import collections
 import itertools
+import shutil
 
 import gevent
 import gevent.queue
@@ -614,3 +615,22 @@ class DagPusher(base.BaseFT):
     def hup(self, source=None):
         LOG.info('%s - hup received, reload device list', self.name)
         self.hup_event.set()
+
+    @staticmethod
+    def gc(name, config=None):
+        base.BaseFT.gc(name, config=config)
+
+        shutil.rmtree(name, ignore_errors=True)
+        device_list_path = None
+        if config is not None:
+            device_list_path = config.get('device_list', None)
+        if device_list_path is None:
+            device_list_path = os.path.join(
+                os.environ['MM_CONFIG_DIR'],
+                '{}_device_list.yml'.format(name)
+            )
+
+        try:
+            os.remove(device_list_path)
+        except:
+            pass

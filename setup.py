@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import json
 from setuptools import Extension, setup, find_packages
 
 try:
@@ -25,11 +26,34 @@ import os.path
 sys.path.insert(0, os.path.abspath('.'))
 from minemeld import __version__
 
+with open('nodes.json') as f:
+    _entry_points = {
+        'minemeld_nodes': [],
+        'minemeld_nodes_gcs': [],
+        'minemeld_nodes_validators': []
+    }
+    _nodes = json.load(f)
+    for node, v in _nodes.iteritems():
+        _entry_points['minemeld_nodes'].append(
+            '{} = {}'.format(node, v['class'])
+        )
+        if 'gc' in v:
+            _entry_points['minemeld_nodes_gcs'].append(
+                '{} = {}'.format(node, v['gc'])
+            )
+        if 'validator' in v:
+            _entry_points['minemeld_nodes_validators'].append(
+                '{} = {}'.format(node, v['validator'])
+            )
+
+
 with open('requirements.txt') as f:
     _requirements = f.read().splitlines()
 
 with open('README.md') as f:
     _long_description = f.read()
+
+_packages = find_packages(exclude=["*.tests", "*.tests.*", "tests.*", "tests"])
 
 GDNS = Extension(
     name='minemeld.packages.gdns._ares',
@@ -55,7 +79,8 @@ setup(
         'Topic :: Internet'
     ],
     long_description=_long_description,
-    packages=find_packages(),
+    packages=_packages,
+    provides=['minemeld'],
     install_requires=_requirements,
     ext_modules=cythonize([GDNS]),
     entry_points={
@@ -64,6 +89,9 @@ setup(
             'mm-console = minemeld.run.console:main',
             'mm-traced = minemeld.traced.main:main',
             'mm-traced-purge = minemeld.traced.purge:main'
-        ]
+        ],
+        'minemeld_nodes': _entry_points['minemeld_nodes'],
+        'minemeld_nodes_gcs': _entry_points['minemeld_nodes_gcs'],
+        'minemeld_nodes_validators': _entry_points['minemeld_nodes_validators']
     }
 )

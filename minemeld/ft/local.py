@@ -92,6 +92,30 @@ class YamlFT(basepoller.BasePollerFT):
             LOG.exception('%s - exception loading indicators list', self.name)
             raise
 
+    @staticmethod
+    def gc(name, config=None):
+        basepoller.BasePollerFT.gc(name, config=config)
+
+        path = None
+        if config is not None:
+            path = config.get('path', None)
+        if path is None:
+            path = os.path.join(
+                os.environ['MM_CONFIG_DIR'],
+                '{}_indicators.yml'.format(name)
+            )
+        lock_path = '{}.lock'.format(path)
+
+        try:
+            os.remove(path)
+        except:
+            pass
+
+        try:
+            os.remove(lock_path)
+        except:
+            pass
+
 
 class YamlIPv4FT(YamlFT):
     def _process_item(self, item):

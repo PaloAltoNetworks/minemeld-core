@@ -1,0 +1,107 @@
+{
+    "minemeld.ft.anomali.Intelligence": {
+        "class": "minemeld.ft.anomali:Intelligence"
+    },
+    "minemeld.ft.auscert.MaliciousURLFeed": {
+        "class": "minemeld.ft.auscert:MaliciousURLFeed"
+    },
+    "minemeld.ft.autofocus.ExportList": {
+        "class": "minemeld.ft.autofocus:ExportList"
+    },
+    "minemeld.ft.azure.AzureXML": {
+        "class": "minemeld.ft.azure:AzureXML"
+    },
+    "minemeld.ft.cif.Feed": {
+        "class": "minemeld.ft.cif:Feed"
+    },
+    "minemeld.ft.ciscoise.ErsSgt": {
+        "class": "minemeld.ft.ciscoise:ErsSgt"
+    },
+    "minemeld.ft.csv.CSVFT": {
+        "class": "minemeld.ft.csv:CSVFT"
+    },
+    "minemeld.ft.dag.DagPusher": {
+        "class": "minemeld.ft.dag:DagPusher"
+    },
+    "minemeld.ft.google.GoogleNetBlocks": {
+        "class": "minemeld.ft.google:GoogleNetBlocks"
+    },
+    "minemeld.ft.google.GoogleCloudNetBlocks": {
+        "class": "minemeld.ft.google:GoogleCloudNetBlocks"
+    },
+    "minemeld.ft.google.GoogleSPF": {
+        "class": "minemeld.ft.google:GoogleSPF"
+    },
+    "minemeld.ft.http.HttpFT": {
+        "class": "minemeld.ft.http:HttpFT"
+    },
+    "minemeld.ft.ipop.AggregateIPv4FT": {
+        "class": "minemeld.ft.ipop:AggregateIPv4FT"
+    },
+    "minemeld.ft.json.SimpleJSON": {
+        "class": "minemeld.ft.json:SimpleJSON"
+    },
+    "minemeld.ft.local.YamlFT": {
+        "class": "minemeld.ft.local:YamlFT"
+    },
+    "minemeld.ft.local.YamlIPv4FT": {
+        "class": "minemeld.ft.local:YamlIPv4FT"
+    },
+    "minemeld.ft.local.YamlURLFT": {
+        "class": "minemeld.ft.local:YamlURLFT"
+    },
+    "minemeld.ft.local.YamlDomainFT": {
+        "class": "minemeld.ft.local:YamlDomainFT"
+    },
+    "minemeld.ft.local.YamlIPv6FT": {
+        "class": "minemeld.ft.local:YamlIPv6FT"
+    },
+    "minemeld.ft.logstash.LogstashOutput": {
+        "class": "minemeld.ft.logstash:LogstashOutput"
+    },
+    "minemeld.ft.o365.O365XML": {
+        "class": "minemeld.ft.o365:O365XML"
+    },
+    "minemeld.ft.op.AggregateFT": {
+        "class": "minemeld.ft.op:AggregateFT"
+    },
+    "minemeld.ft.phishme.Intelligence": {
+        "class": "minemeld.ft.phishme:Intelligence"
+    },
+    "minemeld.ft.proofpoint.ETIntelligence": {
+        "class": "minemeld.ft.proofpoint:ETIntelligence"
+    },
+    "minemeld.ft.proofpoint.EmergingThreatsIP": {
+        "class": "minemeld.ft.proofpoint:EmergingThreatsIP"
+    },
+    "minemeld.ft.proofpoint.EmergingThreatsDomain": {
+        "class": "minemeld.ft.proofpoint:EmergingThreatsDomain"
+    },
+    "minemeld.ft.recordedfuture.IPRiskList": {
+        "class": "minemeld.ft.recordedfuture:IPRiskList"
+    },
+    "minemeld.ft.redis.RedisSet": {
+        "class": "minemeld.ft.redis:RedisSet"
+    },
+    "minemeld.ft.syslog.SyslogMatcher": {
+        "class": "minemeld.ft.syslog:SyslogMatcher"
+    },
+    "minemeld.ft.syslog.SyslogMiner": {
+        "class": "minemeld.ft.syslog:SyslogMiner"
+    },
+    "minemeld.ft.taxii.TaxiiClient": {
+        "class": "minemeld.ft.taxii:TaxiiClient"
+    },
+    "minemeld.ft.taxii.DataFeed": {
+        "class": "minemeld.ft.taxii:DataFeed"
+    },
+    "minemeld.ft.threatq.Export": {
+        "class": "minemeld.ft.threatq:Export"
+    },
+    "minemeld.ft.tmt.DTIAPI": {
+        "class": "minemeld.ft.tmt:DTIAPI"
+    },
+    "minemeld.ft.vt.Notifications": {
+        "class": "minemeld.ft.vt:Notifications"
+    }
+}

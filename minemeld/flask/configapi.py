@@ -21,6 +21,7 @@ import uuid
 import time
 import json
 import filelock
+import copy
 
 import minemeld.run.config
 
@@ -275,7 +276,14 @@ def _commit_config(version):
 
     _unlock(REDIS_KEY_CONFIG, clock)
 
-    messages = minemeld.run.config.validate_config(newconfig)
+    # we build a copy of the config for validation
+    # original config is not used because it could be modified
+    # during validation
+    temp_config = copy.deepcopy(newconfig)
+    valid = minemeld.run.config.resolve_prototypes(temp_config)
+    if not valid:
+        raise ValueError('Error resolving prototypes')
+    messages = minemeld.run.config.validate_config(temp_config)
     if len(messages) != 0:
         return messages
 

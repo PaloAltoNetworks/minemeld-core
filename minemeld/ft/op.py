@@ -13,6 +13,7 @@
 #  limitations under the License.
 
 import logging
+import shutil
 
 from . import base
 from . import table
@@ -226,3 +227,8 @@ class AggregateFT(base.BaseFT):
         self.table.close()
 
         LOG.info("%s - # indicators: %d", self.name, self.table.num_indicators)
+
+    @staticmethod
+    def gc(name, config=None):
+        base.BaseFT.gc(name, config=config)
+        shutil.rmtree(name, ignore_errors=True)
