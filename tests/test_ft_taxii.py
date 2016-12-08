@@ -33,6 +33,8 @@ import xmltodict
 import os
 import libtaxii.constants
 import re
+import lz4
+import json
 
 import minemeld.ft.taxii
 import minemeld.ft
@@ -185,10 +187,13 @@ class MineMeldFTTaxiiTests(unittest.TestCase):
         else:
             self.fail(msg='hset not found')
 
-        stixdict = xmltodict.parse(args[2])
-        indicator = stixdict['stix:STIX_Package']['stix:Indicators']['stix:Indicator']
-        cyboxprops = indicator['indicator:Observable']['cybox:Object']['cybox:Properties']
-        self.assertEqual(cyboxprops['AddressObj:Address_Value'], '1.1.1.1')
+        self.assertEqual(args[2].startswith('lz4'), True)
+        stixdict = json.loads(lz4.uncompress(args[2][3:]))
+
+        indicator = stixdict['indicators'][0]
+        cyboxprops = indicator['observable']['object']['properties']
+        self.assertEqual(cyboxprops['address_value'], '1.1.1.1')
+        self.assertEqual(cyboxprops['xsi:type'], 'AddressObjectType')
         SR_mock.reset_mock()
 
         # CIDR
@@ -209,10 +214,13 @@ class MineMeldFTTaxiiTests(unittest.TestCase):
         else:
             self.fail(msg='hset not found')
 
-        stixdict = xmltodict.parse(args[2])
-        indicator = stixdict['stix:STIX_Package']['stix:Indicators']['stix:Indicator']
-        cyboxprops = indicator['indicator:Observable']['cybox:Object']['cybox:Properties']
-        self.assertEqual(cyboxprops['AddressObj:Address_Value'], '1.1.1.0/24')
+        self.assertEqual(args[2].startswith('lz4'), True)
+        stixdict = json.loads(lz4.uncompress(args[2][3:]))
+
+        indicator = stixdict['indicators'][0]
+        cyboxprops = indicator['observable']['object']['properties']
+        self.assertEqual(cyboxprops['address_value'], '1.1.1.0/24')
+        self.assertEqual(cyboxprops['xsi:type'], 'AddressObjectType')
         SR_mock.reset_mock()
 
         # fake range
@@ -233,10 +241,13 @@ class MineMeldFTTaxiiTests(unittest.TestCase):
         else:
             self.fail(msg='hset not found')
 
-        stixdict = xmltodict.parse(args[2])
-        indicator = stixdict['stix:STIX_Package']['stix:Indicators']['stix:Indicator']
-        cyboxprops = indicator['indicator:Observable']['cybox:Object']['cybox:Properties']
-        self.assertEqual(cyboxprops['AddressObj:Address_Value'], '1.1.1.1')
+        self.assertEqual(args[2].startswith('lz4'), True)
+        stixdict = json.loads(lz4.uncompress(args[2][3:]))
+
+        indicator = stixdict['indicators'][0]
+        cyboxprops = indicator['observable']['object']['properties']
+        self.assertEqual(cyboxprops['address_value'], '1.1.1.1')
+        self.assertEqual(cyboxprops['xsi:type'], 'AddressObjectType')
         SR_mock.reset_mock()
 
         # fake range 2
@@ -257,10 +268,13 @@ class MineMeldFTTaxiiTests(unittest.TestCase):
         else:
             self.fail(msg='hset not found')
 
-        stixdict = xmltodict.parse(args[2])
-        indicator = stixdict['stix:STIX_Package']['stix:Indicators']['stix:Indicator']
-        cyboxprops = indicator['indicator:Observable']['cybox:Object']['cybox:Properties']
-        self.assertEqual(cyboxprops['AddressObj:Address_Value'], '1.1.1.0/27')
+        self.assertEqual(args[2].startswith('lz4'), True)
+        stixdict = json.loads(lz4.uncompress(args[2][3:]))
+
+        indicator = stixdict['indicators'][0]
+        cyboxprops = indicator['observable']['object']['properties']
+        self.assertEqual(cyboxprops['address_value'], '1.1.1.0/27')
+        self.assertEqual(cyboxprops['xsi:type'], 'AddressObjectType')
         SR_mock.reset_mock()
 
         # real range
@@ -281,12 +295,16 @@ class MineMeldFTTaxiiTests(unittest.TestCase):
         else:
             self.fail(msg='hset not found')
 
-        stixdict = xmltodict.parse(args[2])
-        indicator = stixdict['stix:STIX_Package']['stix:Indicators']['stix:Indicator']
-        cyboxprops = indicator[0]['indicator:Observable']['cybox:Object']['cybox:Properties']
-        self.assertEqual(cyboxprops['AddressObj:Address_Value'], '1.1.1.0/27')
-        cyboxprops = indicator[1]['indicator:Observable']['cybox:Object']['cybox:Properties']
-        self.assertEqual(cyboxprops['AddressObj:Address_Value'], '1.1.1.32/31')
+        self.assertEqual(args[2].startswith('lz4'), True)
+        stixdict = json.loads(lz4.uncompress(args[2][3:]))
+
+        indicator = stixdict['indicators']
+        cyboxprops = indicator[0]['observable']['object']['properties']
+        self.assertEqual(cyboxprops['address_value'], '1.1.1.0/27')
+        self.assertEqual(cyboxprops['xsi:type'], 'AddressObjectType')
+        cyboxprops = indicator[1]['observable']['object']['properties']
+        self.assertEqual(cyboxprops['address_value'], '1.1.1.32/31')
+        self.assertEqual(cyboxprops['xsi:type'], 'AddressObjectType')
         SR_mock.reset_mock()
 
         b.stop()
@@ -336,10 +354,13 @@ class MineMeldFTTaxiiTests(unittest.TestCase):
         else:
             self.fail(msg='hset not found')
 
-        stixdict = xmltodict.parse(args[2])
-        indicator = stixdict['stix:STIX_Package']['stix:Indicators']['stix:Indicator']
-        cyboxprops = indicator['indicator:Observable']['cybox:Object']['cybox:Properties']
-        self.assertEqual(cyboxprops['DomainNameObj:Value'], 'example.com')
+        self.assertEqual(args[2].startswith('lz4'), True)
+        stixdict = json.loads(lz4.decompress(args[2][3:]))
+
+        indicator = stixdict['indicators'][0]
+        cyboxprops = indicator['observable']['object']['properties']
+        self.assertEqual(cyboxprops['value'], 'example.com')
+        self.assertEqual(cyboxprops['type'], 'FQDN')
         SR_mock.reset_mock()
 
         b.stop()
@@ -389,10 +410,13 @@ class MineMeldFTTaxiiTests(unittest.TestCase):
         else:
             self.fail(msg='hset not found')
 
-        stixdict = xmltodict.parse(args[2])
-        indicator = stixdict['stix:STIX_Package']['stix:Indicators']['stix:Indicator']
-        cyboxprops = indicator['indicator:Observable']['cybox:Object']['cybox:Properties']
-        self.assertEqual(cyboxprops['URIObj:Value'], 'www.example.com/admin.php')
+        self.assertEqual(args[2].startswith('lz4'), True)
+        stixdict = json.loads(lz4.decompress(args[2][3:]))
+
+        indicator = stixdict['indicators'][0]
+        cyboxprops = indicator['observable']['object']['properties']
+        self.assertEqual(cyboxprops['type'], 'URL')
+        self.assertEqual(cyboxprops['value'], 'www.example.com/admin.php')
         SR_mock.reset_mock()
 
         b.stop()
@@ -442,10 +466,13 @@ class MineMeldFTTaxiiTests(unittest.TestCase):
         else:
             self.fail(msg='hset not found')
 
-        stixdict = xmltodict.parse(args[2])
-        indicator = stixdict['stix:STIX_Package']['stix:Indicators']['stix:Indicator']
-        cyboxprops = indicator['indicator:Observable']['cybox:Object']['cybox:Properties']
-        self.assertEqual(cyboxprops['URIObj:Value'], u'\u2603.net/p\xe5th')
+        self.assertEqual(args[2].startswith('lz4'), True)
+        stixdict = json.loads(lz4.decompress(args[2][3:]))
+
+        indicator = stixdict['indicators'][0]
+        cyboxprops = indicator['observable']['object']['properties']
+        self.assertEqual(cyboxprops['type'], 'URL')
+        self.assertEqual(cyboxprops['value'], u'\u2603.net/p\xe5th')
         SR_mock.reset_mock()
 
         b.stop()

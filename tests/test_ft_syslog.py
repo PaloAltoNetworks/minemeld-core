@@ -171,9 +171,6 @@ class MineMeldFTSyslogMatcherests(unittest.TestCase):
         )
 
         a.stop()
-        a.table.db.close()
-        a.table_ipv4.db.close()
-        a.table_indicators.db.close()
 
         a = None
         chassis = None
@@ -227,9 +224,6 @@ class MineMeldFTSyslogMatcherests(unittest.TestCase):
         )
 
         a.stop()
-        a.table.db.close()
-        a.table_ipv4.db.close()
-        a.table_indicators.db.close()
 
         a = None
         chassis = None
@@ -273,9 +267,6 @@ class MineMeldFTSyslogMatcherests(unittest.TestCase):
         self.assertEqual(ochannel.publish.call_count, 0)
 
         a.stop()
-        a.table.db.close()
-        a.table_ipv4.db.close()
-        a.table_indicators.db.close()
 
         a = None
         chassis = None
@@ -336,9 +327,6 @@ class MineMeldFTSyslogMatcherests(unittest.TestCase):
         )
 
         a.stop()
-        a.table.db.close()
-        a.table_ipv4.db.close()
-        a.table_indicators.db.close()
 
         a = None
         chassis = None
@@ -393,9 +381,6 @@ class MineMeldFTSyslogMatcherests(unittest.TestCase):
         )
 
         a.stop()
-        a.table.db.close()
-        a.table_ipv4.db.close()
-        a.table_indicators.db.close()
 
         a = None
         chassis = None
@@ -447,9 +432,6 @@ class MineMeldFTSyslogMatcherests(unittest.TestCase):
         self.assertEqual(mock_socket.sendall.call_count, 1)
 
         a.stop()
-        a.table.db.close()
-        a.table_ipv4.db.close()
-        a.table_indicators.db.close()
 
         a = None
         chassis = None
@@ -498,9 +480,6 @@ class MineMeldFTSyslogMatcherests(unittest.TestCase):
         self.assertEqual(mock_socket.sendall.call_count, 1)
 
         a.stop()
-        a.table.db.close()
-        a.table_ipv4.db.close()
-        a.table_indicators.db.close()
 
         a = None
         chassis = None
@@ -558,9 +537,6 @@ class MineMeldFTSyslogMatcherests(unittest.TestCase):
         )
 
         a.stop()
-        a.table.db.close()
-        a.table_ipv4.db.close()
-        a.table_indicators.db.close()
 
         a = None
         chassis = None

@@ -101,6 +101,9 @@ class Table(object):
             except:
                 pass
 
+        self.db = None
+        self._compact_glet = None
+
         self.db = plyvel.DB(
             name,
             create_if_missing=True,
@@ -136,14 +139,15 @@ class Table(object):
             start=START_INDEX_KEY,
             stop=END_INDEX_KEY
         )
-        for k, v in ri:
-            _, _, indexid = struct.unpack("BBB", k)
-            if v in self.indexes:
-                raise InvalidTableException("2 indexes with the same name")
-            self.indexes[v] = {
-                'id': indexid,
-                'last_global_id': 0
-            }
+        with ri:
+            for k, v in ri:
+                _, _, indexid = struct.unpack("BBB", k)
+                if v in self.indexes:
+                    raise InvalidTableException("2 indexes with the same name")
+                self.indexes[v] = {
+                    'id': indexid,
+                    'last_global_id': 0
+                }
         for i in self.indexes:
             lgi = self._get(self._last_global_id_key(self.indexes[i]['id']))
             if lgi is not None:
@@ -169,9 +173,18 @@ class Table(object):
 
         return result
 
+    def __del__(self):
+        self.close()
+
     def close(self):
-        self._compact_glet.kill()
-        self.db.close()
+        if self.db is not None:
+            self.db.close()
+
+        if self._compact_glet is not None:
+            self._compact_glet.kill()
+
+        self.db = None
+        self._compact_glet = None
 
     def exists(self, key):
         if type(key) == unicode:
@@ -353,12 +366,13 @@ class Table(object):
             reverse=reverse,
             include_value=False
         )
-        for ekey in ri:
-            ekey = ekey[2:]
-            if include_value:
-                yield ekey, self.get(ekey)
-            else:
-                yield ekey
+        with ri:
+            for ekey in ri:
+                ekey = ekey[2:]
+                if include_value:
+                    yield ekey, self.get(ekey)
+                else:
+                    yield ekey
 
     def _query_by_index(self, index, from_key=None, to_key=None,
                         include_value=False, include_stop=True,
@@ -384,6 +398,7 @@ class Table(object):
                 lastidxid=0xFFFFFFFFFFFFFFFF
             )
 
+        ldeleted = 0
         ri = self.db.iterator(
             start=from_key,
             stop=to_key,
@@ -392,28 +407,33 @@ class Table(object):
             include_stop=include_stop,
             reverse=reverse
         )
-        for ikey, ekey in ri:
-            iversion = struct.unpack(">Q", ekey[:8])[0]
-            ekey = ekey[8:]
+        with ri:
+            for ikey, ekey in ri:
+                iversion = struct.unpack(">Q", ekey[:8])[0]
+                ekey = ekey[8:]
+    
+                evalue = self._get(self._indicator_key_version(ekey))
+                if evalue is None:
+                    # LOG.debug("Key does not exist")
+                    # key does not exist
+                    self.db.delete(ikey)
+                    ldeleted += 1
+                    continue
+    
+                cversion = struct.unpack(">Q", evalue)[0]
+                if iversion != cversion:
+                    # index value is old
+                    # LOG.debug("Version mismatch")
+                    self.db.delete(ikey)
+                    ldeleted += 1
+                    continue
+    
+                if include_value:
+                    yield ekey, self.get(ekey)
+                else:
+                    yield ekey
 
-            evalue = self._get(self._indicator_key_version(ekey))
-            if evalue is None:
-                # LOG.debug("Key does not exist")
-                # key does not exist
-                self.db.delete(ikey)
-                continue
-
-            cversion = struct.unpack(">Q", evalue)[0]
-            if iversion != cversion:
-                # index value is old
-                # LOG.debug("Version mismatch")
-                self.db.delete(ikey)
-                continue
-
-            if include_value:
-                yield ekey, self.get(ekey)
-            else:
-                yield ekey
+        LOG.info('Deleted in scan of {}: {}'.format(index, ldeleted))
 
     def _compact_loop(self):
         while True:
