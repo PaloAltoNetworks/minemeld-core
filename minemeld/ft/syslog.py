@@ -356,6 +356,10 @@ class SyslogMatcher(base.BaseFT):
         if self.amqp_glet is None:
             return
 
+        self.table.close()
+        self.table_indicators.close()
+        self.table_ipv4.close()
+
 
 class SyslogMiner(base.BaseFT):
     def __init__(self, name, chassis, config):
@@ -748,6 +752,8 @@ class SyslogMiner(base.BaseFT):
 
         self.amqp_glet.kill()
         self.ageout_glet.kill()
+
+        self.table.close()
 
         LOG.info("%s - # indicators: %d", self.name, self.table.num_indicators)
 

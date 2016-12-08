@@ -609,6 +609,8 @@ class DagPusher(base.BaseFT):
         if self.ageout_glet is not None:
             self.ageout_glet.kill()
 
+        self.table.close()
+
     def hup(self, source=None):
         LOG.info('%s - hup received, reload device list', self.name)
         self.hup_event.set()
