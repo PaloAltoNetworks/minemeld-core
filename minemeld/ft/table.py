@@ -70,12 +70,14 @@ over the keys (2,<index id>,0xF0,<encoded value>) and
 (2,<index id>,0xF0,<encoded value>,0xFF..FF)
 """
 
+import os
 import plyvel
 import struct
 import ujson
 import time
 import logging
 import shutil
+import gevent
 
 
 SCHEMAVERSION_KEY = struct.pack("B", 0)
@@ -105,6 +107,10 @@ class Table(object):
             bloom_filter_bits=bloom_filter_bits
         )
         self._read_metadata()
+
+
+        self.compact_interval = int(os.environ.get('MM_TABLE_COMPACT_INTERVAL', '86400'))
+        self._compact_glet = gevent.spawn(self._compact_loop)
 
     def _init_db(self):
         self.last_update = 0
@@ -164,6 +170,7 @@ class Table(object):
         return result
 
     def close(self):
+        self._compact_glet.kill()
         self.db.close()
 
     def exists(self, key):
@@ -407,3 +414,21 @@ class Table(object):
                 yield ekey, self.get(ekey)
             else:
                 yield ekey
+
+    def _compact_loop(self):
+        while True:
+            try:
+                for idx in self.indexes.keys():
+                    for i in self.query(index=idx, include_value=False):
+                        pass
+
+            except gevent.GreenletExit:
+                break
+            except:
+                LOG.exception('Exception in _compact_loop')
+
+            try:
+                gevent.sleep(self.compact_interval)
+
+            except gevent.GreenletExit:
+                break

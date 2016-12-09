@@ -430,4 +430,6 @@ class AggregateIPv4FT(base.BaseFT):
             g.kill()
         self.active_requests = []
 
+        self.table.close()
+
         LOG.info("%s - # indicators: %d", self.name, self.table.num_indicators)

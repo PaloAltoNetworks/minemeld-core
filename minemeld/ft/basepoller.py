@@ -695,4 +695,6 @@ class BasePollerFT(base.BaseFT):
         self._poll_glet.kill()
         self._age_out_glet.kill()
 
+        self.table.close()
+
         LOG.info("%s - # indicators: %d", self.name, self.table.num_indicators)
