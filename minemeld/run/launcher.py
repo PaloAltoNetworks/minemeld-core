@@ -111,9 +111,14 @@ def _parse_args():
 
 
 def main():
+    mbusmaster = None
+
     def _sigint_handler():
         LOG.info('SIGINT received')
-        mbusmaster.checkpoint_graph()
+
+        if mbusmaster is not None:
+            mbusmaster.checkpoint_graph()
+
         with processes_lock:
             for p in processes:
                 os.kill(p.pid, signal.SIGUSR1)
@@ -121,7 +126,10 @@ def main():
 
     def _sigterm_handler():
         LOG.info('SIGTERM received')
-        mbusmaster.checkpoint_graph()
+
+        if mbusmaster is not None:
+            mbusmaster.checkpoint_graph()
+
         with processes_lock:
             for p in processes:
                 os.kill(p.pid, signal.SIGUSR1)
