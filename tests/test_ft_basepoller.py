@@ -208,7 +208,7 @@ class MineMeldFTBasePollerTests(unittest.TestCase):
         a.mgmtbus_initialize()
         a.start()
         self.assertEqual(spawnl_mock.call_count, 1)
-        self.assertEqual(spawn_mock.call_count, 2)
+        self.assertEqual(spawn_mock.call_count, 3)
 
         CUR_LOGICAL_TIME = 1
         a._age_out()
@@ -255,7 +255,7 @@ class MineMeldFTBasePollerTests(unittest.TestCase):
         self.assertEqual(a.length(), 3)
 
         a.stop()
-        a.table.db.close()
+
 
         a = None
         chassis = None
@@ -291,7 +291,7 @@ class MineMeldFTBasePollerTests(unittest.TestCase):
         a.mgmtbus_initialize()
         a.start()
         self.assertEqual(spawnl_mock.call_count, 1)
-        self.assertEqual(spawn_mock.call_count, 2)
+        self.assertEqual(spawn_mock.call_count, 3)
 
         CUR_LOGICAL_TIME = 1
         a._age_out()
@@ -341,7 +341,7 @@ class MineMeldFTBasePollerTests(unittest.TestCase):
         self.assertEqual(a.length(), 0)
 
         a.stop()
-        a.table.db.close()
+
 
         a = None
         chassis = None
@@ -377,7 +377,7 @@ class MineMeldFTBasePollerTests(unittest.TestCase):
         a.mgmtbus_initialize()
         a.start()
         self.assertEqual(spawnl_mock.call_count, 1)
-        self.assertEqual(spawn_mock.call_count, 2)
+        self.assertEqual(spawn_mock.call_count, 3)
 
         CUR_LOGICAL_TIME = 1
         a._age_out()
@@ -427,7 +427,7 @@ class MineMeldFTBasePollerTests(unittest.TestCase):
         self.assertEqual(a.length(), 0)
 
         a.stop()
-        a.table.db.close()
+
 
         a = None
         chassis = None
@@ -463,7 +463,7 @@ class MineMeldFTBasePollerTests(unittest.TestCase):
         a.mgmtbus_initialize()
         a.start()
         self.assertEqual(spawnl_mock.call_count, 1)
-        self.assertEqual(spawn_mock.call_count, 2)
+        self.assertEqual(spawn_mock.call_count, 3)
 
         CUR_LOGICAL_TIME = 1
         a._age_out()
@@ -498,7 +498,7 @@ class MineMeldFTBasePollerTests(unittest.TestCase):
         self.assertEqual(a.length(), 0)
 
         a.stop()
-        a.table.db.close()
+
 
         a = None
         chassis = None
@@ -533,7 +533,7 @@ class MineMeldFTBasePollerTests(unittest.TestCase):
         a.mgmtbus_initialize()
         a.start()
         self.assertEqual(spawnl_mock.call_count, 1)
-        self.assertEqual(spawn_mock.call_count, 2)
+        self.assertEqual(spawn_mock.call_count, 3)
 
         a._actor_queue.put((0, 'age_out'))
         a._actor_queue.put((999, 'age_out'))
@@ -547,7 +547,7 @@ class MineMeldFTBasePollerTests(unittest.TestCase):
         self.assertEqual(um_mock.call_count, 2)
 
         a.stop()
-        a.table.db.close()
+
 
         a = None
         chassis = None

@@ -142,7 +142,6 @@ class MineMeldFTOpTests(unittest.TestCase):
         self.assertEqual(pargs[1]['value']['s1$a'], 1)
 
         a.stop()
-        a.table.db.close()
 
         a = None
         chassis = None
@@ -188,7 +187,6 @@ class MineMeldFTOpTests(unittest.TestCase):
         self.assertEqual(pargs[1]['indicator'], 'i')
 
         a.stop()
-        a.table.db.close()
 
         a = None
         chassis = None
@@ -234,7 +232,6 @@ class MineMeldFTOpTests(unittest.TestCase):
         self.assertListEqual(pargs[1]['value']['sources'], ['s1s'])
 
         a.stop()
-        a.table.db.close()
 
         a = None
         chassis = None
@@ -290,7 +287,7 @@ class MineMeldFTOpTests(unittest.TestCase):
         self.assertEqual(pargs[0], 'withdraw')
 
         a.stop()
-        a.table.db.close()
+
 
         a = None
         chassis = None
@@ -349,7 +346,7 @@ class MineMeldFTOpTests(unittest.TestCase):
         self.assertListEqual(pargs[1]['value']['sources'], ['s1s'])
 
         a.stop()
-        a.table.db.close()
+
 
         a = None
         chassis = None
@@ -398,7 +395,7 @@ class MineMeldFTOpTests(unittest.TestCase):
         self.assertEqual(ochannel.publish.call_count, 0)
 
         a.stop()
-        a.table.db.close()
+
 
         a = None
         chassis = None
@@ -455,7 +452,7 @@ class MineMeldFTOpTests(unittest.TestCase):
         self.assertEqual(pargs[1]['indicator'], 'i')
 
         a.stop()
-        a.table.db.close()
+
 
         a = None
         chassis = None
@@ -522,7 +519,7 @@ class MineMeldFTOpTests(unittest.TestCase):
         )
 
         a.stop()
-        a.table.db.close()
+
         a = None
         gc.collect()
 
@@ -602,7 +599,7 @@ class MineMeldFTOpTests(unittest.TestCase):
         )
 
         a.stop()
-        a.table.db.close()
+
         a = None
         gc.collect()
 
@@ -683,6 +680,6 @@ class MineMeldFTOpTests(unittest.TestCase):
         )
 
         a.stop()
-        a.table.db.close()
+
         a = None
         gc.collect()

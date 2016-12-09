@@ -251,7 +251,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         ))
 
         a.stop()
-        a.table.db.close()
+
         a.st.db.close()
         a = None
 
@@ -325,7 +325,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         )
 
         a.stop()
-        a.table.db.close()
+
         a.st.db.close()
         a = None
 
@@ -406,7 +406,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         )
 
         a.stop()
-        a.table.db.close()
+
         a.st.db.close()
         a = None
 
@@ -513,7 +513,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         )
 
         a.stop()
-        a.table.db.close()
+
         a.st.db.close()
         a = None
 
@@ -587,7 +587,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         )
 
         a.stop()
-        a.table.db.close()
+
         a.st.db.close()
         a = None
 
@@ -657,7 +657,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         )
 
         a.stop()
-        a.table.db.close()
+
         a.st.db.close()
         a = None
 
@@ -761,7 +761,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         )
 
         a.stop()
-        a.table.db.close()
+
         a.st.db.close()
         a = None
 
@@ -822,7 +822,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         )
 
         a.stop()
-        a.table.db.close()
+
         a.st.db.close()
         a = None
 
@@ -885,7 +885,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         )
 
         a.stop()
-        a.table.db.close()
+
         a.st.db.close()
         a = None
 
@@ -957,7 +957,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         )
 
         a.stop()
-        a.table.db.close()
+
         a.st.db.close()
         a = None
 
@@ -1026,7 +1026,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         )
 
         a.stop()
-        a.table.db.close()
+
         a.st.db.close()
         a = None
 
@@ -1097,7 +1097,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         print "TIME: Updated %d intervals in %d" % (num_intervals, (t2-t1-dt))
 
         a.stop()
-        a.table.db.close()
+
         a.st.db.close()
         a = None
 
@@ -1149,6 +1149,6 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         print "TIME: Inserted %d intervals in %d" % (num_intervals, (t2-t1-dt))
 
         a.stop()
-        a.table.db.close()
+
         a.st.db.close()
         a = None

@@ -134,7 +134,7 @@ class MineMeldFTDagPusherTests(unittest.TestCase):
         a.mgmtbus_initialize()
         a.start()
         self.assertEqual(spawnl_mock.call_count, 1)
-        self.assertEqual(spawn_mock.call_count, 0)
+        self.assertEqual(spawn_mock.call_count, 1)
 
         # 1st round
         try:
@@ -194,7 +194,6 @@ class MineMeldFTDagPusherTests(unittest.TestCase):
             self.assertEqual(a.device_pushers[i].device, d)
 
         a.stop()
-        a.table.db.close()
 
         a = None
         chassis = None
@@ -238,7 +237,7 @@ class MineMeldFTDagPusherTests(unittest.TestCase):
         a.mgmtbus_initialize()
         a.start()
         self.assertEqual(spawnl_mock.call_count, 1)
-        self.assertEqual(spawn_mock.call_count, 0)
+        self.assertEqual(spawn_mock.call_count, 1)
 
         try:
             a._device_list_monitor()
@@ -282,7 +281,7 @@ class MineMeldFTDagPusherTests(unittest.TestCase):
             self.assertEqual(d.put.call_count, 0)
 
         a.stop()
-        a.table.db.close()
+
 
         a = None
         chassis = None
@@ -326,7 +325,7 @@ class MineMeldFTDagPusherTests(unittest.TestCase):
         a.mgmtbus_initialize()
         a.start()
         self.assertEqual(spawnl_mock.call_count, 1)
-        self.assertEqual(spawn_mock.call_count, 0)
+        self.assertEqual(spawn_mock.call_count, 1)
 
         try:
             a._device_list_monitor()
@@ -348,7 +347,7 @@ class MineMeldFTDagPusherTests(unittest.TestCase):
         self.assertEqual(a.length(), 0)
 
         a.stop()
-        a.table.db.close()
+
 
         a = None
         chassis = None
@@ -392,7 +391,7 @@ class MineMeldFTDagPusherTests(unittest.TestCase):
         a.mgmtbus_initialize()
         a.start()
         self.assertEqual(spawnl_mock.call_count, 1)
-        self.assertEqual(spawn_mock.call_count, 0)
+        self.assertEqual(spawn_mock.call_count, 1)
 
         try:
             a._device_list_monitor()
@@ -436,7 +435,7 @@ class MineMeldFTDagPusherTests(unittest.TestCase):
             self.assertEqual(d.put.call_count, 0)
 
         a.stop()
-        a.table.db.close()
+
 
         a = None
         chassis = None
@@ -480,7 +479,7 @@ class MineMeldFTDagPusherTests(unittest.TestCase):
         a.mgmtbus_initialize()
         a.start()
         self.assertEqual(spawnl_mock.call_count, 1)
-        self.assertEqual(spawn_mock.call_count, 0)
+        self.assertEqual(spawn_mock.call_count, 1)
 
         try:
             a._device_list_monitor()
@@ -524,7 +523,7 @@ class MineMeldFTDagPusherTests(unittest.TestCase):
             self.assertEqual(d.put.call_count, 0)
 
         a.stop()
-        a.table.db.close()
+
 
         a = None
         chassis = None
@@ -536,7 +535,7 @@ class MineMeldFTDagPusherTests(unittest.TestCase):
     @mock.patch.object(pan.xapi, 'PanXapi', side_effect=panos_mock.factory)
     def test_devicepusher_dag_message(self, panxapi_mock):
         RESULT_REG = '<uid-message><version>1.0</version><type>update</type><payload><register><entry ip="192.168.1.1" persistent="0"><tag><member>a</member><member>b</member></tag></entry></register></payload></uid-message>'
-        RESULT_UNREG = '<uid-message><version>1.0</version><type>update</type><payload><unregister><entry ip="192.168.1.1" persistent="0"><tag><member>a</member><member>b</member></tag></entry></unregister></payload></uid-message>'
+        RESULT_UNREG = '<uid-message><version>1.0</version><type>update</type><payload><unregister><entry ip="192.168.1.1"><tag><member>a</member><member>b</member></tag></entry></unregister></payload></uid-message>'
 
         dp = minemeld.ft.dag.DevicePusher(
             {'tag': 'test'},
@@ -563,13 +562,13 @@ class MineMeldFTDagPusherTests(unittest.TestCase):
         )
 
         tags = dp._tags_from_value({'confidence': 49, 'direction': 'inbound'})
-        self.assertEqual(tags, ['mmeld_confidence_low', 'mmeld_direction_inbound'])
+        self.assertEqual(tags, set(['mmeld_confidence_low', 'mmeld_direction_inbound']))
 
         tags = dp._tags_from_value({'confidence': 50})
-        self.assertEqual(tags, ['mmeld_confidence_medium', 'mmeld_direction_unknown'])
+        self.assertEqual(tags, set(['mmeld_confidence_medium', 'mmeld_direction_unknown']))
 
         tags = dp._tags_from_value({'confidence': 75, 'direction': 'outbound'})
-        self.assertEqual(tags, ['mmeld_confidence_high', 'mmeld_direction_outbound'])
+        self.assertEqual(tags, set(['mmeld_confidence_high', 'mmeld_direction_outbound']))
 
     @mock.patch.object(pan.xapi, 'PanXapi', side_effect=panos_mock.factory)
     def test_devicepusher_get_all_registered_ips(self, panxapi_mock):
@@ -622,5 +621,5 @@ class MineMeldFTDagPusherTests(unittest.TestCase):
         )
         self.assertEqual(
             dp.xapi.user_id_calls[1],
-            '<uid-message><version>1.0</version><type>update</type><payload><unregister><entry ip="192.168.1.1" persistent="0"><tag><member>mmeld_confidence_100</member><member>mmeld_pushed</member></tag></entry><entry ip="192.168.1.2" persistent="0"><tag><member>mmeld_confidence_100</member><member>mmeld_test</member></tag></entry></unregister></payload></uid-message>'
+            '<uid-message><version>1.0</version><type>update</type><payload><unregister><entry ip="192.168.1.1"><tag><member>mmeld_confidence_100</member><member>mmeld_pushed</member></tag></entry><entry ip="192.168.1.2"><tag><member>mmeld_confidence_100</member><member>mmeld_test</member></tag></entry></unregister></payload></uid-message>'
         )

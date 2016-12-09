@@ -51,7 +51,7 @@ def gevent_event_mock_factory():
     return result
 
 
-class MineMeldYamlFTTests(unittest.TestCase):
+class MineMeldAutofocusFTTests(unittest.TestCase):
     def setUp(self):
         try:
             shutil.rmtree(FTNAME)
@@ -93,7 +93,7 @@ class MineMeldYamlFTTests(unittest.TestCase):
         a.mgmtbus_initialize()
         a.start()
         self.assertEqual(spawnl_mock.call_count, 1)
-        self.assertEqual(spawn_mock.call_count, 2)
+        self.assertEqual(spawn_mock.call_count, 3)
 
         self.assertEqual(a._type_of_indicator('1.1.1.1'), 'IPv4')
         self.assertEqual(a._type_of_indicator('1.1.1.2-1.1.1.5'), 'IPv4')
@@ -103,7 +103,6 @@ class MineMeldYamlFTTests(unittest.TestCase):
         self.assertEqual(a._type_of_indicator('https://www.google.com'), 'URL')
 
         a.stop()
-        a.table.db.close()
 
         a = None
         chassis = None
