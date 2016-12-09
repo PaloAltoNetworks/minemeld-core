@@ -24,7 +24,6 @@ import signal
 import multiprocessing
 import argparse
 import os
-import sys
 
 import minemeld.chassis
 import minemeld.mgmtbus
@@ -113,15 +112,20 @@ def _parse_args():
 
 def main():
     def _sigint_handler():
+        LOG.info('SIGINT received')
         mbusmaster.checkpoint_graph()
-        for p in processes:
-            os.kill(p.pid, signal.SIGUSR1)
-        raise KeyboardInterrupt('Ctrl-C from _sigint_handler')
+        with processes_lock:
+            for p in processes:
+                os.kill(p.pid, signal.SIGUSR1)
+        signal_received.set()
 
     def _sigterm_handler():
+        LOG.info('SIGTERM received')
         mbusmaster.checkpoint_graph()
-        for p in processes:
-            os.kill(p.pid, signal.SIGUSR1)
+        with processes_lock:
+            for p in processes:
+                os.kill(p.pid, signal.SIGUSR1)
+        signal_received.set()
 
     args = _parse_args()
 
@@ -141,10 +145,6 @@ def main():
 
     # load and validate config
     config = minemeld.run.config.load_config(args.config)
-    vresults = minemeld.run.config.validate_config(config)
-    if len(vresults) != 0:
-        LOG.critical('Invalid config: %s', ', '.join(vresults))
-        sys.exit(1)
 
     LOG.info("mm-run.py config: %s", config)
 
@@ -188,6 +188,8 @@ def main():
         processes.append(p)
         p.start()
 
+    processes_lock = gevent.lock.BoundedSemaphore()
+    signal_received = gevent.event.Event()
     gevent.signal(signal.SIGINT, _sigint_handler)
     gevent.signal(signal.SIGTERM, _sigterm_handler)
 
@@ -204,12 +206,14 @@ def main():
 
     try:
         while True:
-            r = [int(t.is_alive()) for t in processes]
-            if sum(r) != len(processes):
-                LOG.info("One of the chassis has stopped, exit")
-                break
+            with processes_lock:
+                r = [int(t.is_alive()) for t in processes]
+                if sum(r) != len(processes):
+                    LOG.info("One of the chassis has stopped, exit")
+                    break
 
-            gevent.sleep(1)
+            if signal_received.wait(timeout=1.0):
+                break
 
     except KeyboardInterrupt:
         LOG.info("Ctrl-C received, exiting")

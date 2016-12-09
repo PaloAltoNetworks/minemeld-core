@@ -74,6 +74,7 @@ def _load_node_prototype(protoname):
 
 
 def _load_config_from_file(f):
+    valid = True
     config = yaml.safe_load(f)
 
     if config is None:
@@ -107,21 +108,41 @@ def _load_config_from_file(f):
             'slave': {}
         }
 
-    nodes_config = config.get('nodes', {})
-    for nname, nconfig in nodes_config.iteritems():
-        if 'prototype' in nconfig:
-            nproto = _load_node_prototype(nconfig['prototype'])
+    if 'nodes' not in config:
+        config['nodes'] = {}
 
-            nconfig.pop('prototype')
+    return valid, config
 
-            nconfig['class'] = nproto['class']
-            nproto_config = nproto.get('config', {})
-            nproto_config.update(
-                nconfig.get('config', {})
+
+def _load_and_validate_config_form_file(path):
+    valid = False
+    config = None
+
+    if os.path.isfile(path):
+        try:
+            with open(path, 'r') as cf:
+                valid, config = _load_config_from_file(cf)
+            if not valid:
+                LOG.error('Invalid config file {}'.format(path))
+        except (RuntimeError, IOError):
+            LOG.exception(
+                'Error loading config {}, config ignored'.format(path)
             )
-            nconfig['config'] = nproto_config
+            valid, config = False, None
 
-    return config
+    if valid and config is not None:
+        valid = resolve_prototypes(config)
+
+    if valid and config is not None:
+        vresults = validate_config(config)
+        if len(vresults) != 0:
+            LOG.error('Invalid config {}: {}'.format(
+                path,
+                ', '.join(vresults)
+            ))
+            valid = False
+
+    return valid, config
 
 
 def _load_config_from_dir(path):
@@ -134,17 +155,11 @@ def _load_config_from_dir(path):
         RUNNING_CONFIG
     )
 
-    cconfig = None
-    if os.path.exists(ccpath):
-        with open(ccpath, 'r') as cf:
-            cconfig = _load_config_from_file(cf)
+    ccvalid, cconfig = _load_and_validate_config_form_file(ccpath)
+    rcvalid, rcconfig = _load_and_validate_config_form_file(rcpath)
 
-    rcconfig = None
-    if os.path.exists(rcpath):
-        with open(rcpath, 'r') as cf:
-            rcconfig = _load_config_from_file(cf)
-
-    if rcconfig is None and cconfig is None:
+    if not rcvalid and not ccvalid:
+        # both running and canidate are not valid
         print(
             "At least one of", RUNNING_CONFIG,
             "or", COMMITTED_CONFIG,
@@ -152,17 +167,32 @@ def _load_config_from_dir(path):
             file=sys.stderr
         )
         sys.exit(1)
-    elif rcconfig is not None and cconfig is None:
+
+    elif rcvalid and not ccvalid:
+        # running is valid but candidate is not
         rcconfig['newconfig'] = False
         return rcconfig
-    elif rcconfig is None and cconfig is not None:
+
+    elif not rcvalid and ccvalid:
+        LOG.info('Switching to candidate config')
+        # candidate is valid while running is not
+        if rcconfig is not None:
+            shutil.copyfile(
+                rcpath,
+                '{}.{}'.format(rcpath, int(time.time()))
+            )
         shutil.copyfile(ccpath, rcpath)
         cconfig['newconfig'] = True
         return cconfig
-    elif rcconfig is not None and cconfig is not None:
-        # ugly
+
+    elif rcvalid and ccvalid:
+        # both configs are valid
         if yaml.dump(cconfig) != yaml.dump(rcconfig):
-            shutil.copyfile(rcpath, rcpath+'.%d' % int(time.time()))
+            LOG.info('Switching to candidate config')
+            shutil.copyfile(
+                rcpath,
+                '{}.{}'.format(rcpath, int(time.time()))
+            )
             shutil.copyfile(ccpath, rcpath)
             cconfig['newconfig'] = True
             return cconfig
@@ -211,6 +241,34 @@ def _detect_cycles(nodes):
     return nedges == 0
 
 
+def resolve_prototypes(config):
+    valid = True
+
+    nodes_config = config['nodes']
+    for nname, nconfig in nodes_config.iteritems():
+        if 'prototype' in nconfig:
+            try:
+                nproto = _load_node_prototype(nconfig['prototype'])
+            except RuntimeError as e:
+                LOG.error('Error loading prototype {}: {}'.format(
+                    nconfig['prototype'],
+                    str(e)
+                ))
+                valid = False
+                continue
+
+            nconfig.pop('prototype')
+
+            nconfig['class'] = nproto['class']
+            nproto_config = nproto.get('config', {})
+            nproto_config.update(
+                nconfig.get('config', {})
+            )
+            nconfig['config'] = nproto_config
+
+    return valid
+
+
 def validate_config(config):
     result = []
 
@@ -240,8 +298,9 @@ def load_config(config_path):
     if os.path.isdir(config_path):
         return _load_config_from_dir(config_path)
 
-    with open(config_path, 'r') as cf:
-        config = _load_config_from_file(cf)
+    valid, config = _load_and_validate_config_form_file(config_path)
+    if not valid:
+        raise RuntimeError('Invalid config')
 
     config['newconfig'] = True
 

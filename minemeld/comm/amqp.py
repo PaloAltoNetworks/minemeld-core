@@ -156,6 +156,13 @@ class AMQPRpcFanoutClientChannel(object):
 
         event = gevent.event.AsyncResult()
 
+        if num_results == 0:
+            event.set({
+                'answers': {},
+                'errors': 0
+            })
+            return event
+
         self.active_rpcs[id_] = {
             'cmd': method,
             'answers': {},
