@@ -15,6 +15,8 @@
 from __future__ import absolute_import
 
 import logging
+import shutil
+
 import gevent
 import gevent.queue
 
@@ -359,6 +361,13 @@ class SyslogMatcher(base.BaseFT):
         self.table.close()
         self.table_indicators.close()
         self.table_ipv4.close()
+
+    @staticmethod
+    def gc(name, config=None):
+        base.BaseFT.gc(name, config=config)
+        shutil.rmtree(name, ignore_errors=True)
+        shutil.rmtree('{}_indicators'.format(name), ignore_errors=True)
+        shutil.rmtree('{}_ipv4'.format(name), ignore_errors=True)
 
 
 class SyslogMiner(base.BaseFT):
@@ -760,3 +769,22 @@ class SyslogMiner(base.BaseFT):
     def hup(self, source=None):
         LOG.info('%s - hup received, reload filters', self.name)
         self._load_side_config()
+
+    @staticmethod
+    def gc(name, config=None):
+        base.BaseFT.gc(name, config=config)
+
+        shutil.rmtree(name, ignore_errors=True)
+        side_config_path = None
+        if config is not None:
+            side_config_path = config.get('rules', None)
+        if side_config_path is None:
+            side_config_path = os.path.join(
+                os.environ['MM_CONFIG_DIR'],
+                '{}_rules.yml'.format(name)
+            )
+
+        try:
+            os.remove(side_config_path)
+        except:
+            pass

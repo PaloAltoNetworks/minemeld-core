@@ -143,16 +143,16 @@ def main():
     LOG.info("Starting mm-run.py version %s", __version__)
     LOG.info("mm-run.py arguments: %s", args)
 
-    # load and validate config
-    config = minemeld.run.config.load_config(args.config)
-
-    LOG.info("mm-run.py config: %s", config)
-
     # make config dir available to nodes
     cdir = args.config
     if not os.path.isdir(cdir):
         cdir = os.path.dirname(args.config)
     os.environ['MM_CONFIG_DIR'] = cdir
+
+    # load and validate config
+    config = minemeld.run.config.load_config(args.config)
+
+    LOG.info("mm-run.py config: %s", config)
 
     np = args.multiprocessing
     if np == 0:

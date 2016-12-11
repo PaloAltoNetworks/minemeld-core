@@ -698,3 +698,10 @@ class BaseFT(object):
             raise AssertionError("stop on not IDLE or STARTED FT")
 
         self.state = ft_states.STOPPED
+
+    @staticmethod
+    def gc(name, config=None):
+        try:
+            os.remove('{}.chkp'.format(name))
+        except:
+            pass

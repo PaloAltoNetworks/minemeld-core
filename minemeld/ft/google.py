@@ -114,7 +114,7 @@ class GoogleSPF(basepoller.BasePollerFT):
             udp_port=self.udp_port,
             tcp_port=self.tcp_port,
             tries=self.tries,
-            timeout=self.polling_timeout*1000
+            timeout=self.polling_timeout
         )
 
         mainspf = self._resolve_spf(dig, self.ROOT_SPF)

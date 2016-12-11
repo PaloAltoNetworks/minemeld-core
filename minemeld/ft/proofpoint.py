@@ -17,6 +17,7 @@ from __future__ import absolute_import
 import logging
 import requests
 import os
+import shutil
 import yaml
 import datetime
 import pytz
@@ -255,6 +256,25 @@ class ETIntelligence(basepoller.BasePollerFT):
         LOG.info('%s - hup received, reload side config', self.name)
         self._load_side_config()
         super(ETIntelligence, self).hup(source=source)
+
+    @staticmethod
+    def gc(name, config=None):
+        basepoller.BasePollerFT.gc(name, config=config)
+
+        shutil.rmtree('{}_temp'.format(name), ignore_errors=True)
+        side_config_path = None
+        if config is not None:
+            side_config_path = config.get('side_config', None)
+        if side_config_path is None:
+            side_config_path = os.path.join(
+                os.environ['MM_CONFIG_DIR'],
+                '{}_side_config.yml'.format(name)
+            )
+
+        try:
+            os.remove(side_config_path)
+        except:
+            pass
 
 
 class EmergingThreatsIP(ETIntelligence):

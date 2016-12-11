@@ -16,12 +16,22 @@ from __future__ import print_function
 
 import sys
 import time
-import yaml
 import os
 import os.path
 import logging
 import shutil
 import re
+import json
+import multiprocessing
+import functools
+
+import yaml
+
+import minemeld.loader
+
+
+__all__ = ['load_config', 'validate_config', 'resolve_prototypes']
+
 
 LOG = logging.getLogger(__name__)
 
@@ -32,14 +42,7 @@ MGMTBUS_NUM_CONNS_ENV = 'MGMTBUS_NUM_CONNS'
 FABRIC_NUM_CONNS_ENV = 'FABRIC_NUM_CONNS'
 
 
-def _load_node_prototype(protoname):
-    paths = os.getenv(PROTOTYPE_ENV, None)
-    if paths is None:
-        raise RuntimeError('Unable to load prototype %s: %s '
-                           'environment variable not set' %
-                           (protoname, PROTOTYPE_ENV))
-    paths = paths.split(':')
-
+def _load_node_prototype(protoname, paths):
     proto_module, proto_name = protoname.rsplit('.', 1)
 
     pmodule = None
@@ -114,7 +117,7 @@ def _load_config_from_file(f):
     return valid, config
 
 
-def _load_and_validate_config_form_file(path):
+def _load_and_validate_config_from_file(path):
     valid = False
     config = None
 
@@ -145,6 +148,106 @@ def _load_and_validate_config_form_file(path):
     return valid, config
 
 
+def _destroy_node(desc, nodes=None, installed_nodes=None, installed_nodes_gcs=None):
+    LOG.info('Destroying {}'.format(desc))
+    destroyed_name, destroyed_class = json.loads(desc)
+    if destroyed_class is None:
+        LOG.error('Node {} with no class destroyed'.format(destroyed_name))
+        return 1
+
+    # load node class GC from entry_point or from "gc" staticmethod of class
+    node_gc = None
+    mmep = installed_nodes_gcs.get(destroyed_class, None)
+    if mmep is None:
+        mmep = installed_nodes.get(destroyed_class, None)
+
+        try:
+            nodep = mmep.ep.load()
+
+            if hasattr(nodep, 'gc'):
+                node_gc = nodep.gc
+        except ImportError:
+            LOG.exception("Error checking node class {} for gc method".format(destroyed_class))
+    else:
+        try:
+            node_gc = mmep.ep.load()
+        except ImportError:
+            LOG.exception("Error resolving gc for class {}".format(destroyed_class))    
+    if node_gc is None:
+        LOG.error('Node {} with class {} with no garbage collector destroyed'.format(
+            destroyed_name, destroyed_class
+        ))
+        return 1
+
+    try:
+        node_gc(
+            destroyed_name,
+            config=nodes[destroyed_name].get('config', None)
+        )
+
+    except:
+        LOG.exception('Exception destroying old node {} of class {}'.format(
+            destroyed_name, destroyed_class
+        ))
+        return 1
+
+    return 0
+
+def _destroy_old_nodes(oldconfig, newconfig):
+    # this destroys resources used by destroyed nodes
+    # a nodes has been destroyed if a node with same
+    # name & config does not exist in the new config
+    # the case of different node config but same and name
+    # and class is handled by node itself
+    # old config could be invalid, we should be careful here
+    old_nodes_raw = oldconfig.get('nodes', None)
+    if old_nodes_raw is None:
+        return
+    if not isinstance(old_nodes_raw, dict):
+        return
+
+    old_nodes = set()
+    for nname, nvalue in old_nodes_raw.iteritems():
+        old_nodes.add(
+            json.dumps(
+                [nname, nvalue.get('class', None)],
+                sort_keys=True
+            )
+        )
+
+    new_nodes = set()
+    for nname, nvalue in newconfig['nodes'].iteritems():
+        new_nodes.add(
+            json.dumps(
+                [nname,nvalue['class']],
+                sort_keys=True
+            )
+        )
+
+    destroyed_nodes = old_nodes - new_nodes
+    LOG.info('Destroyed nodes: {!r}'.format(destroyed_nodes))
+    if len(destroyed_nodes) == 0:
+        return
+
+    installed_nodes = minemeld.loader.map(minemeld.loader.MM_NODES_ENTRYPOINT)
+    installed_nodes_gcs = minemeld.loader.map(minemeld.loader.MM_NODES_GCS_ENTRYPOINT)
+
+    dpool = multiprocessing.Pool()
+    _bound_destroy_node = functools.partial(
+        _destroy_node,
+        nodes=old_nodes_raw,
+        installed_nodes=installed_nodes,
+        installed_nodes_gcs=installed_nodes_gcs
+    )
+    dpool.imap_unordered(
+        _bound_destroy_node,
+        destroyed_nodes
+    )
+    dpool.close()
+    dpool.join()
+    dpool = None
+
+
 def _load_config_from_dir(path):
     ccpath = os.path.join(
         path,
@@ -155,8 +258,8 @@ def _load_config_from_dir(path):
         RUNNING_CONFIG
     )
 
-    ccvalid, cconfig = _load_and_validate_config_form_file(ccpath)
-    rcvalid, rcconfig = _load_and_validate_config_form_file(rcpath)
+    ccvalid, cconfig = _load_and_validate_config_from_file(ccpath)
+    rcvalid, rcconfig = _load_and_validate_config_from_file(rcpath)
 
     if not rcvalid and not ccvalid:
         # both running and canidate are not valid
@@ -174,9 +277,10 @@ def _load_config_from_dir(path):
         return rcconfig
 
     elif not rcvalid and ccvalid:
-        LOG.info('Switching to candidate config')
         # candidate is valid while running is not
+        LOG.info('Switching to candidate config')
         if rcconfig is not None:
+            _destroy_old_nodes(rcconfig, cconfig)
             shutil.copyfile(
                 rcpath,
                 '{}.{}'.format(rcpath, int(time.time()))
@@ -187,18 +291,20 @@ def _load_config_from_dir(path):
 
     elif rcvalid and ccvalid:
         # both configs are valid
-        if yaml.dump(cconfig) != yaml.dump(rcconfig):
-            LOG.info('Switching to candidate config')
-            shutil.copyfile(
-                rcpath,
-                '{}.{}'.format(rcpath, int(time.time()))
-            )
-            shutil.copyfile(ccpath, rcpath)
-            cconfig['newconfig'] = True
-            return cconfig
+        if json.dumps(cconfig, sort_keys=True) == json.dumps(rcconfig, sort_keys=True):
+            # same old config, nothing to do here
+            rcconfig['newconfig'] = False
+            return rcconfig
 
-        rcconfig['newconfig'] = False
-        return rcconfig
+        LOG.info('Switching to candidate config')
+        _destroy_old_nodes(rcconfig, cconfig)
+        shutil.copyfile(
+            rcpath,
+            '{}.{}'.format(rcpath, int(time.time()))
+        )
+        shutil.copyfile(ccpath, rcpath)
+        cconfig['newconfig'] = True
+        return cconfig
 
 
 def _detect_cycles(nodes):
@@ -242,13 +348,39 @@ def _detect_cycles(nodes):
 
 
 def resolve_prototypes(config):
+    # retrieve prototype dir from environment
+    # used for main library and local library
+    paths = os.getenv(PROTOTYPE_ENV, None)
+    if paths is None:
+        raise RuntimeError('Unable to load prototype %s: %s '
+                           'environment variable not set' %
+                           (protoname, PROTOTYPE_ENV))
+    paths = paths.split(':')
+
+    # add prototype dirs from extension to paths
+    prototypes_entrypoints = minemeld.loader.map(minemeld.loader.MM_PROTOTYPES_ENTRYPOINT)
+    for epname, mmep in prototypes_entrypoints.iteritems():
+        if not mmep.loadable:
+            LOG.info('Prototypes entrypoint {} not loadable'.format(epname))
+            continue
+
+        try:
+            ep = mmep.ep.load()
+            paths.append(ep())
+
+        except:
+            LOG.exception(
+                'Exception retrieving path from prototype entrypoint {}'.format(epname)
+            )
+
+    # resolve all prototypes
     valid = True
 
     nodes_config = config['nodes']
     for nname, nconfig in nodes_config.iteritems():
         if 'prototype' in nconfig:
             try:
-                nproto = _load_node_prototype(nconfig['prototype'])
+                nproto = _load_node_prototype(nconfig['prototype'], paths)
             except RuntimeError as e:
                 LOG.error('Error loading prototype {}: {}'.format(
                     nconfig['prototype'],
@@ -288,6 +420,25 @@ def validate_config(config):
                 result.append('%s -> %s output disabled' %
                               (n, i))
 
+    installed_nodes = minemeld.loader.map(minemeld.loader.MM_NODES_ENTRYPOINT)
+    for n, v in nodes.iteritems():
+        nclass = v.get('class', None)
+        if nclass is None:
+            result.append('No class in {}'.format(n))
+            continue
+
+        mmep = installed_nodes.get(nclass, None)
+        if mmep is None:
+            result.append(
+                'Unknown node class {} in {}'.format(nclass, n)
+            )
+            continue
+
+        if not mmep.loadable:
+            result.append(
+                'Class {} in {} not safe to load'.format(nclass, n)
+            )
+
     if not _detect_cycles(nodes):
         result.append('loop detected')
 
@@ -298,7 +449,7 @@ def load_config(config_path):
     if os.path.isdir(config_path):
         return _load_config_from_dir(config_path)
 
-    valid, config = _load_and_validate_config_form_file(config_path)
+    valid, config = _load_and_validate_config_from_file(config_path)
     if not valid:
         raise RuntimeError('Invalid config')
 

@@ -125,3 +125,41 @@ class RedisSet(base.BaseFT):
 
     def length(self, source=None):
         return self.SR.zcard(self.redis_skey)
+
+    @staticmethod
+    def gc(name, config=None):
+        base.BaseFT.gc(name, config=config)
+
+        if config is None:
+            config = {}
+
+        redis_skey = name
+        redis_skey_value = '{}.value'.format(name)
+        redis_skey_chkp = '{}.chkp'.format(name)
+        redis_host = config.get('redis_host', '127.0.0.1')
+        redis_port = config.get('redis_port', 6379)
+        redis_password = config.get('redis_password', None)
+        redis_db = config.get('redis_db', 0)
+
+        cp = None
+        try:
+            cp = redis.ConnectionPool(
+                host=redis_host,
+                port=redis_port,
+                password=redis_password,
+                db=redis_db,
+                socket_timeout=10
+            )
+
+            SR = redis.StrictRedis(connection_pool=cp)
+
+            SR.delete(redis_skey)
+            SR.delete(redis_skey_value)
+            SR.delete(redis_skey_chkp)
+
+        except Exception as e:
+            raise RuntimeError(str(e))
+
+        finally:
+            if cp is not None:
+                cp.disconnect()

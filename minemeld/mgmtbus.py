@@ -434,6 +434,7 @@ class MgmtbusSlaveHub(object):
         self.comm.add_failure_listener(f)
 
     def start(self):
+        LOG.debug('mgmtbus start called')
         self.comm.start()
 
     def stop(self):
