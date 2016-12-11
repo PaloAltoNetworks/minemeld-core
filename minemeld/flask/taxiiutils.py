@@ -18,7 +18,7 @@ import functools
 from flask import request
 from flask import make_response
 
-from . import MMMaster
+from .mmrpc import MMMaster
 
 LOG = logging.getLogger(__name__)
 

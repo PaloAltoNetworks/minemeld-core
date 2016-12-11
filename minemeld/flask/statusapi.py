@@ -19,21 +19,22 @@ import yaml
 import uuid
 import time
 
-from flask import Response
-from flask import stream_with_context
-from flask import jsonify
+from flask import Response, stream_with_context, jsonify, Blueprint
+from flask.ext.login import login_required
 
-import flask.ext.login
+from .mmrpc import MMMaster
+from .mmrpc import MMStateFanout
+from .mmrpc import MMRpcClient
+from .redisclient import SR
 
-from . import app
-from . import MMMaster
-from . import MMStateFanout
-from . import SR
 
-# for hup API
-from . import MMRpcClient
+__all__ = ['BLUEPRINT']
+
 
 LOG = logging.getLogger(__name__)
+
+
+BLUEPRINT = Blueprint('status', __name__, url_prefix='/status')
 
 
 def stream_events():
@@ -110,8 +111,8 @@ class _PubSubWrapper(object):
         self.pubsub = None
 
 
-@app.route('/status/events/query/<quuid>')
-@flask.ext.login.login_required
+@BLUEPRINT.route('/events/query/<quuid>')
+@login_required
 def get_query_events(quuid):
     try:
         uuid.UUID(quuid)
@@ -126,8 +127,8 @@ def get_query_events(quuid):
     return r
 
 
-@app.route('/status/events/status')
-@flask.ext.login.login_required
+@BLUEPRINT.route('/events/status')
+@login_required
 def get_status_events():
     swc_response = stream_with_context(
         _PubSubWrapper('mm-engine-status.*', pattern=True)
@@ -137,8 +138,8 @@ def get_status_events():
     return r
 
 
-@app.route('/status/system', methods=['GET'])
-@flask.ext.login.login_required
+@BLUEPRINT.route('/system', methods=['GET'])
+@login_required
 def get_system_status():
     res = {}
     res['cpu'] = psutil.cpu_percent(interval=1, percpu=True)
@@ -149,8 +150,8 @@ def get_system_status():
     return jsonify(result=res, timestamp=int(time.time()*1000))
 
 
-@app.route('/status/minemeld', methods=['GET'])
-@flask.ext.login.login_required
+@BLUEPRINT.route('/minemeld', methods=['GET'])
+@login_required
 def get_minemeld_status():
     status = MMMaster.status()
 
@@ -167,8 +168,8 @@ def get_minemeld_status():
     return jsonify(result=result)
 
 
-@app.route('/status/config', methods=['GET'])
-@flask.ext.login.login_required
+@BLUEPRINT.route('/config', methods=['GET'])
+@login_required
 def get_minemeld_running_config():
     rcpath = os.path.join(
         os.path.dirname(os.environ.get('MM_CONFIG')),
@@ -181,8 +182,8 @@ def get_minemeld_running_config():
 
 
 # this should be moved to a different endpoint
-@app.route('/status/<nodename>/hup')
-@flask.ext.login.login_required
+@BLUEPRINT.route('/<nodename>/hup')
+@login_required
 def hup_node(nodename):
     status = MMMaster.status()
     tr = status.get('result', None)

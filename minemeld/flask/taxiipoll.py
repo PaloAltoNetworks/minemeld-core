@@ -22,19 +22,20 @@ import libtaxii
 import libtaxii.constants
 import stix.core
 
-from flask import request
-from flask import Response
-from flask import stream_with_context
+from flask import request, Response, stream_with_context, Blueprint
+from flask.ext.login import login_required, current_user
 
-import flask.ext.login
-
-from . import app
-from . import SR
+from .redisclient import SR
 from .taxiiutils import taxii_check, get_taxii_feeds
 from minemeld.ft.utils import dt_to_millisec
 
-LOG = logging.getLogger(__name__)
 
+__all__ = ['BLUEPRINT']
+
+
+BLUEPRINT = Blueprint('taxiipoll', __name__, url_prefix='')
+
+LOG = logging.getLogger(__name__)
 
 _TAXII_POLL_RESPONSE_HEADER = """
 <taxii_11:Poll_Response xmlns:taxii="http://taxii.mitre.org/messages/taxii_xml_binding-1" xmlns:taxii_11="http://taxii.mitre.org/messages/taxii_xml_binding-1.1" xmlns:tdq="http://taxii.mitre.org/query/taxii_default_query-1" message_id="%(message_id)s" in_response_to="%(in_response_to)s" collection_name="%(collection_name)s" more="false" result_part_number="1">
@@ -140,8 +141,8 @@ def data_feed_11(rmsgid, cname, excbegtime, incendtime):
     )
 
 
-@app.route('/taxii-poll-service', methods=['POST'])
-@flask.ext.login.login_required
+@BLUEPRINT.route('/taxii-poll-service', methods=['POST'])
+@login_required
 @taxii_check
 def taxii_poll_service():
     taxiict = request.headers['X-TAXII-Content-Type']
@@ -154,7 +155,7 @@ def taxii_poll_service():
         excbegtime = tm.exclusive_begin_timestamp_label
         incendtime = tm.inclusive_end_timestamp_label
 
-        if not flask.ext.login.current_user.check_feed(cname):
+        if not current_user.check_feed(cname):
             return 'Unauthorized', 401
 
         return data_feed_11(tm.message_id, cname, excbegtime, incendtime)

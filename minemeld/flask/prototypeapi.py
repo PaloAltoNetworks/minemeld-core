@@ -18,13 +18,15 @@ import os
 import os.path
 import yaml
 
-import flask.ext.login
+from flask import g, jsonify, request, Blueprint
+from flask.ext.login import login_required
 
-from flask import jsonify
-from flask import request
+import minemeld.loader
 
-from . import app
 from . import config
+
+
+__all__ = ['BLUEPRINT']
 
 
 LOG = logging.getLogger(__name__)
@@ -32,15 +34,39 @@ LOG = logging.getLogger(__name__)
 PROTOTYPE_ENV = 'MINEMELD_PROTOTYPE_PATH'
 LOCAL_PROTOTYPE_PATH = 'MINEMELD_LOCAL_PROTOTYPE_PATH'
 
+BLUEPRINT = Blueprint('prototype', __name__, url_prefix='')
 
-@app.route('/prototype', methods=['GET'])
-@flask.ext.login.login_required
-def list_prototypes():
+
+def _prototype_paths():
+    paths = getattr(g, 'prototype_paths', None)
+    if paths is not None:
+        return paths
+
     paths = os.getenv(PROTOTYPE_ENV, None)
     if paths is None:
-        raise RuntimeError('%s environment variable not set' %
-                           (PROTOTYPE_ENV))
+        raise RuntimeError('{} environment variable not set'.format(PROTOTYPE_ENV))
     paths = paths.split(':')
+
+    prototype_eps = minemeld.loader.map(minemeld.loader.MM_PROTOTYPES_ENTRYPOINT)
+    for pname, mmep in prototype_eps.iteritems():
+        if not mmep.loadable:
+            LOG.info('Prototype entry point {} not loadable, ignored'.format(pname))
+            continue
+        try:
+            ep = mmep.ep.load()
+            paths.append(ep())
+        except:
+            LOG.exception('Exception loading paths from {}'.format(pname))
+
+    g.prototype_paths = paths
+
+    return paths
+
+
+@BLUEPRINT.route('/prototype', methods=['GET'])
+@login_required
+def list_prototypes():
+    paths = _prototype_paths()
 
     prototypes = {}
     for p in paths:
@@ -62,7 +88,8 @@ def list_prototypes():
     return jsonify(result=prototypes)
 
 
-@app.route('/prototype/<prototypename>', methods=['GET'])
+@BLUEPRINT.route('/prototype/<prototypename>', methods=['GET'])
+@login_required
 def get_prototype(prototypename):
     toks = prototypename.split('.', 1)
     if len(toks) != 2:
@@ -73,11 +100,7 @@ def get_prototype(prototypename):
         return jsonify(error={'message': 'bad library name, nice try'}), 400
     library_filename = library+'.yml'
 
-    paths = os.getenv(PROTOTYPE_ENV, None)
-    if paths is None:
-        raise RuntimeError('%s environment variable not set' %
-                           (PROTOTYPE_ENV))
-    paths = paths.split(':')
+    paths = _prototype_paths()
 
     for path in paths:
         full_library_name = os.path.join(path, library_filename)
@@ -131,7 +154,8 @@ def get_prototype(prototypename):
         return jsonify(result=result), 200
 
 
-@app.route('/prototype/<prototypename>', methods=['POST'])
+@BLUEPRINT.route('/prototype/<prototypename>', methods=['POST'])
+@login_required
 def add_prototype(prototypename):
     AUTHOR_ = 'minemeld-web'
     DESCRIPTION_ = 'Local prototype library managed via MineMeld WebUI'

@@ -30,7 +30,10 @@ import base64
 import passlib.apache
 import xmltodict
 
-import minemeld.flask
+os.environ['MM_CONFIG'] = '.'
+os.environ['API_CONFIG_LOCK'] = os.path.join('.', 'api-config.lock')
+
+import minemeld.flask.main
 import minemeld.flask.feedredis
 
 LOG = logging.getLogger(__name__)
@@ -60,10 +63,10 @@ class MineMeldFlaskAAATests(unittest.TestCase):
 
         os.mkdir('api')
 
-        minemeld.flask.app.config.update(
+        minemeld.flask.main.app.config.update(
             DEBUG=True
         )
-        self.app = minemeld.flask.app.test_client()
+        self.app = minemeld.flask.main.app.test_client()
 
     def tearDown(self):
         try:
@@ -127,7 +130,7 @@ class MineMeldFlaskAAATests(unittest.TestCase):
             return len(collections)
         return 1
 
-    @mock.patch.dict('minemeld.flask.os.environ', {
+    @mock.patch.dict('minemeld.flask.config.os.environ', {
         'MM_CONFIG': '.',
         'API_CONFIG_LOCK': os.path.join('.', 'api-config.lock'),
     })
@@ -173,7 +176,7 @@ class MineMeldFlaskAAATests(unittest.TestCase):
         })
         self.assertEqual(resp.status_code, 200)
 
-    @mock.patch.dict('minemeld.flask.os.environ', {
+    @mock.patch.dict('minemeld.flask.config.os.environ', {
         'MM_CONFIG': '.',
         'API_CONFIG_LOCK': os.path.join('.', 'api-config.lock'),
     })
@@ -232,7 +235,7 @@ class MineMeldFlaskAAATests(unittest.TestCase):
         })
         self.assertEqual(resp.status_code, 200)
 
-    @mock.patch.dict('minemeld.flask.os.environ', {
+    @mock.patch.dict('minemeld.flask.config.os.environ', {
         'MM_CONFIG': '.',
         'API_CONFIG_LOCK': os.path.join('.', 'api-config.lock'),
     })
@@ -291,7 +294,7 @@ class MineMeldFlaskAAATests(unittest.TestCase):
         })
         self.assertEqual(resp.status_code, 200)
 
-    @mock.patch.dict('minemeld.flask.os.environ', {
+    @mock.patch.dict('minemeld.flask.config.os.environ', {
         'MM_CONFIG': '.',
         'API_CONFIG_LOCK': os.path.join('.', 'api-config.lock'),
     })
@@ -350,7 +353,7 @@ class MineMeldFlaskAAATests(unittest.TestCase):
         })
         self.assertEqual(resp.status_code, 200)
 
-    @mock.patch.dict('minemeld.flask.os.environ', {
+    @mock.patch.dict('minemeld.flask.config.os.environ', {
         'MM_CONFIG': '.',
         'API_CONFIG_LOCK': os.path.join('.', 'api-config.lock'),
     })
@@ -409,7 +412,7 @@ class MineMeldFlaskAAATests(unittest.TestCase):
         })
         self.assertEqual(resp.status_code, 200)
 
-    @mock.patch.dict('minemeld.flask.os.environ', {
+    @mock.patch.dict('minemeld.flask.config.os.environ', {
         'MM_CONFIG': '.',
         'API_CONFIG_LOCK': os.path.join('.', 'api-config.lock'),
     })
@@ -468,7 +471,7 @@ class MineMeldFlaskAAATests(unittest.TestCase):
         })
         self.assertEqual(resp.status_code, 200)
 
-    @mock.patch.dict('minemeld.flask.os.environ', {
+    @mock.patch.dict('minemeld.flask.config.os.environ', {
         'MM_CONFIG': '.',
         'API_CONFIG_LOCK': os.path.join('.', 'api-config.lock'),
     })
@@ -527,7 +530,7 @@ class MineMeldFlaskAAATests(unittest.TestCase):
         })
         self.assertEqual(resp.status_code, 200)
 
-    @mock.patch.dict('minemeld.flask.os.environ', {
+    @mock.patch.dict('minemeld.flask.config.os.environ', {
         'MM_CONFIG': '.',
         'API_CONFIG_LOCK': os.path.join('.', 'api-config.lock'),
     })
@@ -582,7 +585,7 @@ class MineMeldFlaskAAATests(unittest.TestCase):
         })
         self.assertEqual(resp.status_code, 200)
 
-    @mock.patch.dict('minemeld.flask.os.environ', {
+    @mock.patch.dict('minemeld.flask.config.os.environ', {
         'MM_CONFIG': '.',
         'API_CONFIG_LOCK': os.path.join('.', 'api-config.lock'),
     })
@@ -638,7 +641,7 @@ class MineMeldFlaskAAATests(unittest.TestCase):
         })
         self.assertEqual(resp.status_code, 200)
 
-    @mock.patch.dict('minemeld.flask.os.environ', {
+    @mock.patch.dict('minemeld.flask.config.os.environ', {
         'MM_CONFIG': '.',
         'API_CONFIG_LOCK': os.path.join('.', 'api-config.lock'),
     })
@@ -691,7 +694,7 @@ class MineMeldFlaskAAATests(unittest.TestCase):
         })
         self.assertEqual(resp.status_code, 401)
 
-    @mock.patch.dict('minemeld.flask.os.environ', {
+    @mock.patch.dict('minemeld.flask.config.os.environ', {
         'MM_CONFIG': '.',
         'API_CONFIG_LOCK': os.path.join('.', 'api-config.lock'),
     })
@@ -763,7 +766,7 @@ class MineMeldFlaskAAATests(unittest.TestCase):
         resp = self._taxii_collection_request(username='admin', password='password2')
         self.assertEqual(resp.status_code, 200)
 
-    @mock.patch.dict('minemeld.flask.os.environ', {
+    @mock.patch.dict('minemeld.flask.config.os.environ', {
         'MM_CONFIG': '.',
         'API_CONFIG_LOCK': os.path.join('.', 'api-config.lock'),
     })
@@ -840,7 +843,7 @@ class MineMeldFlaskAAATests(unittest.TestCase):
         resp = self._taxii_collection_request(username='admin', password='password2')
         self.assertEqual(resp.status_code, 401)
 
-    @mock.patch.dict('minemeld.flask.os.environ', {
+    @mock.patch.dict('minemeld.flask.config.os.environ', {
         'MM_CONFIG': '.',
         'API_CONFIG_LOCK': os.path.join('.', 'api-config.lock'),
     })
@@ -918,7 +921,7 @@ class MineMeldFlaskAAATests(unittest.TestCase):
         resp = self._taxii_collection_request(username='admin', password='password2')
         self.assertEqual(resp.status_code, 401)
 
-    @mock.patch.dict('minemeld.flask.os.environ', {
+    @mock.patch.dict('minemeld.flask.config.os.environ', {
         'MM_CONFIG': '.',
         'API_CONFIG_LOCK': os.path.join('.', 'api-config.lock'),
     })
@@ -996,7 +999,7 @@ class MineMeldFlaskAAATests(unittest.TestCase):
         resp = self._taxii_collection_request(username='admin', password='password2')
         self.assertEqual(resp.status_code, 401)
 
-    @mock.patch.dict('minemeld.flask.os.environ', {
+    @mock.patch.dict('minemeld.flask.config.os.environ', {
         'MM_CONFIG': '.',
         'API_CONFIG_LOCK': os.path.join('.', 'api-config.lock'),
     })
@@ -1075,7 +1078,7 @@ class MineMeldFlaskAAATests(unittest.TestCase):
         resp = self._taxii_collection_request(username='admin', password='password2')
         self.assertEqual(resp.status_code, 401)
 
-    @mock.patch.dict('minemeld.flask.os.environ', {
+    @mock.patch.dict('minemeld.flask.config.os.environ', {
         'MM_CONFIG': '.',
         'API_CONFIG_LOCK': os.path.join('.', 'api-config.lock'),
     })
@@ -1128,7 +1131,7 @@ class MineMeldFlaskAAATests(unittest.TestCase):
         resp = self._taxii_poll_request('feed1', username='admin', password='password1')
         self.assertEqual(resp.status_code, 401)
 
-    @mock.patch.dict('minemeld.flask.os.environ', {
+    @mock.patch.dict('minemeld.flask.config.os.environ', {
         'MM_CONFIG': '.',
         'API_CONFIG_LOCK': os.path.join('.', 'api-config.lock'),
     })
@@ -1181,7 +1184,7 @@ class MineMeldFlaskAAATests(unittest.TestCase):
         resp = self._taxii_poll_request('feed1', username='admin', password='password1')
         self.assertEqual(resp.status_code, 401)
 
-    @mock.patch.dict('minemeld.flask.os.environ', {
+    @mock.patch.dict('minemeld.flask.config.os.environ', {
         'MM_CONFIG': '.',
         'API_CONFIG_LOCK': os.path.join('.', 'api-config.lock'),
     })
@@ -1234,7 +1237,7 @@ class MineMeldFlaskAAATests(unittest.TestCase):
         resp = self._taxii_poll_request('feed1', username='admin', password='password1')
         self.assertEqual(resp.status_code, 401)
 
-    @mock.patch.dict('minemeld.flask.os.environ', {
+    @mock.patch.dict('minemeld.flask.config.os.environ', {
         'MM_CONFIG': '.',
         'API_CONFIG_LOCK': os.path.join('.', 'api-config.lock'),
     })
@@ -1287,7 +1290,7 @@ class MineMeldFlaskAAATests(unittest.TestCase):
         resp = self._taxii_poll_request('feed1', username='admin', password='password1')
         self.assertEqual(resp.status_code, 401)
 
-    @mock.patch.dict('minemeld.flask.os.environ', {
+    @mock.patch.dict('minemeld.flask.config.os.environ', {
         'MM_CONFIG': '.',
         'API_CONFIG_LOCK': os.path.join('.', 'api-config.lock'),
     })
@@ -1340,7 +1343,7 @@ class MineMeldFlaskAAATests(unittest.TestCase):
         resp = self._taxii_poll_request('feed1', username='admin', password='password1')
         self.assertEqual(resp.status_code, 401)
 
-    @mock.patch.dict('minemeld.flask.os.environ', {
+    @mock.patch.dict('minemeld.flask.config.os.environ', {
         'MM_CONFIG': '.',
         'API_CONFIG_LOCK': os.path.join('.', 'api-config.lock'),
     })

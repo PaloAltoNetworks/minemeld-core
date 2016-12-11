@@ -20,15 +20,19 @@ import gevent
 import xmlrpclib
 import supervisor.xmlrpc
 
-from flask import jsonify
+from flask import jsonify, Blueprint
+from flask.ext.login import login_required
 
-import flask.ext.login
-
-from . import app
 from . import config
-from . import MMSupervisor
+from .supervisorclient import MMSupervisor
+
+
+__all__ = ['BLUEPRINT']
+
 
 LOG = logging.getLogger(__name__)
+
+BLUEPRINT = Blueprint('supervisor', __name__, url_prefix='')
 
 
 def _restart_engine():
@@ -67,8 +71,8 @@ def _restart_engine():
     LOG.info('Started minemeld-engine')
 
 
-@app.route('/supervisor', methods=['GET'])
-@flask.ext.login.login_required
+@BLUEPRINT.route('/supervisor', methods=['GET'])
+@login_required
 def service_status():
     try:
         supervisorstate = MMSupervisor.supervisor.getState()
@@ -98,24 +102,24 @@ def service_status():
     return jsonify(result=supervisorstate)
 
 
-@app.route('/supervisor/minemeld-engine/start', methods=['GET'])
-@flask.ext.login.login_required
+@BLUEPRINT.route('/supervisor/minemeld-engine/start', methods=['GET'])
+@login_required
 def start_minemeld_engine():
     result = MMSupervisor.supervisor.startProcess('minemeld-engine', False)
 
     return jsonify(result=result)
 
 
-@app.route('/supervisor/minemeld-engine/stop', methods=['GET'])
-@flask.ext.login.login_required
+@BLUEPRINT.route('/supervisor/minemeld-engine/stop', methods=['GET'])
+@login_required
 def stop_minemeld_engine():
     result = MMSupervisor.supervisor.stopProcess('minemeld-engine', False)
 
     return jsonify(result=result)
 
 
-@app.route('/supervisor/minemeld-engine/restart', methods=['GET'])
-@flask.ext.login.login_required
+@BLUEPRINT.route('/supervisor/minemeld-engine/restart', methods=['GET'])
+@login_required
 def restart_minemeld_engine():
     info = MMSupervisor.supervisor.getProcessInfo('minemeld-engine')
     if info['statename'] != 'RUNNING':
