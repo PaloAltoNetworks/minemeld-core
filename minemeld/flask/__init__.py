@@ -82,10 +82,17 @@ def create_app():
 
     # install blueprints from extensions
     for apiname, apimmep in minemeld.loader.map(minemeld.loader.MM_API_ENTRYPOINT).iteritems():
+        LOG.info('Loading blueprint from {}'.format(apiname))
         if not apimmep.loadable:
             LOG.info('API entrypoint {} not loadable, ignored'.format(apiname))
+            continue
+
+        try:
             bprint = apimmep.ep.load()
             app.register_blueprint(bprint)
+
+        except (ImportError, RuntimeError):
+            LOG.exception('Error loading API entry point {}'.format(apiname))
 
     for r in app.url_map.iter_rules():
         LOG.debug('app rule: {!r}'.format(r))
