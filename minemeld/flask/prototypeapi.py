@@ -42,7 +42,7 @@ def _prototype_paths():
     if paths is not None:
         return paths
 
-    paths = os.getenv(PROTOTYPE_ENV, None)
+    paths = config.get(PROTOTYPE_ENV, None)
     if paths is None:
         raise RuntimeError('{} environment variable not set'.format(PROTOTYPE_ENV))
     paths = paths.split(':')
