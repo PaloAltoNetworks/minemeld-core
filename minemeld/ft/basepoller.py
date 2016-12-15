@@ -182,6 +182,7 @@ class BasePollerFT(base.BaseFT):
         self._actor_commands_ts = collections.defaultdict(int)
         self._poll_glet = None
         self._age_out_glet = None
+        self._emit_counter = 0
 
         self.last_run = None
         self.last_successful_run = None
@@ -264,6 +265,20 @@ class BasePollerFT(base.BaseFT):
         self.state_lock.unlock()
         LOG.debug("%s - releasing state write lock", self.name)
 
+    def _controlled_emit_update(self, indicator, value):
+        self._emit_counter += 1
+        if self._emit_counter == 15937:
+            gevent.idle()
+            self._emit_counter = 0
+        self.emit_update(indicator, value)
+
+    def _controlled_emit_withdraw(self, indicator):
+        self._emit_counter += 1
+        if self._emit_counter == 15937:
+            gevent.idle()
+            self._emit_counter = 0
+        self.emit_withdraw(indicator=indicator)
+
     def _age_out(self):
         with self.state_lock:
             if self.state != ft_states.STARTED:
@@ -280,7 +295,7 @@ class BasePollerFT(base.BaseFT):
                     if v.get('_withdrawn', None) is not None:
                         continue
 
-                    self.emit_withdraw(indicator=i)
+                    self._controlled_emit_withdraw(indicator=i)
                     v['_withdrawn'] = now
                     self.table.put(i, v)
 
@@ -356,7 +371,10 @@ class BasePollerFT(base.BaseFT):
             if iterator is None:
                 return False
 
-        for item in iterator:
+        for nitem, item in enumerate(iterator):
+            if nitem != 0 and nitem % 1024  == 0:
+                gevent.sleep(0.001)
+
             with self.state_lock:
                 if self.state != ft_states.STARTED:
                     break
@@ -405,7 +423,7 @@ class BasePollerFT(base.BaseFT):
 
                         self.statistics['added'] += 1
                         self.table.put(indicator, v)
-                        self.emit_update(indicator, v)
+                        self._controlled_emit_update(indicator, v)
 
                         LOG.debug('%s - added %s %s', self.name, indicator, v)
 
@@ -427,7 +445,7 @@ class BasePollerFT(base.BaseFT):
                         self.table.put(indicator, v)
 
                         if not eq:
-                            self.emit_update(indicator, v)
+                            self._controlled_emit_update(indicator, v)
 
                     elif istatus.state == IndicatorStatus.XFXANW:
                         v = istatus.cv
@@ -456,7 +474,7 @@ class BasePollerFT(base.BaseFT):
             self.sub_state = 'REBUILDING'
 
             for i, v in self.table.query(include_value=True):
-                self.emit_update(i, v)
+                self._controlled_emit_update(i, v)
 
     def _poll(self):
         tryn = 0

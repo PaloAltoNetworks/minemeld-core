@@ -71,6 +71,7 @@ class MgmtbusMaster(object):
         self.config = config
         self.comm_config = comm_config
         self.comm_class = comm_class
+        self.graph_status = None
 
         self._status_lock = gevent.lock.Semaphore()
         self.status_glet = None
@@ -136,6 +137,7 @@ class MgmtbusMaster(object):
         if newconfig:
             LOG.info("new config: sending rebuild")
             self._send_cmd('rebuild', and_discard=True)
+            self.graph_status = 'INIT'
             return
 
         revt = self._send_cmd('state_info')
@@ -157,6 +159,7 @@ class MgmtbusMaster(object):
                 LOG.info('all nodes at the same checkpoint (%s) '
                          ' sending initialize', ccheckpoint)
                 self._send_cmd('initialize', and_discard=True)
+                self.graph_status = 'INIT'
                 return
 
         source_chkps = set([a.get('checkpoint', None)
@@ -168,10 +171,12 @@ class MgmtbusMaster(object):
                 LOG.info('all source nodes at the same checkpoint (%s) '
                          ' sending rebuild', ccheckpoint)
                 self._send_cmd('rebuild', and_discard=True)
+                self.graph_status = 'INIT'
                 return
 
         LOG.info("sending reset")
         self._send_cmd('reset', and_discard=True)
+        self.graph_status = 'INIT'
 
     def checkpoint_graph(self, max_tries=12):
         """Checkpoints the graph.
@@ -180,6 +185,10 @@ class MgmtbusMaster(object):
             max_tries (int): number of minutes before giving up
         """
         LOG.info('checkpoint_graph called, checking current state')
+
+        if self.graph_status != 'INIT':
+            LOG.info('graph status {}, checkpoint_graph ignored'.format(self.graph_status))
+            return
 
         while True:
             revt = self._send_cmd('state_info')
@@ -244,6 +253,7 @@ class MgmtbusMaster(object):
                       'checkpoint state after max_tries')
 
         LOG.debug('checkpoint_graph done')
+        self.graph_status = 'CHECKPOINT'
 
     def _send_collectd_metrics(self, answers, interval):
         """Send collected metrics from nodes to collectd.
@@ -376,6 +386,14 @@ class MgmtbusMaster(object):
             return
 
         self.status_glet = gevent.spawn(self._status_loop)
+
+    def stop_status_monitor(self):
+        """Stops status monitor greenlet.
+        """
+        if self.status_glet is None:
+            return
+        self.status_glet.kill()
+        self.status_glet = None
 
     def start(self):
         self.comm.start()
