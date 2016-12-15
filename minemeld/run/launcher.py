@@ -122,6 +122,9 @@ def main():
         with processes_lock:
             for p in processes:
                 os.kill(p.pid, signal.SIGUSR1)
+            while sum([int(t.is_alive()) for t in processes]) != 0:
+                gevent.sleep(1)
+
         signal_received.set()
 
     def _sigterm_handler():
@@ -133,6 +136,9 @@ def main():
         with processes_lock:
             for p in processes:
                 os.kill(p.pid, signal.SIGUSR1)
+            while sum([int(t.is_alive()) for t in processes]) != 0:
+                gevent.sleep(1)
+
         signal_received.set()
 
     args = _parse_args()
@@ -198,10 +204,11 @@ def main():
 
     processes_lock = gevent.lock.BoundedSemaphore()
     signal_received = gevent.event.Event()
+
     gevent.signal(signal.SIGINT, _sigint_handler)
     gevent.signal(signal.SIGTERM, _sigterm_handler)
 
-    LOG.info('Waiting for chassis to get ready')
+    LOG.info('Waiting 5s for chassis to get ready')
     gevent.sleep(5)
 
     mbusmaster = _start_mgmtbus_master(
@@ -209,19 +216,15 @@ def main():
         config['nodes'].keys()
     )
     mbusmaster.init_graph(config['newconfig'])
-
     mbusmaster.start_status_monitor()
 
     try:
-        while True:
+        while not signal_received.wait(timeout=1.0):
             with processes_lock:
                 r = [int(t.is_alive()) for t in processes]
                 if sum(r) != len(processes):
                     LOG.info("One of the chassis has stopped, exit")
                     break
-
-            if signal_received.wait(timeout=1.0):
-                break
 
     except KeyboardInterrupt:
         LOG.info("Ctrl-C received, exiting")

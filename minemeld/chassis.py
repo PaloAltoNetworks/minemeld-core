@@ -191,8 +191,11 @@ class Chassis(object):
         if self.fabric is None:
             return
 
-        for _, ft in self.fts.iteritems():
-            ft.stop()
+        for ftname, ft in self.fts.iteritems():
+            try:
+                ft.stop()
+            except:
+                LOG.exception('Error stopping {}'.format(ftname))
 
         LOG.info('Stopping fabric')
         self.fabric.stop()
