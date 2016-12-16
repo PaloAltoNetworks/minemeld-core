@@ -102,7 +102,10 @@ class Fabric(object):
     def start(self):
         LOG.debug("fabric start called")
         self.comm.add_failure_listener(self._comm_failure)
-        self.comm.start()
+        self.comm.start(start_dispatching=False)
+
+    def start_dispatching(self):
+        self.comm.start_dispatching()
 
     def stop(self):
         LOG.debug("fabric stop called")
