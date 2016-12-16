@@ -573,7 +573,7 @@ class AMQP(object):
             for l in self.failure_listeners:
                 l()
 
-    def start(self):
+    def start(self, start_dispatching=True):
         num_conns_total = sum([
             self.num_connections,
             len(self.rpc_fanout_clients_channels),
@@ -621,6 +621,16 @@ class AMQP(object):
 
         for rpcc in self.rpc_server_channels.values():
             rpcc.connect(self._rpc_in_connection)
+
+        if start_dispatching:
+            self.start_dispatching()
+
+    def start_dispatching(self):
+        num_conns_total = sum([
+            self.num_connections,
+            len(self.rpc_fanout_clients_channels),
+            len(self.pub_channels)
+        ])
 
         for j in range(num_conns_total):
             g = gevent.spawn(self._ioloop, j)

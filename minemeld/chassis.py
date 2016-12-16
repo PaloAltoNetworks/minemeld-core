@@ -106,6 +106,7 @@ class Chassis(object):
 
         # XXX should be moved to constructor
         self.mgmtbus.start()
+        self.fabric.start()
 
     def request_mgmtbus_channel(self, ft):
         self.mgmtbus.request_channel(ft)
@@ -212,13 +213,10 @@ class Chassis(object):
         self.log_glet = gevent.spawn(self._log_actor)
         self.status_glet = gevent.spawn(self._status_actor)
 
-        if self.fabric is None:
-            return
-
-        self.fabric.start()
-
         for ftname, ft in self.fts.iteritems():
             LOG.debug("starting %s", ftname)
             ft.start()
+
+        self.fabric.start_dispatching()
 
         self.poweroff = gevent.event.AsyncResult()

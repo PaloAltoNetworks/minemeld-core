@@ -460,6 +460,7 @@ class BaseFT(object):
         self.trace('RECVD_UPDATE', indicator, source_node=source, value=value)
 
         if self.state not in [ft_states.STARTED, ft_states.CHECKPOINT]:
+            self.statistics['error.wrong_state'] += 1
             return
 
         if source in self.inputs_checkpoint:
@@ -506,6 +507,7 @@ class BaseFT(object):
         self.trace('RECVD_WITHDRAW', indicator, source_node=source, value=value)
 
         if self.state not in [ft_states.STARTED, ft_states.CHECKPOINT]:
+            self.statistics['error.wrong_state'] += 1
             return
 
         if source in self.inputs_checkpoint:
