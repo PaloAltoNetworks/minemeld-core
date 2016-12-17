@@ -73,9 +73,9 @@ class MgmtbusMaster(object):
         self.comm_class = comm_class
         self.graph_status = None
 
+        self._start_timestamp = int(time.time())*1000
         self._status_lock = gevent.lock.Semaphore()
         self.status_glet = None
-        self._status_timestamp = int(time.time())*1000
         self._status = {}
 
         self.SR = redis.StrictRedis.from_url(
@@ -197,7 +197,6 @@ class MgmtbusMaster(object):
                 LOG.error('timeout in state_info')
                 gevent.sleep(60)
                 continue
-            LOG.debug(revt)
 
             result = revt.get(block=False)
             if result['errors'] > 0:
@@ -252,7 +251,6 @@ class MgmtbusMaster(object):
             LOG.error('checkpoint_graph: nodes still not in '
                       'checkpoint state after max_tries')
 
-        LOG.debug('checkpoint_graph done')
         self.graph_status = 'CHECKPOINT'
 
     def _send_collectd_metrics(self, answers, interval):
@@ -306,6 +304,32 @@ class MgmtbusMaster(object):
 
             cc.putval('minemeld.'+gs, v, type_=type_, interval=interval)
 
+    def _merge_status(self, nodename, status):
+        currstatus = self._status.get(nodename, None)
+        if currstatus is not None:
+            if currstatus.get('clock', -1) > status.get('clock', -2):
+                LOG.error('old clock: {} > {} - dropped'.format(
+                    currstatus.get('clock', -1),
+                    status.get('clock', -2)
+                ))
+                return
+
+        self._status[nodename] = status
+
+        try:
+            source = nodename.split(':', 2)[2]
+            self.SR.publish(
+                'mm-engine-status.'+source,
+                ujson.dumps({
+                    'source': source,
+                    'timestamp': int(time.time())*1000,
+                    'status': status
+                })
+            )
+
+        except:
+            LOG.exception('Error publishing status')
+
     def _status_loop(self):
         """Greenlet that periodically retrieves metrics from nodes and sends
         them to collected.
@@ -327,9 +351,8 @@ class MgmtbusMaster(object):
                 result = revt.get(block=False)
 
                 with self._status_lock:
-                    self._status_timestamp = int(time.time()*1000)
-                    self._status = result['answers']
-                LOG.debug('Status: %r', self._status)
+                    for nodename, nodestatus in result['answers'].iteritems():
+                        self._merge_status(nodename, nodestatus)
 
                 try:
                     self._send_collectd_metrics(
@@ -343,40 +366,24 @@ class MgmtbusMaster(object):
             gevent.sleep(loop_interval)
 
     def status(self, timestamp, **kwargs):
-        LOG.debug('Received status: %d - %r', timestamp, kwargs)
-
         source = kwargs.get('source', None)
         if source is None:
-            LOG.debug('no source in status report - dropped')
+            LOG.error('no source in status report - dropped')
             return
 
         status = kwargs.get('status', None)
         if status is None:
-            LOG.debug('no status in status report - dropped')
+            LOG.error('no status in status report - dropped')
             return
 
         if self._status_lock.locked():
             return
 
         with self._status_lock:
-            if timestamp < self._status_timestamp:
+            if timestamp < self._start_timestamp:
                 return
 
-            self._status['mbus:slave:'+source] = status
-            LOG.debug('updated status %s: %r', source, status)
-
-            try:
-                self.SR.publish(
-                    'mm-engine-status.'+source,
-                    ujson.dumps({
-                        'source': source,
-                        'timestamp': timestamp,
-                        'status': status
-                    })
-                )
-
-            except:
-                LOG.exception('Error publishing status to Redis')
+            self._merge_status('mbus:slave:'+source, status)
 
     def start_status_monitor(self):
         """Starts status monitor greenlet.
