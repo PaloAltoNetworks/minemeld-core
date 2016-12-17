@@ -24,6 +24,7 @@ import signal
 import multiprocessing
 import argparse
 import os
+import math
 
 import minemeld.chassis
 import minemeld.mgmtbus
@@ -93,8 +94,16 @@ def _parse_args():
         type=int,
         action='store',
         metavar='NP',
-        help='enable multiprocessing. NP is the number of processes, '
-             '0 to use a process per machine core'
+        help='enable multiprocessing. NP is the number of chassis, '
+             '0 to use two chassis per machine core (default)'
+    )
+    parser.add_argument(
+        '--nodes-per-chassis',
+        default=5,
+        type=int,
+        action='store',
+        metavar='NPC',
+        help='number of nodes per chassis (default 4)'
     )
     parser.add_argument(
         '--verbose',
@@ -170,10 +179,18 @@ def main():
 
     np = args.multiprocessing
     if np == 0:
-        np = multiprocessing.cpu_count()
+        np = multiprocessing.cpu_count()*2
     LOG.info("multiprocessing active, #cpu: %d", np)
 
-    np = min(len(config['nodes']), np)
+    npc = args.nodes_per_chassis
+    if npc <= 0:
+        LOG.critical('nodes-per-chassis should be a positive integer')
+        return 1
+
+    np = min(
+        int(math.ceil(len(config['nodes'])/npc)),
+        np
+    )
     LOG.info("Number of chassis: %d", np)
 
     ftlists = [{} for j in range(np)]

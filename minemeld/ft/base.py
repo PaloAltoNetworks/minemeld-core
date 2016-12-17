@@ -205,6 +205,7 @@ class BaseFT(object):
         self._state = ft_states.READY
 
         self._last_status_publish = None
+        self._clock = 0
 
     @property
     def state(self):
@@ -615,6 +616,7 @@ class BaseFT(object):
             length = None
 
         result = {
+            'clock': self._clock,
             'class': (self.__class__.__module__+'.'+self.__class__.__name__),
             'state': self.state,
             'statistics': self.statistics,
@@ -622,6 +624,7 @@ class BaseFT(object):
             'inputs': self.inputs,
             'output': (self.output is not None)
         }
+        self._clock += 1
         return result
 
     def mgmtbus_checkpoint(self, value=None):
