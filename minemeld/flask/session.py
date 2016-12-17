@@ -12,15 +12,20 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import os
 import logging
+from datetime import timedelta
+from uuid import uuid4
+
 import ujson
-import datetime
-import uuid
 import redis
 import werkzeug.datastructures
 import flask.sessions
 
 LOG = logging.getLogger(__name__)
+
+SESSION_EXPIRATION_ENV = 'SESSION_EXPIRATION'
+DEFAULT_SESSION_EXPIRATION = 10
 
 
 class RedisSession(werkzeug.datastructures.CallbackDict, flask.sessions.SessionMixin):
@@ -42,12 +47,18 @@ class RedisSessionInterface(flask.sessions.SessionInterface):
             redis_ = redis.StrictRedis()
         self.redis = redis_
         self.prefix = prefix
+        self.expirtaion_delta = timedelta(
+            minutes=int(os.environ.get(
+                SESSION_EXPIRATION_ENV,
+                DEFAULT_SESSION_EXPIRATION
+            ))
+        )
 
     def generate_sid(self):
-        return str(uuid.uuid4())
+        return str(uuid4())
 
     def get_redis_expiration_time(self, app, session):
-        return datetime.timedelta(minutes=10)
+        return timedelta(minutes=10)
 
     def open_session(self, app, request):
         sid = request.cookies.get(app.session_cookie_name)
