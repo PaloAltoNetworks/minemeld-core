@@ -99,8 +99,8 @@ def _parse_args():
     )
     parser.add_argument(
         '--nodes-per-chassis',
-        default=5,
-        type=int,
+        default=5.0,
+        type=float,
         action='store',
         metavar='NPC',
         help='number of nodes per chassis (default 4)'
