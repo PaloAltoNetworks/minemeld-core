@@ -99,8 +99,8 @@ def _parse_args():
     )
     parser.add_argument(
         '--nodes-per-chassis',
-        default=5,
-        type=int,
+        default=5.0,
+        type=float,
         action='store',
         metavar='NPC',
         help='number of nodes per chassis (default 4)'
@@ -180,7 +180,8 @@ def main():
     np = args.multiprocessing
     if np == 0:
         np = multiprocessing.cpu_count()*2
-    LOG.info("multiprocessing active, #cpu: %d", np)
+    LOG.info('multiprocessing: #cores: %d', multiprocessing.cpu_count())
+    LOG.info("multiprocessing: max #chassis: %d", np)
 
     npc = args.nodes_per_chassis
     if npc <= 0:
