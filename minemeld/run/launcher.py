@@ -180,7 +180,8 @@ def main():
     np = args.multiprocessing
     if np == 0:
         np = multiprocessing.cpu_count()*2
-    LOG.info("multiprocessing active, #cpu: %d", np)
+    LOG.info('multiprocessing: #cores: %d', multiprocessing.cpu_count())
+    LOG.info("multiprocessing: max #chassis: %d", np)
 
     npc = args.nodes_per_chassis
     if npc <= 0:
