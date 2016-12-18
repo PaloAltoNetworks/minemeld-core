@@ -189,16 +189,16 @@ def main():
         return 1
 
     np = min(
-        int(math.ceil(len(config['nodes'])/npc)),
+        int(math.ceil(len(config.nodes)/npc)),
         np
     )
     LOG.info("Number of chassis: %d", np)
 
     ftlists = [{} for j in range(np)]
     j = 0
-    for ft in config['nodes']:
+    for ft in config.nodes:
         pn = j % len(ftlists)
-        ftlists[pn][ft] = config['nodes'][ft]
+        ftlists[pn][ft] = config.nodes[ft]
         j += 1
 
     signal.signal(signal.SIGINT, signal.SIG_IGN)
@@ -212,8 +212,8 @@ def main():
         p = multiprocessing.Process(
             target=_run_chassis,
             args=(
-                config['fabric'],
-                config['mgmtbus'],
+                config.fabric,
+                config.mgmtbus,
                 g
             )
         )
@@ -230,10 +230,10 @@ def main():
     gevent.sleep(5)
 
     mbusmaster = _start_mgmtbus_master(
-        config['mgmtbus'],
-        config['nodes'].keys()
+        config.mgmtbus,
+        config.nodes.keys()
     )
-    mbusmaster.init_graph(config['newconfig'])
+    mbusmaster.init_graph(config)
     mbusmaster.start_status_monitor()
 
     try:

@@ -372,7 +372,7 @@ class BasePollerFT(base.BaseFT):
                 return False
 
         for nitem, item in enumerate(iterator):
-            if nitem != 0 and nitem % 1024  == 0:
+            if nitem != 0 and nitem % 1024 == 0:
                 gevent.sleep(0.001)
 
             with self.state_lock:

@@ -27,16 +27,7 @@ import minemeld.run.config
 
 MYDIR = os.path.dirname(__file__)
 
-
-def _fake_getenv(env, value):
-    environment = {
-        'MINEMELD_PROTOTYPE_PATH': MYDIR
-    }
-
-    if env in environment:
-        return environment[env]
-
-    return value
+os.environ['MINEMELD_PROTOTYPE_PATH'] = MYDIR
 
 
 class MineMeldRunConfigTests(unittest.TestCase):
@@ -45,23 +36,21 @@ class MineMeldRunConfigTests(unittest.TestCase):
 
         config = minemeld.run.config.load_config(emptypath)
 
-        self.assertEqual(config['fabric']['class'], 'AMQP')
-        self.assertEqual(config['fabric']['config'], {'num_connections': 5})
-        self.assertEqual(config['mgmtbus']['transport']['class'], 'AMQP')
-        self.assertEqual(config['mgmtbus']['transport']['config'], {'num_connections': 1})
-        self.assertEqual(config['mgmtbus']['master'], {})
-        self.assertEqual(config['mgmtbus']['slave'], {})
+        self.assertEqual(config.fabric['class'], 'AMQP')
+        self.assertEqual(config.fabric['config'], {'num_connections': 5})
+        self.assertEqual(config.mgmtbus['transport']['class'], 'AMQP')
+        self.assertEqual(config.mgmtbus['transport']['config'], {'num_connections': 1})
+        self.assertEqual(config.mgmtbus['master'], {})
+        self.assertEqual(config.mgmtbus['slave'], {})
 
-    @mock.patch.object(os, 'getenv',
-                       return_value=MYDIR, side_effect=_fake_getenv)
-    def test_prototype_1(self, getenv_mock):
+    def test_prototype_1(self):
         protopath = os.path.join(MYDIR, 'test-prototype-1.yml')
 
         config = minemeld.run.config.load_config(protopath)
 
-        self.assertEqual(config['nodes']['testprototype']['class'], 'A')
+        self.assertEqual(config.nodes['testprototype']['class'], 'minemeld.ft.http.HttpFT')
         self.assertEqual(
-            config['nodes']['testprototype']['config'],
+            config.nodes['testprototype']['config'],
             {'useless1': 1}
         )
 
@@ -77,9 +66,11 @@ class MineMeldRunConfigTests(unittest.TestCase):
             }
         }
 
-        msgs = minemeld.run.config.validate_config(config)
+        msgs = minemeld.run.config.validate_config(
+            minemeld.run.config.MineMeldConfig.from_dict(config)
+        )
 
-        self.assertEqual(len(msgs), 1)
+        self.assertEqual(len(msgs), 3)
 
     def test_validate_config_2(self):
         config = {
@@ -93,9 +84,11 @@ class MineMeldRunConfigTests(unittest.TestCase):
             }
         }
 
-        msgs = minemeld.run.config.validate_config(config)
+        msgs = minemeld.run.config.validate_config(
+            minemeld.run.config.MineMeldConfig.from_dict(config)
+        )
 
-        self.assertEqual(len(msgs), 1)
+        self.assertEqual(len(msgs), 3)
 
     def test_validate_config_3(self):
         config = {
@@ -118,9 +111,11 @@ class MineMeldRunConfigTests(unittest.TestCase):
             }
         }
 
-        msgs = minemeld.run.config.validate_config(config)
+        msgs = minemeld.run.config.validate_config(
+            minemeld.run.config.MineMeldConfig.from_dict(config)
+        )
 
-        self.assertEqual(len(msgs), 1)
+        self.assertEqual(len(msgs), 5)
 
     def test_validate_config_4(self):
         config = {
@@ -134,6 +129,8 @@ class MineMeldRunConfigTests(unittest.TestCase):
             }
         }
 
-        msgs = minemeld.run.config.validate_config(config)
+        msgs = minemeld.run.config.validate_config(
+            minemeld.run.config.MineMeldConfig.from_dict(config)
+        )
 
-        self.assertEqual(len(msgs), 2)
+        self.assertEqual(len(msgs), 4)

@@ -54,8 +54,6 @@ class CollectdClient(object):
             result += data
 
     def _send_cmd(self, command):
-        LOG.debug('sending command %s', command)
-
         self._open_socket()
         self.socket.send(command+'\n')
 
@@ -69,8 +67,6 @@ class CollectdClient(object):
         message = [message]
         for _ in range(status):
             message.append(self._readline())
-
-        LOG.debug('command result %d %s', status, '\n'.join(message))
 
         return status, '\n'.join(message)
 

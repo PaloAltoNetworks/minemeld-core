@@ -137,7 +137,7 @@ class Chassis(object):
                     params=params
                 )
 
-            except Exception as e:
+            except Exception:
                 LOG.exception('Error sending log')
 
     def log(self, timestamp, nodename, log_type, value):
@@ -157,7 +157,7 @@ class Chassis(object):
                     params=params
                 )
 
-            except Exception as e:
+            except Exception:
                 LOG.exception('Error publishing status')
 
     def publish_status(self, timestamp, nodename, status):
