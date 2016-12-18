@@ -161,7 +161,6 @@ def get_minemeld_status():
 
     result = []
     for f, v in tr.iteritems():
-        LOG.debug(f)
         _, _, v['name'] = f.split(':', 2)
         result.append(v)
 

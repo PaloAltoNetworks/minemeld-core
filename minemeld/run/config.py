@@ -24,6 +24,7 @@ import re
 import json
 import multiprocessing
 import functools
+from collections import namedtuple
 
 import yaml
 
@@ -40,6 +41,170 @@ RUNNING_CONFIG = 'running-config.yml'
 PROTOTYPE_ENV = 'MINEMELD_PROTOTYPE_PATH'
 MGMTBUS_NUM_CONNS_ENV = 'MGMTBUS_NUM_CONNS'
 FABRIC_NUM_CONNS_ENV = 'FABRIC_NUM_CONNS'
+
+CHANGE_ADDED = 0
+CHANGE_DELETED = 1
+CHANGE_INPUT_ADDED = 2
+CHANGE_INPUT_DELETED = 3
+CHANGE_OUTPUT_ENABLED = 4
+CHANGE_OUTPUT_DISABLED = 5
+
+_ConfigChange = namedtuple(
+    '_ConfigChange',
+    ['nodename', 'nodeclass', 'change', 'detail']
+)
+
+_Config = namedtuple(
+    '_Config',
+    ['nodes', 'fabric', 'mgmtbus', 'changes']
+)
+
+
+class MineMeldConfigChange(_ConfigChange):
+    def __new__(_cls, nodename, nodeclass, change, detail=None):
+        return _ConfigChange.__new__(
+            _cls,
+            nodename=nodename,
+            nodeclass=nodeclass,
+            change=change,
+            detail=detail
+        )
+
+
+class MineMeldConfig(_Config):
+    def as_nset(self):
+        result = set()
+        for nname, nvalue in self.nodes.iteritems():
+            result.add(
+                json.dumps(
+                    [nname, nvalue.get('class', None)],
+                    sort_keys=True
+                )
+            )
+        return result
+
+    def compute_changes(self, oconfig):
+        if oconfig is None:
+            # oconfig is None, mark everything as added
+            for nodename, nodeattrs in self.nodes.iteritems():
+                self.changes.append(
+                    MineMeldConfigChange(nodename=nodename, nodeclass=nodeattrs['class'], change=CHANGE_ADDED)
+                )
+            return
+
+        my_nset = self.as_nset()
+        other_nset = oconfig.as_nset()
+
+        deleted = other_nset - my_nset
+        added = my_nset - other_nset
+        untouched = my_nset & other_nset
+
+        # mark delted as deleted
+        for snode in deleted:
+            nodename, nodeclass = json.loads(snode)
+            change = MineMeldConfigChange(
+                nodename=nodename,
+                nodeclass=nodeclass,
+                change=CHANGE_DELETED,
+                detail=oconfig.nodes[nodename]
+            )
+            self.changes.append(change)
+
+        # mark added as added
+        for snode in added:
+            nodename, nodeclass = json.loads(snode)
+            change = MineMeldConfigChange(
+                nodename=nodename,
+                nodeclass=nodeclass,
+                change=CHANGE_ADDED
+            )
+            self.changes.append(change)
+
+        # check inputs/output for untouched
+        for snode in untouched:
+            nodename, nodeclass = json.loads(snode)
+
+            my_inputs = set(self.nodes[nodename].get('inputs', []))
+            other_inputs = set(oconfig.nodes[nodename].get('inputs', []))
+
+            iadded = my_inputs - other_inputs
+            ideleted = other_inputs - my_inputs
+
+            for i in iadded:
+                change = MineMeldConfigChange(
+                    nodename=nodename,
+                    nodeclass=nodeclass,
+                    change=CHANGE_INPUT_ADDED,
+                    detail=i
+                )
+                self.changes.append(change)
+
+            for i in ideleted:
+                change = MineMeldConfigChange(
+                    nodename=nodename,
+                    nodeclass=nodeclass,
+                    change=CHANGE_INPUT_DELETED,
+                    detail=i
+                )
+                self.changes.append(change)
+
+            my_output = self.nodes[nodename].get('output', False)
+            other_output = oconfig.nodes[nodename].get('output', False)
+
+            if my_output == other_output:
+                continue
+
+            change_type = CHANGE_OUTPUT_DISABLED
+            if my_output:
+                change_type = CHANGE_OUTPUT_ENABLED
+
+            change = MineMeldConfigChange(
+                nodename=nodename,
+                nodeclass=nodeclass,
+                change=change_type
+            )
+            self.changes.append(change)
+
+    @classmethod
+    def from_dict(cls, dconfig=None):
+        if dconfig is None:
+            dconfig = {}
+
+        fabric = dconfig.get('fabric', None)
+        if fabric is None:
+            fabric_num_conns = int(
+                os.getenv(FABRIC_NUM_CONNS_ENV, 5)
+            )
+
+            fabric = {
+                'class': 'AMQP',
+                'config': {
+                    'num_connections': fabric_num_conns
+                }
+            }
+
+        mgmtbus = dconfig.get('mgmtbus', None)
+        if mgmtbus is None:
+            mgmtbus_num_conns = int(
+                os.getenv(MGMTBUS_NUM_CONNS_ENV, 1)
+            )
+
+            mgmtbus = {
+                'transport': {
+                    'class': 'AMQP',
+                    'config': {
+                        'num_connections': mgmtbus_num_conns
+                    }
+                },
+                'master': {},
+                'slave': {}
+            }
+
+        nodes = dconfig.get('nodes', None)
+        if nodes is None:
+            nodes = {}
+
+        return cls(nodes=nodes, fabric=fabric, mgmtbus=mgmtbus, changes=[])
 
 
 def _load_node_prototype(protoname, paths):
@@ -80,41 +245,10 @@ def _load_config_from_file(f):
     valid = True
     config = yaml.safe_load(f)
 
-    if config is None:
-        config = {}
+    if not isinstance(config, dict) and config is not None:
+        raise ValueError('Invalid config YAML type')
 
-    if 'fabric' not in config:
-        fabric_num_conns = int(
-            os.getenv(FABRIC_NUM_CONNS_ENV, 5)
-        )
-
-        config['fabric'] = {
-            'class': 'AMQP',
-            'config': {
-                'num_connections': fabric_num_conns
-            }
-        }
-
-    if 'mgmtbus' not in config:
-        mgmtbus_num_conns = int(
-            os.getenv(MGMTBUS_NUM_CONNS_ENV, 1)
-        )
-
-        config['mgmtbus'] = {
-            'transport': {
-                'class': 'AMQP',
-                'config': {
-                    'num_connections': mgmtbus_num_conns
-                }
-            },
-            'master': {},
-            'slave': {}
-        }
-
-    if 'nodes' not in config:
-        config['nodes'] = {}
-
-    return valid, config
+    return valid, MineMeldConfig.from_dict(config)
 
 
 def _load_and_validate_config_from_file(path):
@@ -148,9 +282,11 @@ def _load_and_validate_config_from_file(path):
     return valid, config
 
 
-def _destroy_node(desc, nodes=None, installed_nodes=None, installed_nodes_gcs=None):
-    LOG.info('Destroying {}'.format(desc))
-    destroyed_name, destroyed_class = json.loads(desc)
+def _destroy_node(change, installed_nodes=None, installed_nodes_gcs=None):
+    LOG.info('Destroying {!r}'.format(change))
+
+    destroyed_name = change.nodename
+    destroyed_class = change.nodeclass
     if destroyed_class is None:
         LOG.error('Node {} with no class destroyed'.format(destroyed_name))
         return 1
@@ -172,7 +308,7 @@ def _destroy_node(desc, nodes=None, installed_nodes=None, installed_nodes_gcs=No
         try:
             node_gc = mmep.ep.load()
         except ImportError:
-            LOG.exception("Error resolving gc for class {}".format(destroyed_class))    
+            LOG.exception("Error resolving gc for class {}".format(destroyed_class))
     if node_gc is None:
         LOG.error('Node {} with class {} with no garbage collector destroyed'.format(
             destroyed_name, destroyed_class
@@ -182,7 +318,7 @@ def _destroy_node(desc, nodes=None, installed_nodes=None, installed_nodes_gcs=No
     try:
         node_gc(
             destroyed_name,
-            config=nodes[destroyed_name].get('config', None)
+            config=change.detail.get('config', None)
         )
 
     except:
@@ -194,38 +330,13 @@ def _destroy_node(desc, nodes=None, installed_nodes=None, installed_nodes_gcs=No
     return 0
 
 
-def _destroy_old_nodes(oldconfig, newconfig):
+def _destroy_old_nodes(config):
     # this destroys resources used by destroyed nodes
     # a nodes has been destroyed if a node with same
     # name & config does not exist in the new config
     # the case of different node config but same and name
     # and class is handled by node itself
-    # old config could be invalid, we should be careful here
-    old_nodes_raw = oldconfig.get('nodes', None)
-    if old_nodes_raw is None:
-        return
-    if not isinstance(old_nodes_raw, dict):
-        return
-
-    old_nodes = set()
-    for nname, nvalue in old_nodes_raw.iteritems():
-        old_nodes.add(
-            json.dumps(
-                [nname, nvalue.get('class', None)],
-                sort_keys=True
-            )
-        )
-
-    new_nodes = set()
-    for nname, nvalue in newconfig['nodes'].iteritems():
-        new_nodes.add(
-            json.dumps(
-                [nname,nvalue['class']],
-                sort_keys=True
-            )
-        )
-
-    destroyed_nodes = old_nodes - new_nodes
+    destroyed_nodes = [c for c in config.changes if c.change == CHANGE_DELETED]
     LOG.info('Destroyed nodes: {!r}'.format(destroyed_nodes))
     if len(destroyed_nodes) == 0:
         return
@@ -236,7 +347,6 @@ def _destroy_old_nodes(oldconfig, newconfig):
     dpool = multiprocessing.Pool()
     _bound_destroy_node = functools.partial(
         _destroy_node,
-        nodes=old_nodes_raw,
         installed_nodes=installed_nodes,
         installed_nodes_gcs=installed_nodes_gcs
     )
@@ -274,37 +384,32 @@ def _load_config_from_dir(path):
 
     elif rcvalid and not ccvalid:
         # running is valid but candidate is not
-        rcconfig['newconfig'] = False
         return rcconfig
 
     elif not rcvalid and ccvalid:
         # candidate is valid while running is not
         LOG.info('Switching to candidate config')
+        cconfig.compute_changes(rcconfig)
+        LOG.info('Changes in config: {!r}'.format(cconfig.changes))
+        _destroy_old_nodes(cconfig)
         if rcconfig is not None:
-            _destroy_old_nodes(rcconfig, cconfig)
             shutil.copyfile(
                 rcpath,
                 '{}.{}'.format(rcpath, int(time.time()))
             )
         shutil.copyfile(ccpath, rcpath)
-        cconfig['newconfig'] = True
         return cconfig
 
     elif rcvalid and ccvalid:
-        # both configs are valid
-        if json.dumps(cconfig, sort_keys=True) == json.dumps(rcconfig, sort_keys=True):
-            # same old config, nothing to do here
-            rcconfig['newconfig'] = False
-            return rcconfig
-
         LOG.info('Switching to candidate config')
-        _destroy_old_nodes(rcconfig, cconfig)
+        cconfig.compute_changes(rcconfig)
+        LOG.info('Changes in config: {!r}'.format(cconfig.changes))
+        _destroy_old_nodes(cconfig)
         shutil.copyfile(
             rcpath,
             '{}.{}'.format(rcpath, int(time.time()))
         )
         shutil.copyfile(ccpath, rcpath)
-        cconfig['newconfig'] = True
         return cconfig
 
 
@@ -353,9 +458,9 @@ def resolve_prototypes(config):
     # used for main library and local library
     paths = os.getenv(PROTOTYPE_ENV, None)
     if paths is None:
-        raise RuntimeError('Unable to load prototype %s: %s '
+        raise RuntimeError('Unable to load prototypes: %s '
                            'environment variable not set' %
-                           (protoname, PROTOTYPE_ENV))
+                           (PROTOTYPE_ENV))
     paths = paths.split(':')
 
     # add prototype dirs from extension to paths
@@ -377,7 +482,7 @@ def resolve_prototypes(config):
     # resolve all prototypes
     valid = True
 
-    nodes_config = config['nodes']
+    nodes_config = config.nodes
     for nname, nconfig in nodes_config.iteritems():
         if 'prototype' in nconfig:
             try:
@@ -405,7 +510,7 @@ def resolve_prototypes(config):
 def validate_config(config):
     result = []
 
-    nodes = config['nodes']
+    nodes = config.nodes
 
     for n in nodes.keys():
         if re.match('^[a-zA-Z0-9_\-]+$', n) is None:
@@ -450,10 +555,11 @@ def load_config(config_path):
     if os.path.isdir(config_path):
         return _load_config_from_dir(config_path)
 
+    # this is just a file, as we can't do a delta
+    # we just load it and mark all the nodes as added
     valid, config = _load_and_validate_config_from_file(config_path)
     if not valid:
         raise RuntimeError('Invalid config')
-
-    config['newconfig'] = True
+    config.compute_changes(None)
 
     return config

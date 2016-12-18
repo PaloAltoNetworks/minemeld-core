@@ -111,7 +111,6 @@ class Table(object):
         )
         self._read_metadata()
 
-
         self.compact_interval = int(os.environ.get('MM_TABLE_COMPACT_INTERVAL', '86400'))
         self._compact_glet = gevent.spawn(self._compact_loop)
 
@@ -411,7 +410,7 @@ class Table(object):
             for ikey, ekey in ri:
                 iversion = struct.unpack(">Q", ekey[:8])[0]
                 ekey = ekey[8:]
-    
+
                 evalue = self._get(self._indicator_key_version(ekey))
                 if evalue is None:
                     # LOG.debug("Key does not exist")
@@ -419,7 +418,7 @@ class Table(object):
                     self.db.delete(ikey)
                     ldeleted += 1
                     continue
-    
+
                 cversion = struct.unpack(">Q", evalue)[0]
                 if iversion != cversion:
                     # index value is old
@@ -427,7 +426,7 @@ class Table(object):
                     self.db.delete(ikey)
                     ldeleted += 1
                     continue
-    
+
                 if include_value:
                     yield ekey, self.get(ekey)
                 else:

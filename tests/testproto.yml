@@ -2,5 +2,4 @@ prototypes:
     test:
         config:
             useless1: 1
-        class: A
-
+        class: minemeld.ft.http.HttpFT

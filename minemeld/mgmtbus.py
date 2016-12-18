@@ -128,18 +128,12 @@ class MgmtbusMaster(object):
             num_results=len(self.ftlist)
         )
 
-    def init_graph(self, newconfig):
+    def init_graph(self, config):
         """Initalizes graph by sending startup messages.
 
         Args:
-            newconfig (bool): config is new
+            config (MineMeldConfig): config
         """
-        if newconfig:
-            LOG.info("new config: sending rebuild")
-            self._send_cmd('rebuild', and_discard=True)
-            self.graph_status = 'INIT'
-            return
-
         revt = self._send_cmd('state_info')
         success = revt.wait(timeout=60)
         if success is None:
@@ -150,6 +144,15 @@ class MgmtbusMaster(object):
         if result['errors'] > 0:
             LOG.critical('errors reported from nodes in init_graph')
             raise RuntimeError('errors reported from nodes in init_graph')
+
+        LOG.info('state: {}'.format(result['answers']))
+
+        if len(config.changes) != 0:
+            command = 'rebuild'
+            LOG.info("new config: sending {}".format(command))
+            self._send_cmd(command, and_discard=True)
+            self.graph_status = 'INIT'
+            return
 
         checkpoints = set([a.get('checkpoint', None)
                            for a in result['answers'].values()])
