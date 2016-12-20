@@ -83,7 +83,7 @@ class _PubSubWrapper(object):
 
         for message in self._listen():
             if message is None:
-                yield 'data: { "msg": "ping" }\n\n'
+                yield 'data: ping\n\n'
                 continue
 
             message = message['data']

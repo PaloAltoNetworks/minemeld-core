@@ -179,7 +179,7 @@ def main():
 
     np = args.multiprocessing
     if np == 0:
-        np = multiprocessing.cpu_count()*2
+        np = multiprocessing.cpu_count()
     LOG.info('multiprocessing: #cores: %d', multiprocessing.cpu_count())
     LOG.info("multiprocessing: max #chassis: %d", np)
 

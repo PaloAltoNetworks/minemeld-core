@@ -80,7 +80,15 @@ def list_prototypes():
                 with open(os.path.join(p, plibrary), 'r') as f:
                     pcontents = yaml.safe_load(f)
 
-                prototypes[plibraryname] = pcontents
+                if not plibraryname in prototypes:
+                    prototypes[plibraryname] = pcontents
+                    continue
+
+                # oldest has precedence
+                newprotos = pcontents.get('prototypes', {})
+                currprotos = prototypes[plibraryname].get('prototypes', {})
+                newprotos.update(currprotos)
+                prototypes[plibraryname]['prototypes'] = newprotos
 
         except:
             LOG.exception('Error loading libraries from %s', p)
