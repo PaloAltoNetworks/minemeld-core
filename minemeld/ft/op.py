@@ -16,6 +16,7 @@ import logging
 import shutil
 
 from . import base
+from . import actorbase
 from . import table
 from .utils import utc_millisec
 from .utils import RESERVED_ATTRIBUTES
@@ -23,7 +24,7 @@ from .utils import RESERVED_ATTRIBUTES
 LOG = logging.getLogger(__name__)
 
 
-class AggregateFT(base.BaseFT):
+class AggregateFT(actorbase.ActorBaseFT):
     _ftclass = 'AggregateFT'
 
     def __init__(self, name, chassis, config):
@@ -230,5 +231,5 @@ class AggregateFT(base.BaseFT):
 
     @staticmethod
     def gc(name, config=None):
-        base.BaseFT.gc(name, config=config)
+        actorbase.ActorBaseFT.gc(name, config=config)
         shutil.rmtree(name, ignore_errors=True)

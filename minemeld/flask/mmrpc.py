@@ -2,7 +2,6 @@
 import json
 import logging
 
-import minemeld.comm
 import gevent
 import gevent.event
 import gevent.queue
@@ -10,6 +9,9 @@ import amqp
 import werkzeug.local
 
 from flask import g
+
+import minemeld.comm
+from minemeld.mgmtbus import MGMTBUS_PREFIX
 
 from . import config
 
@@ -75,11 +77,16 @@ class _MMRpcClient(object):
         )
         self.comm.start()
 
-    def send_cmd(self, target, method, params={}, timeout=10):
+    def send_raw_cmd(self, target, method, params={}, timeout=10):
         self._open_channel()
         LOG.debug('MMRpcClient channel open')
 
         return self.comm.send_rpc(target, method, params, timeout=timeout)
+
+    def send_cmd(self, target, method, params={}, timeout=10):
+        target = '{}directslave:{}'.format(MGMTBUS_PREFIX, target)
+
+        return self.send_raw_cmd(target, method, params=params, timeout=timeout)
 
     def stop(self):
         if self.comm is not None:

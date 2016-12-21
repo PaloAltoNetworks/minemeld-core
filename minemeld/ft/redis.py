@@ -19,11 +19,12 @@ import redis
 import ujson
 
 from . import base
+from . import actorbase
 
 LOG = logging.getLogger(__name__)
 
 
-class RedisSet(base.BaseFT):
+class RedisSet(actorbase.ActorBaseFT):
     def __init__(self, name, chassis, config):
         self.redis_skey = name
         self.redis_skey_value = name+'.value'
@@ -128,7 +129,7 @@ class RedisSet(base.BaseFT):
 
     @staticmethod
     def gc(name, config=None):
-        base.BaseFT.gc(name, config=config)
+        actorbase.ActorBaseFT.gc(name, config=config)
 
         if config is None:
             config = {}

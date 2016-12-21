@@ -19,6 +19,7 @@ A chassis instance contains a list of nodes and a fabric.
 Nodes communicate using the fabric.
 """
 
+import os
 import logging
 
 import gevent
@@ -44,8 +45,10 @@ class Chassis(object):
         mgmtbusconfig (dict): config dictionary for mgmt bus
     """
     def __init__(self, fabricclass, fabricconfig, mgmtbusconfig):
+        self.chassis_id = os.getpid()
+
         self.fts = {}
-        self.poweroff = None
+        self.poweroff = gevent.event.AsyncResult()
 
         self.fabric_class = fabricclass
         self.fabric_config = fabricconfig
@@ -61,6 +64,7 @@ class Chassis(object):
             mgmtbusconfig['transport']['config']
         )
         self.mgmtbus.add_failure_listener(self.mgmtbus_failed)
+        self.mgmtbus.request_chassis_rpc_channel(self)
 
         self.log_channel_queue = gevent.queue.Queue(maxsize=128)
         self.log_channel = self.mgmtbus.request_log_channel()
@@ -107,6 +111,12 @@ class Chassis(object):
         # XXX should be moved to constructor
         self.mgmtbus.start()
         self.fabric.start()
+
+        self.mgmtbus.send_master_rpc(
+            'chassis_ready',
+            params={'chassis_id': self.chassis_id},
+            timeout=10
+        )
 
     def request_mgmtbus_channel(self, ft):
         self.mgmtbus.request_channel(ft)
@@ -174,6 +184,11 @@ class Chassis(object):
         LOG.critical('chassis - mgmtbus failed')
         self.stop()
 
+    def mgmtbus_start(self):
+        LOG.info('chassis - start received from mgmtbus')
+        self.start()
+        return 'ok'
+
     def fts_init(self):
         for ft in self.fts.values():
             if ft.get_state() < minemeld.ft.ft_states.INIT:
@@ -218,5 +233,3 @@ class Chassis(object):
             ft.start()
 
         self.fabric.start_dispatching()
-
-        self.poweroff = gevent.event.AsyncResult()

@@ -428,6 +428,7 @@ class AMQPSubChannel(object):
 class AMQP(object):
     def __init__(self, config):
         self.num_connections = config.pop('num_connections', 1)
+        self.priority = config.pop('priority', 0)
 
         if 'host' not in config:
             config['host'] = '127.0.0.1'
@@ -573,36 +574,46 @@ class AMQP(object):
             for l in self.failure_listeners:
                 l()
 
+    def _blocked(self, reason):
+        LOG.error('Connection blocked: {}'.format(reason))
+
+    def _unblocked(self):
+        LOG.info('Connection unblocked')
+
     def start(self, start_dispatching=True):
+        num_sub_connections = min(self.num_connections, len(self.sub_channels))
         num_conns_total = sum([
-            self.num_connections,
+            num_sub_connections,
             len(self.rpc_fanout_clients_channels),
-            len(self.pub_channels)
+            len(self.pub_channels),
+            1
         ])
 
-        for j in range(num_conns_total):
+        for j in xrange(num_conns_total):
+            self.amqp_config['on_blocked'] = self._blocked
+            self.amqp_config['on_unblocked'] = self._unblocked
             c = amqp.connection.Connection(**self.amqp_config)
-            c.sock._read_event.priority = gevent.core.MINPRI
-            c.sock._write_event.priority = gevent.core.MINPRI
+            c.sock._read_event.priority = self.priority
+            c.sock._write_event.priority = self.priority
             self._connections.append(c)
 
         csel = 0
         for sc in self.sub_channels.values():
-            sc.connect(self._connections[csel % self.num_connections])
+            sc.connect(self._connections[csel % num_sub_connections])
             csel += 1
 
         csel = 0
         for pc in self.pub_channels.values():
-            pc.connect(self._connections[self.num_connections + csel])
+            pc.connect(self._connections[num_sub_connections + csel])
             csel += 1
 
         for rfc in self.rpc_fanout_clients_channels:
-            rfc.connect(self._connections[self.num_connections + csel])
+            rfc.connect(self._connections[num_sub_connections + csel])
             csel += 1
 
         # create rpc out channel
         self.rpc_out_channel = \
-            self._connections[csel % self.num_connections].channel()
+            self._connections[-1].channel()
         self.rpc_out_queue = self.rpc_out_channel.queue_declare(
             exclusive=False
         )
@@ -612,12 +623,13 @@ class AMQP(object):
             exclusive=True
         )
 
-        # create RPC servers connection and set the waiter to MAXPRI
+        self.amqp_config['on_blocked'] = self._blocked
+        self.amqp_config['on_unblocked'] = self._unblocked
         self._rpc_in_connection = amqp.connection.Connection(
             **self.amqp_config
         )
-        self._rpc_in_connection.sock._read_event.priority = gevent.core.MAXPRI
-        self._rpc_in_connection.sock._write_event.priority = gevent.core.MAXPRI
+        self._rpc_in_connection.sock._read_event.priority = self.priority
+        self._rpc_in_connection.sock._write_event.priority = self.priority
 
         for rpcc in self.rpc_server_channels.values():
             rpcc.connect(self._rpc_in_connection)
@@ -626,38 +638,26 @@ class AMQP(object):
             self.start_dispatching()
 
     def start_dispatching(self):
-        num_conns_total = sum([
-            self.num_connections,
-            len(self.rpc_fanout_clients_channels),
-            len(self.pub_channels)
-        ])
-
-        for j in range(num_conns_total):
+        # spin up greenlets for each connection
+        for j in xrange(len(self._connections)):
             g = gevent.spawn(self._ioloop, j)
             self.ioloops.append(g)
             g.link_exception(self._ioloop_failure)
 
+        # spin up greenlet for _rpc_in_connection
         g = gevent.spawn(self._ioloop, None)
         self.ioloops.append(g)
         g.link_exception(self._ioloop_failure)
 
     def stop(self):
-        num_conns_total = sum([
-            self.num_connections,
-            len(self.rpc_fanout_clients_channels),
-            len(self.pub_channels)
-        ])
-
-        if len(self._connections) is 0 or \
-           num_conns_total == 0:
-            return
-
-        for j in range(len(self.ioloops)):
+        # kill ioloops
+        for j in xrange(len(self.ioloops)):
             self.ioloops[j].unlink(self._ioloop_failure)
             self.ioloops[j].kill()
             self.ioloops[j] = None
         self.ioloops = None
 
+        # close channels
         for rpcc in self.rpc_server_channels.values():
             try:
                 rpcc.disconnect()
@@ -684,7 +684,8 @@ class AMQP(object):
 
         self.rpc_out_channel.close()
 
-        for j in range(len(self._connections)):
+        # close connections
+        for j in xrange(len(self._connections)):
             self._connections[j].close()
             self._connections[j] = None
 

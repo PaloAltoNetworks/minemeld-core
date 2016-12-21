@@ -193,6 +193,9 @@ def _load_config_from_file(rcpath):
     with open(rcpath, 'r') as f:
         rcconfig = yaml.safe_load(f)
 
+    if rcconfig is None:
+        rcconfig = {}
+
     version = MMConfigVersion()
     tempconfigkey = REDIS_KEY_PREFIX+str(version)
 

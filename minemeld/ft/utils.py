@@ -19,6 +19,7 @@ import datetime
 import pytz
 import re
 
+import gevent
 import gevent.lock
 import gevent.event
 
@@ -192,3 +193,56 @@ def parse_age_out(s, age_out_bases=None, default_base=None):
             raise ValueError('Invalid age out offset %s' % t)
 
     return result
+
+
+class GThrottled(object):
+    def __init__(self, f, wait):
+        self._timeout = None
+        self._previous = 0
+        self._cancelled = False
+
+        self._args = []
+        self._kwargs = {}
+
+        self.f = f
+        self.wait = wait
+
+    def later(self):
+        self._previous = utc_millisec()
+        self._timeout = None
+
+        self.f(*self._args, **self._kwargs)
+
+    def __call__(self, *args, **kwargs):
+        now = utc_millisec()
+        remaining = self.wait - (now - self._previous)
+
+        if self._cancelled:
+            return
+
+        if remaining <= 0 or remaining > self.wait:
+            if self._timeout is not None:
+                self._timeout.join(timeout=5)
+                self._timeout = None
+            self._previous = now
+            self.f(*args, **kwargs)
+
+        elif self._timeout is None:
+            self._args = args
+            self._kwargs = kwargs
+            self._timeout = gevent.spawn_later(remaining/1000.0, self.later)
+
+        else:
+            self._args = args
+            self._kwargs = kwargs
+
+    def cancel(self):
+        self._cancelled = True
+        if self._timeout:
+            self._timeout.join(timeout=5)
+            if self._timeout is not None:
+                self._timeout.kill()
+        self._previous = 0
+        self._timeout = None
+        self._args = []
+        self._kwargs = {}

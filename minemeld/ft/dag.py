@@ -30,6 +30,7 @@ import gevent.event
 import pan.xapi
 
 from . import base
+from . import actorbase
 from . import table
 from .utils import utc_millisec
 
@@ -289,7 +290,7 @@ class DevicePusher(gevent.Greenlet):
                 raise
 
 
-class DagPusher(base.BaseFT):
+class DagPusher(actorbase.ActorBaseFT):
     def __init__(self, name, chassis, config):
         self.devices = []
         self.device_pushers = []
@@ -618,7 +619,7 @@ class DagPusher(base.BaseFT):
 
     @staticmethod
     def gc(name, config=None):
-        base.BaseFT.gc(name, config=config)
+        actorbase.ActorBaseFT.gc(name, config=config)
 
         shutil.rmtree(name, ignore_errors=True)
         device_list_path = None
