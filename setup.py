@@ -88,7 +88,8 @@ setup(
             'mm-run = minemeld.run.launcher:main',
             'mm-console = minemeld.run.console:main',
             'mm-traced = minemeld.traced.main:main',
-            'mm-traced-purge = minemeld.traced.purge:main'
+            'mm-traced-purge = minemeld.traced.purge:main',
+            'mm-supervisord-listener = minemeld.supervisord.listener:main'
         ],
         'minemeld_nodes': _entry_points['minemeld_nodes'],
         'minemeld_nodes_gcs': _entry_points['minemeld_nodes_gcs'],
