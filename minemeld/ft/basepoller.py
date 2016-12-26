@@ -268,14 +268,14 @@ class BasePollerFT(base.BaseFT):
     def _controlled_emit_update(self, indicator, value):
         self._emit_counter += 1
         if self._emit_counter == 15937:
-            gevent.idle()
+            gevent.sleep(0.001)
             self._emit_counter = 0
         self.emit_update(indicator, value)
 
     def _controlled_emit_withdraw(self, indicator):
         self._emit_counter += 1
         if self._emit_counter == 15937:
-            gevent.idle()
+            gevent.sleep(0.001)
             self._emit_counter = 0
         self.emit_withdraw(indicator=indicator)
 

@@ -46,6 +46,7 @@ import cybox.objects.uri_object
 
 from . import basepoller
 from . import base
+from . import actorbase
 from .utils import dt_to_millisec, interval_in_sec, utc_millisec
 
 LOG = logging.getLogger(__name__)
@@ -778,7 +779,7 @@ _TYPE_MAPPING = {
 }
 
 
-class DataFeed(base.BaseFT):
+class DataFeed(actorbase.ActorBaseFT):
     def __init__(self, name, chassis, config):
         self.redis_skey = name
         self.redis_skey_value = name+'.value'
@@ -998,7 +999,7 @@ class DataFeed(base.BaseFT):
 
     @staticmethod
     def gc(name, config=None):
-        base.BaseFT.gc(name, config=config)
+        actorbase.ActorBaseFT.gc(name, config=config)
 
         if config is None:
             config = {}

@@ -65,7 +65,7 @@ def traced_query():
 
     query = request.args.get('q', "")
 
-    result = MMRpcClient.send_cmd(minemeld.traced.QUERY_QUEUE, 'query', {
+    result = MMRpcClient.send_raw_cmd(minemeld.traced.QUERY_QUEUE, 'query', {
         'uuid': query_uuid,
         'timestamp': timestamp,
         'counter': counter,
@@ -84,7 +84,7 @@ def traced_kill_query(query_uuid):
     except ValueError:
         return jsonify(error={'message': 'invalid query UUID'}), 400
 
-    result = MMRpcClient.send_cmd(minemeld.traced.QUERY_QUEUE, 'kill_query', {
+    result = MMRpcClient.send_raw_cmd(minemeld.traced.QUERY_QUEUE, 'kill_query', {
         'uuid': query_uuid
     })
 

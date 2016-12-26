@@ -32,6 +32,7 @@ import copy
 import re
 
 from . import base
+from . import actorbase
 from . import table
 from . import ft_states
 from . import condition
@@ -44,7 +45,7 @@ LOG = logging.getLogger(__name__)
 _MAX_AGE_OUT = ((1 << 32)-1)*1000
 
 
-class SyslogMatcher(base.BaseFT):
+class SyslogMatcher(actorbase.ActorBaseFT):
     def __init__(self, name, chassis, config):
         self.amqp_glet = None
 
@@ -364,7 +365,7 @@ class SyslogMatcher(base.BaseFT):
 
     @staticmethod
     def gc(name, config=None):
-        base.BaseFT.gc(name, config=config)
+        actorbase.ActorBaseFT.gc(name, config=config)
         shutil.rmtree(name, ignore_errors=True)
         shutil.rmtree('{}_indicators'.format(name), ignore_errors=True)
         shutil.rmtree('{}_ipv4'.format(name), ignore_errors=True)

@@ -48,13 +48,17 @@ def _run_chassis(fabricconfig, mgmtbusconfig, fts):
         )
         c.configure(fts)
 
-        while not c.fts_init():
-            gevent.sleep(1)
-
         gevent.signal(signal.SIGUSR1, c.stop)
 
+        while not c.fts_init():
+            if c.poweroff.wait(timeout=0.1) is not None:
+                break
+
+            gevent.sleep(1)
+
+        LOG.info('Nodes initialized')
+
         try:
-            c.start()
             c.poweroff.wait()
             LOG.info('power off')
 
@@ -65,18 +69,6 @@ def _run_chassis(fabricconfig, mgmtbusconfig, fts):
     except:
         LOG.exception('Exception in chassis main procedure')
         raise
-
-
-def _start_mgmtbus_master(config, ftlist):
-    mbusmaster = minemeld.mgmtbus.master_factory(
-        config['master'],
-        config['transport']['class'],
-        config['transport']['config'],
-        ftlist
-    )
-    mbusmaster.start()
-
-    return mbusmaster
 
 
 def _parse_args():
@@ -121,33 +113,40 @@ def _parse_args():
 
 def main():
     mbusmaster = None
+    processes_lock = None
+    processes = None
 
-    def _sigint_handler():
-        LOG.info('SIGINT received')
-
+    def _cleanup():
         if mbusmaster is not None:
             mbusmaster.checkpoint_graph()
 
+        if processes_lock is None:
+            return
+
         with processes_lock:
+            if processes is None:
+                return
+
             for p in processes:
-                os.kill(p.pid, signal.SIGUSR1)
+                if not p.is_alive():
+                    continue
+
+                try:
+                    os.kill(p.pid, signal.SIGUSR1)
+                except OSError:
+                    continue
+
             while sum([int(t.is_alive()) for t in processes]) != 0:
                 gevent.sleep(1)
 
+    def _sigint_handler():
+        LOG.info('SIGINT received')
+        _cleanup()
         signal_received.set()
 
     def _sigterm_handler():
         LOG.info('SIGTERM received')
-
-        if mbusmaster is not None:
-            mbusmaster.checkpoint_graph()
-
-        with processes_lock:
-            for p in processes:
-                os.kill(p.pid, signal.SIGUSR1)
-            while sum([int(t.is_alive()) for t in processes]) != 0:
-                gevent.sleep(1)
-
+        _cleanup()
         signal_received.set()
 
     args = _parse_args()
@@ -226,15 +225,28 @@ def main():
     gevent.signal(signal.SIGINT, _sigint_handler)
     gevent.signal(signal.SIGTERM, _sigterm_handler)
 
-    LOG.info('Waiting 5s for chassis to get ready')
-    gevent.sleep(5)
+    try:
+        mbusmaster = minemeld.mgmtbus.master_factory(
+            config=config.mgmtbus['master'],
+            comm_class=config.mgmtbus['transport']['class'],
+            comm_config=config.mgmtbus['transport']['config'],
+            nodes=config.nodes.keys(),
+            num_chassis=len(processes)
+        )
+        mbusmaster.start()
+        mbusmaster.wait_for_chassis(timeout=10)
+        # here nodes are all CONNECTED, fabric and mgmtbus up, with mgmtbus
+        # dispatching and fabric not dispatching
+        mbusmaster.start_status_monitor()
+        mbusmaster.init_graph(config)
+        # here nodes are all INIT
+        mbusmaster.start_chassis()
+        # here nodes should all be starting
 
-    mbusmaster = _start_mgmtbus_master(
-        config.mgmtbus,
-        config.nodes.keys()
-    )
-    mbusmaster.init_graph(config)
-    mbusmaster.start_status_monitor()
+    except Exception:
+        LOG.exception('Exception initializing graph')
+        _cleanup()
+        raise
 
     try:
         while not signal_received.wait(timeout=1.0):

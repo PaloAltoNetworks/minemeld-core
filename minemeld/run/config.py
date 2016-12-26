@@ -27,6 +27,7 @@ import functools
 from collections import namedtuple
 
 import yaml
+import gevent.core
 
 import minemeld.loader
 
@@ -173,27 +174,29 @@ class MineMeldConfig(_Config):
         fabric = dconfig.get('fabric', None)
         if fabric is None:
             fabric_num_conns = int(
-                os.getenv(FABRIC_NUM_CONNS_ENV, 5)
+                os.getenv(FABRIC_NUM_CONNS_ENV, 50)
             )
 
             fabric = {
                 'class': 'AMQP',
                 'config': {
-                    'num_connections': fabric_num_conns
+                    'num_connections': fabric_num_conns,
+                    'priority': gevent.core.MINPRI
                 }
             }
 
         mgmtbus = dconfig.get('mgmtbus', None)
         if mgmtbus is None:
             mgmtbus_num_conns = int(
-                os.getenv(MGMTBUS_NUM_CONNS_ENV, 1)
+                os.getenv(MGMTBUS_NUM_CONNS_ENV, 10)
             )
 
             mgmtbus = {
                 'transport': {
                     'class': 'AMQP',
                     'config': {
-                        'num_connections': mgmtbus_num_conns
+                        'num_connections': mgmtbus_num_conns,
+                        'priority': gevent.core.MAXPRI
                     }
                 },
                 'master': {},

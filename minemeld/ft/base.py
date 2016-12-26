@@ -196,7 +196,7 @@ class BaseFT(object):
         self.inputs = []
         self.output = None
 
-        self.statistics = collections.defaultdict(lambda: 0)
+        self.statistics = collections.defaultdict(int)
 
         self.read_checkpoint()
 
@@ -205,6 +205,7 @@ class BaseFT(object):
         self._state = ft_states.READY
 
         self._last_status_publish = None
+        self._throttled_publish_status = utils.GThrottled(self._internal_publish_status, 3000)
         self._clock = 0
 
     @property
@@ -360,8 +361,7 @@ class BaseFT(object):
                 'get',
                 'get_all',
                 'get_range',
-                'length',
-                'hup'
+                'length'
             ]
         )
 
@@ -570,26 +570,27 @@ class BaseFT(object):
         self.last_checkpoint = value
         self.emit_checkpoint(value)
 
-    def mgmtbus_state_info(self):
-        return {
-            'checkpoint': self.last_checkpoint,
-            'state': self.state,
-            'is_source': len(self.inputs) == 0
-        }
-
     def publish_status(self, force=False):
-        now = utils.utc_millisec()
+        if force:
+            self._internal_publish_status()
 
-        if self._last_status_publish > now - 5000 and not force:
-            return
+        self._throttled_publish_status()
 
-        self._last_status_publish = now
+    def _internal_publish_status(self):
+        self._last_status_publish = utils.utc_millisec()
         status = self.mgmtbus_status()
         self.chassis.publish_status(
             timestamp=utils.utc_millisec(),
             nodename=self.name,
             status=status
         )
+
+    def mgmtbus_state_info(self):
+        return {
+            'checkpoint': self.last_checkpoint,
+            'state': self.state,
+            'is_source': len(self.inputs) == 0
+        }
 
     def mgmtbus_initialize(self):
         self.state = ft_states.INIT
@@ -637,6 +638,9 @@ class BaseFT(object):
         self.emit_checkpoint(value)
 
         return 'OK'
+
+    def mgmtbus_hup(self, source=None):
+        self.hup(source=source)
 
     def initialize(self):
         pass
@@ -701,6 +705,8 @@ class BaseFT(object):
         if self.state not in [ft_states.IDLE, ft_states.STARTED]:
             LOG.error("stop on not IDLE or STARTED FT")
             raise AssertionError("stop on not IDLE or STARTED FT")
+
+        self._throttled_publish_status.cancel()
 
         self.state = ft_states.STOPPED
 

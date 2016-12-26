@@ -20,11 +20,12 @@ import datetime
 import socket
 
 from . import base
+from . import actorbase
 
 LOG = logging.getLogger(__name__)
 
 
-class LogstashOutput(base.BaseFT):
+class LogstashOutput(actorbase.ActorBaseFT):
     def __init__(self, name, chassis, config):
         super(LogstashOutput, self).__init__(name, chassis, config)
 
