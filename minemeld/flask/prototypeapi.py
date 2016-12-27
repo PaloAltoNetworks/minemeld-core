@@ -16,14 +16,16 @@ import logging
 
 import os
 import os.path
-import yaml
 
+import yaml
+import filelock
 from flask import g, jsonify, request, Blueprint
 from flask.ext.login import login_required
 
 import minemeld.loader
 
 from . import config
+from .utils import running_config, committed_config
 
 
 __all__ = ['BLUEPRINT']
@@ -63,6 +65,43 @@ def _prototype_paths():
     return paths
 
 
+def _local_library_path(prototypename):
+    toks = prototypename.split('.', 1)
+    if len(toks) != 2:
+        raise ValueError('bad prototype name')
+    library, prototype = toks
+
+    if os.path.basename(library) != library:
+        raise ValueError('bad library name, nice try')
+    if library != 'minemeldlocal':
+        raise ValueError('invalid library')
+    library_filename = library+'.yml'
+
+    local_path = config.get(LOCAL_PROTOTYPE_PATH)
+    if local_path is None:
+        paths = os.getenv(PROTOTYPE_ENV, None)
+        if paths is None:
+            raise RuntimeError(
+                '%s environment variable not set' %
+                (PROTOTYPE_ENV)
+            )
+
+        paths = paths.split(':')
+        for p in paths:
+            if '/local/' in p:
+                local_path = p
+                break
+
+        if local_path is None:
+            raise RuntimeError(
+                'No local path in %s' % PROTOTYPE_ENV
+            )
+
+    library_path = os.path.join(local_path, library_filename)
+
+    return library_path, prototype
+
+
 @BLUEPRINT.route('/prototype', methods=['GET'])
 @login_required
 def list_prototypes():
@@ -80,7 +119,7 @@ def list_prototypes():
                 with open(os.path.join(p, plibrary), 'r') as f:
                     pcontents = yaml.safe_load(f)
 
-                if not plibraryname in prototypes:
+                if plibraryname not in prototypes:
                     prototypes[plibraryname] = pcontents
                     continue
 
@@ -164,97 +203,115 @@ def get_prototype(prototypename):
 
 @BLUEPRINT.route('/prototype/<prototypename>', methods=['POST'])
 @login_required
-def add_prototype(prototypename):
+def add_local_prototype(prototypename):
     AUTHOR_ = 'minemeld-web'
     DESCRIPTION_ = 'Local prototype library managed via MineMeld WebUI'
 
-    toks = prototypename.split('.', 1)
-    if len(toks) != 2:
-        return jsonify(error={'message': 'bad prototype name'}), 400
-    library, prototype = toks
+    try:
+        library_path, prototype = _local_library_path(prototypename)
 
-    if os.path.basename(library) != library:
-        return jsonify(error={'message': 'bad library name, nice try'}), 400
-    if library != 'minemeldlocal':
-        return jsonify(error={'message': 'invalid library'}), 400
-    library_filename = library+'.yml'
+    except ValueError as e:
+        return jsonify(error={'message': str(e)})
 
-    local_path = config.get(LOCAL_PROTOTYPE_PATH)
-    if local_path is None:
-        paths = os.getenv(PROTOTYPE_ENV, None)
-        if paths is None:
-            raise RuntimeError(
-                '%s environment variable not set' %
-                (PROTOTYPE_ENV)
-            )
+    lock = filelock.FileLock('{}.lock'.format(library_path))
+    with lock.acquire(timeout=10):
+        if os.path.isfile(library_path):
+            with open(library_path, 'r') as f:
+                library_contents = yaml.safe_load(f)
+            if not isinstance(library_contents, dict):
+                library_contents = {}
+            if 'description' not in library_contents:
+                library_contents['description'] = DESCRIPTION_
+            if 'prototypes' not in library_contents:
+                library_contents['prototypes'] = {}
+            if 'author' not in library_contents:
+                library_contents['author'] = AUTHOR_
+        else:
+            library_contents = {
+                'author': AUTHOR_,
+                'description': DESCRIPTION_,
+                'prototypes': {}
+            }
 
-        paths = paths.split(':')
-        for p in paths:
-            if '/local/' in p:
-                local_path = p
-                break
+        try:
+            incoming_prototype = request.get_json()
+        except Exception as e:
+            return jsonify(error={'message': str(e)}), 400
 
-        if local_path is None:
-            raise RuntimeError(
-                'No local path in %s' % PROTOTYPE_ENV
-            )
-
-    library_path = os.path.join(local_path, library_filename)
-
-    if os.path.isfile(library_path):
-        with open(library_path, 'r') as f:
-            library_contents = yaml.safe_load(f)
-        if not isinstance(library_contents, dict):
-            library_contents = {}
-        if 'description' not in library_contents:
-            library_contents['description'] = DESCRIPTION_
-        if 'prototypes' not in library_contents:
-            library_contents['prototypes'] = {}
-        if 'author' not in library_contents:
-            library_contents['author'] = AUTHOR_
-    else:
-        library_contents = {
-            'author': AUTHOR_,
-            'description': DESCRIPTION_,
-            'prototypes': {}
+        new_prototype = {
+            'class': incoming_prototype['class'],
         }
 
+        if 'config' in incoming_prototype:
+            try:
+                new_prototype['config'] = yaml.safe_load(
+                    incoming_prototype['config']
+                )
+            except Exception as e:
+                return jsonify(error={'message': 'invalid YAML in config'}), 400
+
+        if 'developmentStatus' in incoming_prototype:
+            new_prototype['development_status'] = \
+                incoming_prototype['developmentStatus']
+
+        if 'nodeType' in incoming_prototype:
+            new_prototype['node_type'] = incoming_prototype['nodeType']
+
+        if 'description' in incoming_prototype:
+            new_prototype['description'] = incoming_prototype['description']
+
+        if 'indicatorTypes' in incoming_prototype:
+            new_prototype['indicator_types'] = incoming_prototype['indicatorTypes']
+
+        if 'tags' in incoming_prototype:
+            new_prototype['tags'] = incoming_prototype['tags']
+
+        library_contents['prototypes'][prototype] = new_prototype
+
+        with open(library_path, 'w') as f:
+            yaml.safe_dump(library_contents, f, indent=4, default_flow_style=False)
+
+    return jsonify(result='OK'), 200
+
+
+@BLUEPRINT.route('/prototype/<prototypename>', methods=['DELETE'])
+@login_required
+def delete_local_prototype(prototypename):
     try:
-        incoming_prototype = request.get_json()
-    except Exception as e:
-        return jsonify(error={'message': str(e)}), 400
+        library_path, prototype = _local_library_path(prototypename)
 
-    new_prototype = {
-        'class': incoming_prototype['class'],
-    }
+    except ValueError as e:
+        return jsonify(error={'message': str(e)})
 
-    if 'config' in incoming_prototype:
-        try:
-            new_prototype['config'] = yaml.safe_load(
-                incoming_prototype['config']
-            )
-        except Exception as e:
-            return jsonify(error={'message': 'invalid YAML in config'}), 400
+    if not os.path.isfile(library_path):
+        return jsonify(error={'message': 'missing local prototype library'}), 400
 
-    if 'developmentStatus' in incoming_prototype:
-        new_prototype['development_status'] = \
-            incoming_prototype['developmentStatus']
+    # check if the proto is in use in running or committed config
+    rcconfig = running_config()
+    for nodename, nodevalue in rcconfig.get('nodes', {}).iteritems():
+        if 'prototype' not in nodevalue:
+            continue
+        if nodevalue['prototype'] == prototypename:
+            return jsonify(error={'message': 'prototype in use in running config'}), 400
 
-    if 'nodeType' in incoming_prototype:
-        new_prototype['node_type'] = incoming_prototype['nodeType']
+    ccconfig = committed_config()
+    for nodename, nodevalue in ccconfig.get('nodes', {}).iteritems():
+        if 'prototype' not in nodevalue:
+            continue
+        if nodevalue['prototype'] == prototypename:
+            return jsonify(error={'message': 'prototype in use in running config'}), 400
 
-    if 'description' in incoming_prototype:
-        new_prototype['description'] = incoming_prototype['description']
+    lock = filelock.FileLock('{}.lock'.format(library_path))
+    with lock.acquire(timeout=10):
+        with open(library_path, 'r') as f:
+            library_contents = yaml.safe_load(f)
 
-    if 'indicatorTypes' in incoming_prototype:
-        new_prototype['indicator_types'] = incoming_prototype['indicatorTypes']
+        if not isinstance(library_contents, dict):
+            return jsonify(error={'message': 'invalid local prototype library'}), 400
 
-    if 'tags' in incoming_prototype:
-        new_prototype['tags'] = incoming_prototype['tags']
+        library_contents['prototypes'].pop(prototype, None)
 
-    library_contents['prototypes'][prototype] = new_prototype
-
-    with open(library_path, 'w') as f:
-        yaml.safe_dump(library_contents, f, indent=4, default_flow_style=False)
+        with open(library_path, 'w') as f:
+            yaml.safe_dump(library_contents, f, indent=4, default_flow_style=False)
 
     return jsonify(result='OK'), 200

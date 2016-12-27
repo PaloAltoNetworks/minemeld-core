@@ -30,6 +30,7 @@ from flask.ext.login import login_required
 
 from .redisclient import SR
 from .mmrpc import MMRpcClient
+from . import utils
 
 
 __all__ = ['BLUEPRINT']
@@ -174,19 +175,11 @@ def _get_stanza(stanza, config_key=REDIS_KEY_CONFIG):
 
 
 def _load_running_config():
-    rcpath = os.path.join(
-        os.path.dirname(os.environ.get('MM_CONFIG')),
-        'running-config.yml'
-    )
-    return _load_config_from_file(rcpath)
+    return _load_config_from_file(utils.running_config_path())
 
 
 def _load_committed_config():
-    rcpath = os.path.join(
-        os.path.dirname(os.environ.get('MM_CONFIG')),
-        'committed-config.yml'
-    )
-    return _load_config_from_file(rcpath)
+    return _load_config_from_file(utils.committed_config_path())
 
 
 def _load_config_from_file(rcpath):
@@ -243,10 +236,7 @@ def _load_config_from_file(rcpath):
 
 
 def _commit_config(version):
-    ccpath = os.path.join(
-        os.path.dirname(os.environ.get('MM_CONFIG')),
-        'committed-config.yml'
-    )
+    ccpath = utils.committed_config_path()
 
     clock = _lock_timeout(REDIS_KEY_CONFIG)
     if clock is None:
@@ -399,6 +389,19 @@ def _set_node(nodenum, nodebody):
     return str(result)
 
 
+@BLUEPRINT.route('/running', methods=['GET'])
+@login_required
+def get_running_config():
+    return jsonify(result=utils.running_config())
+
+
+@BLUEPRINT.route('/committed', methods=['GET'])
+@login_required
+def get_committed_config():
+    return jsonify(result=utils.committed_config())
+
+
+# API for manipulating candidate config
 @BLUEPRINT.route('/reload', methods=['GET'])
 @login_required
 def reload_running_config():
@@ -580,6 +583,7 @@ def delete_node(nodenum):
     return jsonify(result=result)
 
 
+# API for working with side configs and dynamic data files
 @BLUEPRINT.route('/data/<datafilename>', methods=['GET'])
 @login_required
 def get_config_data(datafilename):
