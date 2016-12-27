@@ -16,6 +16,8 @@ import os
 import re
 import logging
 
+import yaml
+
 LOG = logging.getLogger(__name__)
 
 
@@ -43,3 +45,35 @@ class DirSnapshot(object):
 
     def __ne__(self, other):
         return self._entries != other._entries
+
+
+def running_config_path():
+    rcpath = os.path.join(
+        os.path.dirname(os.environ.get('MM_CONFIG')),
+        'running-config.yml'
+    )
+
+    return rcpath
+
+
+def committed_config_path():
+    ccpath = os.path.join(
+        os.path.dirname(os.environ.get('MM_CONFIG')),
+        'committed-config.yml'
+    )
+
+    return ccpath
+
+
+def running_config():
+    with open(running_config_path(), 'r') as f:
+        rcconfig = yaml.safe_load(f)
+
+    return rcconfig
+
+
+def committed_config():
+    with open(committed_config_path(), 'r') as f:
+        ccconfig = yaml.safe_load(f)
+
+    return ccconfig
