@@ -49,21 +49,25 @@ def _restart_engine():
         )
     )
 
-    result = sserver.supervisor.stopProcess('minemeld-engine', False)
-    if not result:
-        LOG.error('Stop minemeld-engine returned False')
-        return
+    try:
+        result = sserver.supervisor.stopProcess('minemeld-engine', False)
+        if not result:
+            LOG.error('Stop minemeld-engine returned False')
+            return
+
+    except xmlrpclib.Fault as e:
+        LOG.error('Error stopping minemeld-engine: {!r}'.format(e))
+
     LOG.info('Stopped minemeld-engine for API request')
 
     now = time.time()
     info = None
-    while (time.time()-now) < 60*15*1000:
+    while (time.time()-now) < 60*10*1000:
         info = sserver.supervisor.getProcessInfo('minemeld-engine')
-        if info['statename'] == 'STOPPED':
+        if info['statename'] in ('FATAL', 'STOPPED', 'UNKNOWN', 'EXITED'):
             break
         gevent.sleep(5)
-
-    if info is not None and info['statename'] != 'STOPPED':
+    else:
         LOG.error('Timeout during minemeld-engine restart')
         return
 
@@ -122,7 +126,7 @@ def stop_minemeld_engine():
 @login_required
 def restart_minemeld_engine():
     info = MMSupervisor.supervisor.getProcessInfo('minemeld-engine')
-    if info['statename'] != 'RUNNING':
+    if info['statename'] == 'STARTING' or info['statename'] == 'STOPPING':
         return jsonify(error={
             'message': ('minemeld-engine not in RUNNING state: %s' %
                         info['statename'])

@@ -211,7 +211,7 @@ def add_local_prototype(prototypename):
         library_path, prototype = _local_library_path(prototypename)
 
     except ValueError as e:
-        return jsonify(error={'message': str(e)})
+        return jsonify(error={'message': str(e)}), 400
 
     lock = filelock.FileLock('{}.lock'.format(library_path))
     with lock.acquire(timeout=10):
@@ -281,7 +281,7 @@ def delete_local_prototype(prototypename):
         library_path, prototype = _local_library_path(prototypename)
 
     except ValueError as e:
-        return jsonify(error={'message': str(e)})
+        return jsonify(error={'message': str(e)}), 400
 
     if not os.path.isfile(library_path):
         return jsonify(error={'message': 'missing local prototype library'}), 400

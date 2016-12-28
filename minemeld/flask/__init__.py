@@ -63,6 +63,7 @@ def create_app():
     from . import aaaapi  # noqa
     from . import statusapi  # noqa
     from . import tracedapi  # noqa
+    from . import logsapi  # noqa
 
     configapi.init_app(app)
 
@@ -79,6 +80,7 @@ def create_app():
     app.register_blueprint(prototypeapi.BLUEPRINT)
     app.register_blueprint(aaaapi.BLUEPRINT)
     app.register_blueprint(tracedapi.BLUEPRINT)
+    app.register_blueprint(logsapi.BLUEPRINT)
 
     # install blueprints from extensions
     for apiname, apimmep in minemeld.loader.map(minemeld.loader.MM_API_ENTRYPOINT).iteritems():
