@@ -10,7 +10,7 @@ from supervisor import childutils
 LOG = logging.getLogger(__name__)
 
 
-def _handle_event(SR, hdrs, payload):
+def _handle_event(SR, engine_process_name, hdrs, payload):
     event = hdrs.get('eventname', None)
     if not event.startswith('PROCESS_STATE'):
         return
@@ -27,10 +27,13 @@ def _handle_event(SR, hdrs, payload):
         LOG.error('processname key not found in payload')
         return
 
+    if processname != engine_process_name:
+        return
+
     SR.publish(
-        'mm-engine-status.<{}>'.format(processname),
+        'mm-engine-status.<minemeld-engine>',
         ujson.dumps({
-            'source': '<{}>'.format(processname),
+            'source': '<minemeld-engine>',
             'timestamp': int(time.time())*1000,
             'status': event
         })
@@ -39,6 +42,8 @@ def _handle_event(SR, hdrs, payload):
 
 def main():
     logging.basicConfig(level=logging.DEBUG)
+
+    engine_process_name = os.environ.get('MM_ENGINE_PROCESSNAME', 'minemeld-engine')
 
     SR = redis.StrictRedis.from_url(
         os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0')
@@ -49,7 +54,7 @@ def main():
         LOG.info('hdr: {!r} payload: {!r}'.format(hdrs, payload))
 
         try:
-            _handle_event(SR, hdrs, payload)
+            _handle_event(SR, engine_process_name, hdrs, payload)
 
         except:
             LOG.exception('Exception in handling event')
