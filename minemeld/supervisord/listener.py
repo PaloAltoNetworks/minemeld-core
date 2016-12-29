@@ -58,6 +58,6 @@ def main():
 
         except:
             LOG.exception('Exception in handling event')
-            continue
 
-        childutils.listener.ok(sys.stdout)
+        finally:
+            childutils.listener.ok(sys.stdout)
