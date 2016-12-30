@@ -77,7 +77,7 @@ def create_app():
     app.register_blueprint(supervisorapi.BLUEPRINT)
     app.register_blueprint(loginapi.BLUEPRINT)
     app.register_blueprint(prototypeapi.BLUEPRINT)
-    app.register_blueprint(prototypeapi.BLUEPRINT)
+    app.register_blueprint(validateapi.BLUEPRINT)
     app.register_blueprint(aaaapi.BLUEPRINT)
     app.register_blueprint(tracedapi.BLUEPRINT)
     app.register_blueprint(logsapi.BLUEPRINT)
