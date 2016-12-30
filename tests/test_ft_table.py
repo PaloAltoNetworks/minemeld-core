@@ -75,17 +75,74 @@ class MineMeldFTTableTests(unittest.TestCase):
         table = minemeld.ft.table.Table(TABLENAME)
         table.create_index('a')
 
-        for i in range(NUM_ELEMENTS):
-            value = {'a': random.randint(0, 500)}
+        num_below_500 = 0
+        for i in xrange(NUM_ELEMENTS):
+            value = {'a': random.randint(0, 1000)}
             key = 'i%d' % i
             table.put(key, value)
+            if value['a'] <= 500:
+                num_below_500 += 1
 
         j = 0
         for k, v in table.query('a', from_key=0, to_key=500,
                                 include_value=True):
             j += 1
 
-        self.assertEqual(j, NUM_ELEMENTS)
+        self.assertEqual(j, num_below_500)
+        table.close()
+
+    def test_index_query_2(self):
+        table = minemeld.ft.table.Table(TABLENAME)
+        table.create_index('a')
+
+        for i in xrange(NUM_ELEMENTS):
+            value = {'a': 1483184218151+random.randint(600, 1000)}
+            key = 'i%d' % i
+            table.put(key, value)
+
+        num_below_500 = 0
+        for i in xrange(NUM_ELEMENTS):
+            value = {'a': 1483184218151+random.randint(0, 1000)}
+            key = 'i%d' % i
+            table.put(key, value)
+            if value['a'] <= 1483184218151+500:
+                num_below_500 += 1
+
+        j = 0
+        for k, v in table.query('a', to_key=1483184218151+500,
+                                include_value=True):
+            j += 1
+
+        self.assertEqual(j, num_below_500)
+        table.close()
+
+    def test_index_query_3(self):
+        table = minemeld.ft.table.Table(TABLENAME)
+        table.create_index('a')
+
+        for i in xrange(NUM_ELEMENTS):
+            value = {'a': 1483184218151+random.randint(0, 500)}
+            key = 'i%d' % i
+            table.put(key, value)
+
+        for i in xrange(NUM_ELEMENTS):
+            key = 'i%d' % i
+            table.delete(key)
+
+        num_below_500 = 0
+        for i in xrange(NUM_ELEMENTS):
+            value = {'a': 1483184218151+random.randint(0, 1000)}
+            key = 'i%d' % i
+            table.put(key, value)
+            if value['a'] <= 1483184218151+500:
+                num_below_500 += 1
+
+        j = 0
+        for k, v in table.query('a', to_key=1483184218151+500,
+                                include_value=True):
+            j += 1
+
+        self.assertEqual(j, num_below_500)
         table.close()
 
     def test_query(self):
