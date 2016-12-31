@@ -114,6 +114,17 @@ def status(ctx, target):
     ctx.obj['COMM'].stop()
 
 
+@cli.command(name='signal')
+@click.argument('signal')
+@click.argument('target')
+@click.pass_context
+def mm_signal(ctx, signal, target):
+    target = 'mbus:directslave:'+target
+    pprint.pprint(_send_cmd(ctx, target, 'signal', source=False, params={'signal': signal}))
+
+    ctx.obj['COMM'].stop()
+
+
 # XXX query should subscribe to the Redis topic to dump the
 # query results
 @cli.command()
