@@ -275,12 +275,9 @@ class MgmtbusMaster(object):
             break
 
         chkp = str(uuid.uuid4())
-
-        revt = self._send_cmd('checkpoint', params={'value': chkp})
-        success = revt.wait(timeout=60)
-        if success is None:
-            LOG.error('Timeout waiting for answers to checkpoint')
-            return
+        LOG.info('Sending checkpoint {} to nodes'.format(chkp))
+        for nodename in self.ftlist:
+            self._send_node_cmd(nodename, 'checkpoint', params={'value': chkp})
 
         ntries = 0
         while ntries < max_tries:
