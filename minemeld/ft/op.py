@@ -135,6 +135,15 @@ class AggregateFT(actorbase.ActorBaseFT):
 
     @base._counting('withdraw.processed')
     def filtered_withdraw(self, source=None, indicator=None, value=None):
+        ikey = self._indicator_key(indicator, source)
+
+        cvalue = self.table.get(ikey)
+        e = (cvalue is not None)
+        if value is not None and cvalue is not None:
+            if value.get('type', None) != cvalue.get('type', None):
+                self.statistics['withdraw.ignored'] += 1
+                return
+
         ebl = 0
         ewl = 0
         for i in self.inputs:
@@ -144,8 +153,7 @@ class AggregateFT(actorbase.ActorBaseFT):
             else:
                 ebl += v
 
-        e = self.table.exists(self._indicator_key(indicator, source))
-        self.table.delete(self._indicator_key(indicator, source))
+        self.table.delete(ikey)
 
         if self._is_whitelist(source):
             # withdraw from whitelist
