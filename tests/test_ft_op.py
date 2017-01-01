@@ -17,6 +17,7 @@
 Unit tests for minemeld.ft.op
 """
 
+import gevent
 import gevent.monkey
 gevent.monkey.patch_all(thread=False, select=False)
 
@@ -124,7 +125,7 @@ class MineMeldFTOpTests(unittest.TestCase):
         a.mgmtbus_initialize()
         a.start()
 
-        a.update('s1', indicator='i', value={'s1$a': 1, 'sources': ['s1s']})
+        a.filtered_update('s1', indicator='i', value={'s1$a': 1, 'sources': ['s1s']})
         self.assertEqual(ochannel.publish.call_count, 1)
         pargs = ochannel.publish.call_args[0]
         self.assertEqual(pargs[0], 'update')
@@ -132,7 +133,7 @@ class MineMeldFTOpTests(unittest.TestCase):
         self.assertListEqual(pargs[1]['value']['sources'], ['s1s'])
         self.assertEqual(pargs[1]['value']['s1$a'], 1)
 
-        a.update('s2', indicator='i', value={'s2$a': 1, 'sources': ['s2s']})
+        a.filtered_update('s2', indicator='i', value={'s2$a': 1, 'sources': ['s2s']})
         self.assertEqual(ochannel.publish.call_count, 2)
         pargs = ochannel.publish.call_args[0]
         self.assertEqual(pargs[0], 'update')
@@ -172,7 +173,7 @@ class MineMeldFTOpTests(unittest.TestCase):
         a.mgmtbus_initialize()
         a.start()
 
-        a.update('s1', indicator='i', value={'s1$a': 1, 'sources': ['s1s']})
+        a.filtered_update('s1', indicator='i', value={'s1$a': 1, 'sources': ['s1s']})
         self.assertEqual(ochannel.publish.call_count, 1)
         pargs = ochannel.publish.call_args[0]
         self.assertEqual(pargs[0], 'update')
@@ -180,7 +181,7 @@ class MineMeldFTOpTests(unittest.TestCase):
         self.assertEqual(pargs[1]['value']['s1$a'], 1)
         self.assertListEqual(pargs[1]['value']['sources'], ['s1s'])
 
-        a.update('s2', indicator='i', value={'s2$a': 1, 'sources': ['s2s']})
+        a.filtered_update('s2', indicator='i', value={'s2$a': 1, 'sources': ['s2s']})
         self.assertEqual(ochannel.publish.call_count, 2)
         pargs = ochannel.publish.call_args[0]
         self.assertEqual(pargs[0], 'withdraw')
@@ -215,19 +216,19 @@ class MineMeldFTOpTests(unittest.TestCase):
         a.mgmtbus_initialize()
         a.start()
 
-        a.update('s1', indicator='i', value={'s1$a': 1, 'sources': ['s1s']})
+        a.filtered_update('s1', indicator='i', value={'s1$a': 1, 'sources': ['s1s']})
         pargs = ochannel.publish.call_args[0]
         self.assertListEqual(pargs[1]['value']['sources'], ['s1s'])
 
-        a.update('s2', indicator='i', value={'s2$a': 1, 'sources': ['s2s']})
+        a.filtered_update('s2', indicator='i', value={'s2$a': 1, 'sources': ['s2s']})
         pargs = ochannel.publish.call_args[0]
         self.assertListEqual(pargs[1]['value']['sources'], ['s1s', 's2s'])
 
-        a.update('s1', indicator='i', value={'s1$a': 1, 'sources': ['s1s']})
+        a.filtered_update('s1', indicator='i', value={'s1$a': 1, 'sources': ['s1s']})
         pargs = ochannel.publish.call_args[0]
         self.assertListEqual(pargs[1]['value']['sources'], ['s1s', 's2s'])
 
-        a.withdraw('s2', indicator='i')
+        a.filtered_withdraw('s2', indicator='i')
         pargs = ochannel.publish.call_args[0]
         self.assertListEqual(pargs[1]['value']['sources'], ['s1s'])
 
@@ -260,29 +261,86 @@ class MineMeldFTOpTests(unittest.TestCase):
         a.mgmtbus_initialize()
         a.start()
 
-        a.update('s1', indicator='i', value={'s1$a': 1, 'sources': ['s1s']})
+        a.filtered_update('s1', indicator='i', value={'s1$a': 1, 'sources': ['s1s']})
         self.assertEqual(ochannel.publish.call_count, 1)
         pargs = ochannel.publish.call_args[0]
         self.assertListEqual(pargs[1]['value']['sources'], ['s1s'])
 
-        a.update('s2', indicator='i', value={'s2$a': 1, 'sources': ['s2s']})
+        a.filtered_update('s2', indicator='i', value={'s2$a': 1, 'sources': ['s2s']})
         self.assertEqual(ochannel.publish.call_count, 2)
         pargs = ochannel.publish.call_args[0]
         self.assertListEqual(pargs[1]['value']['sources'], ['s1s', 's2s'])
 
-        a.update('s1', indicator='i', value={'s1$a': 1, 'sources': ['s1s']})
+        a.filtered_update('s1', indicator='i', value={'s1$a': 1, 'sources': ['s1s']})
         self.assertEqual(ochannel.publish.call_count, 3)
         pargs = ochannel.publish.call_args[0]
         self.assertListEqual(pargs[1]['value']['sources'], ['s1s', 's2s'])
 
-        a.withdraw('s2', indicator='i')
+        a.filtered_withdraw('s2', indicator='i')
         self.assertEqual(ochannel.publish.call_count, 4)
         pargs = ochannel.publish.call_args[0]
         self.assertEqual(pargs[0], 'update')
         self.assertListEqual(pargs[1]['value']['sources'], ['s1s'])
 
-        a.withdraw('s1', indicator='i')
+        a.filtered_withdraw('s1', indicator='i')
         self.assertEqual(ochannel.publish.call_count, 5)
+        pargs = ochannel.publish.call_args[0]
+        self.assertEqual(pargs[0], 'withdraw')
+
+        a.stop()
+
+
+        a = None
+        chassis = None
+        rpcmock = None
+        ochannel = None
+
+        gc.collect()
+
+    def test_aggregate_u2w_difftypes(self):
+        config = {}
+        chassis = mock.Mock()
+
+        ochannel = mock.Mock()
+        chassis.request_pub_channel.return_value = ochannel
+
+        rpcmock = mock.Mock()
+        rpcmock.get.return_value = {'error': None, 'result': 'OK'}
+        chassis.send_rpc.return_value = rpcmock
+
+        a = minemeld.ft.op.AggregateFT(FTNAME, chassis, config)
+
+        inputs = ['s1', 's2']
+        output = True
+
+        a.connect(inputs, output)
+        a.mgmtbus_initialize()
+        a.start()
+
+        a.filtered_update('s1', indicator='i', value={'s1$a': 1, 'type': 'a', 'sources': ['s1s']})
+        self.assertEqual(ochannel.publish.call_count, 1)
+        pargs = ochannel.publish.call_args[0]
+        self.assertListEqual(pargs[1]['value']['sources'], ['s1s'])
+
+        ochannel.publish.reset_mock()
+        a.filtered_update('s2', indicator='i2', value={'s1$a': 1, 'type': 'a', 'sources': ['s1s']})
+        self.assertEqual(ochannel.publish.call_count, 1)
+        pargs = ochannel.publish.call_args[0]
+        self.assertListEqual(pargs[1]['value']['sources'], ['s1s'])
+
+        ochannel.publish.reset_mock()
+        a.filtered_withdraw('s1', indicator='i', value={'type': 'b'})
+        self.assertEqual(ochannel.publish.call_count, 0)
+
+        ochannel.publish.reset_mock()
+        a.filtered_withdraw('s1', indicator='i', value={'type': 'a'})
+        self.assertEqual(ochannel.publish.call_count, 1)
+        pargs = ochannel.publish.call_args[0]
+        self.assertEqual(pargs[0], 'withdraw')
+
+        ochannel.publish.reset_mock()
+        a.filtered_withdraw('s2', indicator='i2')
+        self.assertEqual(ochannel.publish.call_count, 1)
         pargs = ochannel.publish.call_args[0]
         self.assertEqual(pargs[0], 'withdraw')
 
@@ -318,7 +376,7 @@ class MineMeldFTOpTests(unittest.TestCase):
         a.mgmtbus_initialize()
         a.start()
 
-        a.update('s1', indicator='i', value={'s1$a': 1, 'sources': ['s1s']})
+        a.filtered_update('s1', indicator='i', value={'s1$a': 1, 'sources': ['s1s']})
         self.assertEqual(ochannel.publish.call_count, 1)
         pargs = ochannel.publish.call_args[0]
         self.assertEqual(pargs[0], 'update')
@@ -326,19 +384,19 @@ class MineMeldFTOpTests(unittest.TestCase):
         self.assertEqual(pargs[1]['value']['s1$a'], 1)
         self.assertListEqual(pargs[1]['value']['sources'], ['s1s'])
 
-        a.update('s2', indicator='i', value={'s2$a': 1, 'sources': ['s2s']})
+        a.filtered_update('s2', indicator='i', value={'s2$a': 1, 'sources': ['s2s']})
         self.assertEqual(ochannel.publish.call_count, 2)
         pargs = ochannel.publish.call_args[0]
         self.assertEqual(pargs[0], 'withdraw')
         self.assertEqual(pargs[1]['indicator'], 'i')
 
-        a.update('s3', indicator='i', value={'s3$a': 1, 'sources': ['s3s']})
+        a.filtered_update('s3', indicator='i', value={'s3$a': 1, 'sources': ['s3s']})
         self.assertEqual(ochannel.publish.call_count, 2)
 
-        a.withdraw('s3', indicator='i')
+        a.filtered_withdraw('s3', indicator='i')
         self.assertEqual(ochannel.publish.call_count, 2)
 
-        a.withdraw('s2', indicator='i')
+        a.filtered_withdraw('s2', indicator='i')
         self.assertEqual(ochannel.publish.call_count, 3)
         pargs = ochannel.publish.call_args[0]
         self.assertEqual(pargs[0], 'update')
@@ -387,11 +445,13 @@ class MineMeldFTOpTests(unittest.TestCase):
         a.mgmtbus_initialize()
         a.start()
 
-        a.update('s1', indicator='i', value={'s1a': 1, 'sources': ['s1s']})
+        a.update(source='s1', indicator='i', value={'s1a': 1, 'sources': ['s1s']})
+        gevent.sleep(0.1)
         self.assertEqual(ochannel.publish.call_count, 1)
 
         ochannel.publish.reset_mock()
-        a.update('s2', indicator='i', value={'s2a': 1})
+        a.update(source='s2', indicator='i', value={'s2a': 1})
+        gevent.sleep(0.1)
         self.assertEqual(ochannel.publish.call_count, 0)
 
         a.stop()
@@ -436,7 +496,8 @@ class MineMeldFTOpTests(unittest.TestCase):
         a.mgmtbus_initialize()
         a.start()
 
-        a.update('s1', indicator='i', value={'s1a': 1, 'sources': ['s1s']})
+        a.update(source='s1', indicator='i', value={'s1a': 1, 'sources': ['s1s']})
+        gevent.sleep(0.1)
         self.assertEqual(ochannel.publish.call_count, 1)
         pargs = ochannel.publish.call_args[0]
         self.assertEqual(pargs[0], 'update')
@@ -445,7 +506,8 @@ class MineMeldFTOpTests(unittest.TestCase):
         self.assertListEqual(pargs[1]['value']['sources'], ['s1s'])
 
         ochannel.publish.reset_mock()
-        a.update('s1', indicator='i', value={'s1a': 1})
+        a.update(source='s1', indicator='i', value={'s1a': 1})
+        gevent.sleep(0.1)
         self.assertEqual(ochannel.publish.call_count, 1)
         pargs = ochannel.publish.call_args[0]
         self.assertEqual(pargs[0], 'withdraw')
@@ -481,7 +543,7 @@ class MineMeldFTOpTests(unittest.TestCase):
         a.mgmtbus_initialize()
         a.start()
 
-        a.update('s1', indicator='10.1.0.0/16', value={
+        a.filtered_update('s1', indicator='10.1.0.0/16', value={
             'type': 'IPv4',
             'sources': ['s1s'],
             'direction': 'inbound',
@@ -490,7 +552,7 @@ class MineMeldFTOpTests(unittest.TestCase):
             'confidence': 20
         })
         ochannel.publish.reset_mock()
-        a.update('s2', indicator='10.1.0.0/16', value={
+        a.filtered_update('s2', indicator='10.1.0.0/16', value={
             'type': 'IPv4',
             'sources': ['s2s'],
             'direction': 'inbound',
@@ -541,7 +603,7 @@ class MineMeldFTOpTests(unittest.TestCase):
         a.mgmtbus_initialize()
         a.start()
 
-        a.update('s1', indicator='10.1.0.0/16', value={
+        a.filtered_update('s1', indicator='10.1.0.0/16', value={
             'type': 'IPv4',
             'sources': ['s2s'],
             'direction': 'inbound',
@@ -549,7 +611,7 @@ class MineMeldFTOpTests(unittest.TestCase):
             'last_seen': 25,
             'confidence': 20
         })
-        a.update('s2', indicator='10.1.0.0/16', value={
+        a.filtered_update('s2', indicator='10.1.0.0/16', value={
             'type': 'IPv4',
             'sources': ['s2s'],
             'direction': 'inbound',
@@ -557,7 +619,7 @@ class MineMeldFTOpTests(unittest.TestCase):
             'last_seen': 20,
             'confidence': 30
         })
-        a.update('s3', indicator='10.1.1.0/24', value={
+        a.filtered_update('s3', indicator='10.1.1.0/24', value={
             'type': 'IPv4',
             'sources': ['s1s'],
             'direction': 'inbound',
@@ -621,7 +683,7 @@ class MineMeldFTOpTests(unittest.TestCase):
         a.mgmtbus_initialize()
         a.start()
 
-        a.update('s1', indicator='10.1.0.0/16', value={
+        a.filtered_update('s1', indicator='10.1.0.0/16', value={
             'type': 'IPv4',
             'sources': ['s2s'],
             'direction': 'inbound',
@@ -629,7 +691,7 @@ class MineMeldFTOpTests(unittest.TestCase):
             'last_seen': 25,
             'confidence': 20
         })
-        a.update('s2', indicator='10.1.0.0/16', value={
+        a.filtered_update('s2', indicator='10.1.0.0/16', value={
             'type': 'IPv4',
             'sources': ['s2s'],
             'direction': 'inbound',
@@ -637,7 +699,7 @@ class MineMeldFTOpTests(unittest.TestCase):
             'last_seen': 20,
             'confidence': 30
         })
-        a.update('s3', indicator='10.1.1.0/24', value={
+        a.filtered_update('s3', indicator='10.1.1.0/24', value={
             'type': 'IPv4',
             'sources': ['s1s'],
             'direction': 'inbound',

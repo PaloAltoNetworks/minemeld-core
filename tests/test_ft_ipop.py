@@ -136,7 +136,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         a.mgmtbus_initialize()
         a.start()
 
-        a.update('s1', indicator='192.168.0.1', value={
+        a.filtered_update('s1', indicator='192.168.0.1', value={
             'type': 'IPv4',
             's1$a': 1,
             'sources': ['s1s']
@@ -147,7 +147,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         self.assertEqual(pargs[1]['indicator'], '192.168.0.1-192.168.0.1')
 
         ochannel.publish.reset_mock()
-        a.update('s1', indicator='192.168.0.1-192.168.0.3', value={
+        a.filtered_update('s1', indicator='192.168.0.1-192.168.0.3', value={
             'type': 'IPv4',
             's1$b': 1,
             'sources': ['s1s']
@@ -177,7 +177,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         ))
 
         ochannel.publish.reset_mock()
-        a.update('s1', indicator='192.168.0.2-192.168.0.2', value={
+        a.filtered_update('s1', indicator='192.168.0.2-192.168.0.2', value={
             'type': 'IPv4',
             's1$c': 1,
             'sources': ['s1s']
@@ -211,7 +211,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         ))
 
         ochannel.publish.reset_mock()
-        a.update('s1', indicator='255.255.255.255', value={
+        a.filtered_update('s1', indicator='255.255.255.255', value={
             'type': 'IPv4',
             's1$e': 1,
             'sources': ['s1s']
@@ -231,7 +231,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         ))
 
         ochannel.publish.reset_mock()
-        a.update('s1', indicator='0.0.0.0', value={
+        a.filtered_update('s1', indicator='0.0.0.0', value={
             'type': 'IPv4',
             's1$e': 1,
             'sources': ['s1s']
@@ -277,7 +277,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         a.mgmtbus_initialize()
         a.start()
 
-        a.update('s1', indicator='192.168.0.0/16', value={
+        a.filtered_update('s1', indicator='192.168.0.0/16', value={
             'type': 'IPv4',
             'sources': ['s1s'],
             's1$a': 1
@@ -299,7 +299,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         )
 
         ochannel.publish.reset_mock()
-        a.update('s2', indicator='192.168.0.0/24', value={
+        a.filtered_update('s2', indicator='192.168.0.0/24', value={
             'type': 'IPv4',
             'sources': ['s2s'],
             's1$b': 1
@@ -351,7 +351,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         a.mgmtbus_initialize()
         a.start()
 
-        a.update('s1', indicator='192.168.0.0/16', value={
+        a.filtered_update('s1', indicator='192.168.0.0/16', value={
             'type': 'IPv4',
             'sources': ['s1s'],
             's1$a': 1
@@ -373,7 +373,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         )
 
         ochannel.publish.reset_mock()
-        a.update('s2', indicator='192.168.0.1', value={
+        a.filtered_update('s2', indicator='192.168.0.1', value={
             'type': 'IPv4',
             'sources': ['s2s'],
             's1$b': 1
@@ -432,7 +432,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         a.mgmtbus_initialize()
         a.start()
 
-        a.update('s1', indicator='192.168.0.0/16', value={
+        a.filtered_update('s1', indicator='192.168.0.0/16', value={
             'type': 'IPv4',
             'sources': ['s1s'],
             's1$a': 1
@@ -454,7 +454,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         )
 
         ochannel.publish.reset_mock()
-        a.update('s2', indicator='192.168.0.1', value={
+        a.filtered_update('s2', indicator='192.168.0.1', value={
             'type': 'IPv4',
             'sources': ['s2s'],
             's1$b': 1
@@ -487,7 +487,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         )
 
         ochannel.publish.reset_mock()
-        a.update('s2', indicator='192.168.0.2', value={
+        a.filtered_update('s2', indicator='192.168.0.2', value={
             'type': 'IPv4',
             'sources': ['s2s'],
             's1$b': 1
@@ -537,7 +537,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         a.mgmtbus_initialize()
         a.start()
 
-        a.update('s1', indicator='192.168.0.1-192.168.0.3', value={
+        a.filtered_update('s1', indicator='192.168.0.1-192.168.0.3', value={
             'type': 'IPv4',
             'sources': ['s1s'],
             's1$a': 1
@@ -556,7 +556,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         )
 
         ochannel.publish.reset_mock()
-        a.update('s2', indicator='192.168.0.3-192.168.0.4', value={
+        a.filtered_update('s2', indicator='192.168.0.3-192.168.0.4', value={
             'type': 'IPv4',
             'sources': ['s2s'],
             's1$b': 1
@@ -611,7 +611,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         a.mgmtbus_initialize()
         a.start()
 
-        a.update('s1', indicator='8.8.0.0/16', value={
+        a.filtered_update('s1', indicator='8.8.0.0/16', value={
             'type': 'IPv4',
             'sources': ['s1s'],
             's1$a': 1
@@ -630,7 +630,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         )
 
         ochannel.publish.reset_mock()
-        a.update('s2', indicator='8.8.255.0/24', value={
+        a.filtered_update('s2', indicator='8.8.255.0/24', value={
             'type': 'IPv4',
             'sources': ['s2s'],
             's1$b': 1
@@ -681,7 +681,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         a.mgmtbus_initialize()
         a.start()
 
-        a.update('s1', indicator='10.1.0.0/16', value={
+        a.filtered_update('s1', indicator='10.1.0.0/16', value={
             'type': 'IPv4',
             'sources': ['s1s'],
             's1$a': 1
@@ -700,7 +700,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         )
 
         ochannel.publish.reset_mock()
-        a.update('s2', indicator='10.1.1.0/24', value={
+        a.filtered_update('s2', indicator='10.1.1.0/24', value={
             'type': 'IPv4',
             'sources': ['s2s'],
             's1$b': 1
@@ -731,7 +731,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         )
 
         ochannel.publish.reset_mock()
-        a.update('s2', indicator='10.1.1.128/25', value={
+        a.filtered_update('s2', indicator='10.1.1.128/25', value={
             'type': 'IPv4',
             'sources': ['s2s'],
             's1$c': 1
@@ -785,7 +785,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         a.mgmtbus_initialize()
         a.start()
 
-        a.update('s1', indicator='10.1.0.0/16', value={
+        a.filtered_update('s1', indicator='10.1.0.0/16', value={
             'type': 'IPv4',
             'sources': ['s1s'],
             'direction': 'inbound',
@@ -794,7 +794,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
             'confidence': 20
         })
         ochannel.publish.reset_mock()
-        a.update('s2', indicator='10.1.0.0/16', value={
+        a.filtered_update('s2', indicator='10.1.0.0/16', value={
             'type': 'IPv4',
             'sources': ['s2s'],
             'direction': 'inbound',
@@ -848,7 +848,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         a.mgmtbus_initialize()
         a.start()
 
-        a.update('s1', indicator='192.168.0.0/16', value={
+        a.filtered_update('s1', indicator='192.168.0.0/16', value={
             'type': 'IPv4',
             'sources': ['s1s'],
             's1$a': 1
@@ -870,7 +870,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         )
 
         ochannel.publish.reset_mock()
-        a.withdraw('s1', indicator='192.168.0.0/16')
+        a.filtered_withdraw('s1', indicator='192.168.0.0/16')
         self.assertTrue(
             check_for_rpc(
                 ochannel.publish.call_args_list,
@@ -909,19 +909,19 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         a.mgmtbus_initialize()
         a.start()
 
-        a.update('s1', indicator='192.168.0.0', value={
+        a.filtered_update('s1', indicator='192.168.0.0', value={
             'type': 'IPv4',
             'sources': ['s1s'],
             's1$a': 1
         })
-        a.update('s1', indicator='192.168.1.0', value={
+        a.filtered_update('s1', indicator='192.168.1.0', value={
             'type': 'IPv4',
             'sources': ['s2s'],
             's1$a': 1
         })
 
         ochannel.publish.reset_mock()
-        a.withdraw('s1', indicator='192.168.0.0')
+        a.filtered_withdraw('s1', indicator='192.168.0.0')
         self.assertTrue(
             check_for_rpc(
                 ochannel.publish.call_args_list,
@@ -935,14 +935,14 @@ class MineMeldFTIPOpTests(unittest.TestCase):
             )
         )
 
-        a.update('s1', indicator='192.168.0.0', value={
+        a.filtered_update('s1', indicator='192.168.0.0', value={
             'type': 'IPv4',
             'sources': ['s1s'],
             's1$a': 1
         })
 
         ochannel.publish.reset_mock()
-        a.withdraw('s1', indicator='192.168.1.0')
+        a.filtered_withdraw('s1', indicator='192.168.1.0')
         self.assertTrue(
             check_for_rpc(
                 ochannel.publish.call_args_list,
@@ -950,6 +950,73 @@ class MineMeldFTIPOpTests(unittest.TestCase):
                     {
                         'method': 'withdraw',
                         'indicator': '192.168.1.0-192.168.1.0'
+                    }
+                ],
+                all_here=True
+            )
+        )
+
+        a.stop()
+
+        a.st.db.close()
+        a = None
+
+    def test_uw_wrongtype(self):
+        config = {
+            'whitelist_prefixes': ['s2']
+        }
+        chassis = mock.Mock()
+
+        ochannel = mock.Mock()
+        chassis.request_pub_channel.return_value = ochannel
+
+        rpcmock = mock.Mock()
+        rpcmock.get.return_value = {'error': None, 'result': 'OK'}
+        chassis.send_rpc.return_value = rpcmock
+
+        a = minemeld.ft.ipop.AggregateIPv4FT(FTNAME, chassis, config)
+
+        inputs = ['s1', 's2']
+        output = True
+
+        a.connect(inputs, output)
+        a.mgmtbus_initialize()
+        a.start()
+
+        a.filtered_update('s1', indicator='192.168.0.0/16', value={
+            'type': 'IPv4',
+            'sources': ['s1s'],
+            's1$a': 1
+        })
+        self.assertTrue(
+            check_for_rpc(
+                ochannel.publish.call_args_list,
+                [
+                    {
+                        'method': 'update',
+                        'indicator': '192.168.0.0-192.168.255.255',
+                        'value': {
+                            's1$a': 1
+                        }
+                    }
+                ],
+                all_here=True
+            )
+        )
+
+        ochannel.publish.reset_mock()
+        a.filtered_withdraw('s1', indicator='192.168.0.0/16', value={'type': 'domain'})
+        self.assertEqual(ochannel.publish.call_count, 0)
+
+        ochannel.publish.reset_mock()
+        a.filtered_withdraw('s1', indicator='192.168.0.0/16', value={'type': 'IPv4'})
+        self.assertTrue(
+            check_for_rpc(
+                ochannel.publish.call_args_list,
+                [
+                    {
+                        'method': 'withdraw',
+                        'indicator': '192.168.0.0-192.168.255.255'
                     }
                 ],
                 all_here=True
@@ -982,7 +1049,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         a.start()
 
         ochannel.publish.reset_mock()
-        a.update('s1', indicator='192.168.0.0', value={
+        a.filtered_update('s1', indicator='192.168.0.0', value={
             'type': 'IPv4',
             'sources': ['s1s'],
             's1$a': 1
@@ -1004,7 +1071,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         )
 
         ochannel.publish.reset_mock()
-        a.update('s1', indicator='192.168.0.0', value={
+        a.filtered_update('s1', indicator='192.168.0.0', value={
             'type': 'IPv4',
             'sources': ['s1s'],
             's1$a': 2
@@ -1078,7 +1145,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
             end = netaddr.IPAddress(end)
             start = netaddr.IPAddress(start)
             ochannel.publish.reset_mock()
-            a.update('s1', indicator='%s-%s' % (start, end), value={
+            a.filtered_update('s1', indicator='%s-%s' % (start, end), value={
                 'type': 'IPv4',
                 'sources': ['s1s']
             })
@@ -1088,7 +1155,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         t1 = time.time()
         for j in xrange(num_intervals):
             ochannel.publish.reset_mock()
-            a.update('s1', indicator='%s' % (start), value={
+            a.filtered_update('s1', indicator='%s' % (start), value={
                 'type': 'IPv4',
                 'sources': ['s1s'],
                 'count': j
@@ -1141,7 +1208,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
             end = netaddr.IPAddress(end)
             start = netaddr.IPAddress(start)
             ochannel.publish.reset_mock()
-            a.update('s1', indicator='%s-%s' % (start, end), value={
+            a.filtered_update('s1', indicator='%s-%s' % (start, end), value={
                 'type': 'IPv4',
                 'sources': ['s1s']
             })

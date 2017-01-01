@@ -538,7 +538,7 @@ class BaseFT(object):
             value=value
         )
 
-    @_counting('update.processed')
+    @_counting('withdraw.processed')
     def filtered_withdraw(self, source=None, indicator=None, value=None):
         raise NotImplementedError('%s: withdraw' % self.name)
 
