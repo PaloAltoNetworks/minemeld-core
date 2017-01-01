@@ -19,7 +19,7 @@ import yaml
 import uuid
 import time
 
-from flask import Response, stream_with_context, jsonify, Blueprint
+from flask import Response, stream_with_context, jsonify, Blueprint, request
 from flask.ext.login import login_required
 
 from .mmrpc import MMMaster
@@ -180,8 +180,8 @@ def get_minemeld_running_config():
     return jsonify(result=rcconfig)
 
 
-# this should be moved to a different endpoint
-@BLUEPRINT.route('/<nodename>/hup')
+# XXX this should be moved to a different endpoint
+@BLUEPRINT.route('/<nodename>/hup', methods=['GET', 'POST'])
 @login_required
 def hup_node(nodename):
     status = MMMaster.status()
@@ -194,5 +194,36 @@ def hup_node(nodename):
         return jsonify(error={'message': 'Unknown node'}), 404
 
     MMRpcClient.send_cmd(nodename, 'hup', {'source': 'minemeld-web'})
+
+    return jsonify(result='ok'), 200
+
+
+# XXX this should be moved to a different endpoint
+@BLUEPRINT.route('/<nodename>/signal/<signalname>', methods=['GET', 'POST'])
+@login_required
+def signal_node(nodename, signalname):
+    status = MMMaster.status()
+    tr = status.get('result', None)
+    if tr is None:
+        return jsonify(error={'message': status.get('error', 'error')})
+
+    nname = 'mbus:slave:'+nodename
+    if nname not in tr:
+        return jsonify(error={'message': 'Unknown node'}), 404
+
+    params = request.get_json(silent=True)
+    if params is None:
+        params = {}
+
+    params.update({
+        'source': 'minemeld-web',
+        'signal': signalname
+    })
+
+    MMRpcClient.send_cmd(
+        target=nodename,
+        method='signal',
+        params=params
+    )
 
     return jsonify(result='ok'), 200
