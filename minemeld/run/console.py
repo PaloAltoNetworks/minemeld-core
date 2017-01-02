@@ -44,14 +44,6 @@ def _send_cmd(ctx, target, command, params=None, source=True):
     )
 
 
-class FakeNode(object):
-    def update(self, source=None, indicator=None, value=None):
-        print 'source:', source
-        print 'indicator:', indicator
-        print 'value: %s' % value
-        print
-
-
 @click.group()
 @click.option('--comm-class', default='AMQP',
               metavar='CLASSNAME')
@@ -74,11 +66,6 @@ def cli(ctx, verbose, comm_class):
     )
 
     comm = minemeld.comm.factory(comm_class, {})  # XXX should support config
-    comm.request_rpc_server_channel(
-        source,
-        FakeNode(),
-        allowed_methods=['update']
-    )
 
     gevent.signal(signal.SIGTERM, comm.stop)
     gevent.signal(signal.SIGQUIT, comm.stop)
@@ -115,56 +102,14 @@ def hup(ctx, target):
 
 
 @cli.command()
-@click.argument('target')
-@click.argument('indicator')
+@click.argument('target', required=False, default=None)
 @click.pass_context
-def get(ctx, target, indicator):
+def status(ctx, target):
     if target is None:
-        raise click.UsageError(message='target required')
-    if indicator is None:
-        raise click.UsageError(message='indicator required')
-
-    print _send_cmd(ctx, target, 'get', params={'value': indicator})
-
-    ctx.obj['COMM'].stop()
-
-
-@cli.command()
-@click.argument('target')
-@click.pass_context
-def get_all(ctx, target):
-    if target is None:
-        raise click.UsageError(message='target required')
-
-    print _send_cmd(ctx, target, 'get_all')
-
-    ctx.obj['COMM'].stop()
-
-
-@cli.command()
-@click.argument('target')
-@click.option('--index')
-@click.option('--from-key')
-@click.option('--to-key')
-@click.pass_context
-def get_range(ctx, target, index, from_key, to_key):
-    if target is None:
-        raise click.UsageError(message='target required')
-
-    print _send_cmd(ctx, target, 'get_all_range', params={
-        'index': index,
-        'from_key': from_key,
-        'to_key': to_key
-    })
-
-    ctx.obj['COMM'].stop()
-
-
-@cli.command()
-@click.pass_context
-def status(ctx):
-    pprint.pprint(_send_cmd(ctx, minemeld.mgmtbus.MGMTBUS_MASTER,
-                            'status', source=False))
+        target = minemeld.mgmtbus.MGMTBUS_MASTER
+    else:
+        target = 'mbus:directslave:'+target
+    pprint.pprint(_send_cmd(ctx, target, 'status', source=False))
 
     ctx.obj['COMM'].stop()
 
