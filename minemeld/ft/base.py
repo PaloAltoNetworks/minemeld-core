@@ -642,6 +642,9 @@ class BaseFT(object):
     def mgmtbus_hup(self, source=None):
         self.hup(source=source)
 
+    def mgmtbus_signal(self, source=None, signal=None):
+        raise NotImplementedError('{}: signal - not implemented'.format(self.name))
+
     def initialize(self):
         pass
 

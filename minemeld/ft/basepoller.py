@@ -29,7 +29,7 @@ import shutil
 
 from . import base
 from . import ft_states
-from . import table
+from .table import Table
 from .utils import utc_millisec
 from .utils import RWLock
 from .utils import parse_age_out
@@ -37,6 +37,129 @@ from .utils import parse_age_out
 LOG = logging.getLogger(__name__)
 
 _MAX_AGE_OUT = ((1 << 32)-1)*1000  # 2106-02-07 6:28:15
+
+
+class _BaseBPTable(object):
+    def __init__(self, table):
+        self.table = table
+
+    def get(self, indicator, itype=None):
+        return self.table.get(indicator)
+
+    def delete(self, indicator, itype=None):
+        self.table.delete(indicator)
+
+    def put(self, indicator, value):
+        self.table.put(indicator, value)
+
+    def query(self, *args, **kwargs):
+        return self.table.query(*args, **kwargs)
+
+    def length(self):
+        return self.table.num_indicators
+
+    def close(self):
+        self.table.close()
+
+    def __del__(self):
+        self.close()
+
+
+class _BPTable_v0(_BaseBPTable):
+    def __init__(self, table):
+        super(_BPTable_v0, self).__init__(table)
+
+        self.table.create_index('_age_out')
+        self.table.create_index('_withdrawn')
+        self.table.create_index('_last_run')
+
+
+class _BPTable_v1(_BaseBPTable):
+    def __init__(self, table, type_in_key):
+        super(_BPTable_v1, self).__init__(table)
+
+        self.table.create_index('_age_out')
+        self.table.create_index('_withdrawn')
+        self.table.create_index('_last_run')
+
+        self.type_in_key = type_in_key
+
+        cmetadata = self.table.get_custom_metadata()
+        if cmetadata is None:
+            _custom_metadata = dict(version=1, type_in_key=type_in_key)
+            self.table.set_custom_metadata(_custom_metadata)
+        else:
+            if cmetadata.get('type_in_key', None) != self.type_in_key:
+                raise RuntimeError('Can\'t change type in key of an existing table')
+
+    def get(self, indicator, itype=None):
+        if self.type_in_key:
+            indicator = self._type_key(indicator, itype)
+
+        return self.table.get(indicator)
+
+    def delete(self, indicator, itype=None):
+        if self.type_in_key:
+            indicator = self._type_key(indicator, itype)
+
+        return self.table.delete(indicator)
+
+    def put(self, indicator, value):
+        if self.type_in_key:
+            itype = value.get('type', None)
+            indicator = self._type_key(indicator, itype)
+
+        return self.table.put(indicator, value)
+
+    def query(self, *args, **kwargs):
+        if not self.type_in_key:
+            return self.table.query(*args, **kwargs)
+
+        if kwargs.get('include_value', False):
+            return self._type_key_query_with_value(*args, **kwargs)
+
+        return self._type_key_query(*args, **kwargs)
+
+    def _type_key_query(self, *args, **kwargs):
+        for key in self.table.query(*args, **kwargs):
+            yield self._type_key_indicator(key)
+
+    def _type_key_query_with_value(self, *args, **kwargs):
+        for key, value in self.table.query(*args, **kwargs):
+            yield self._type_key_indicator(key), value
+
+    def _type_key(self, indicator, itype):
+        if itype is None:
+            raise RuntimeError('Type None in table with type in key')
+        return '{}::{}'.format(itype, indicator)
+
+    def _type_key_indicator(self, key):
+        return key.split('::', 1)[1]
+
+
+def _bptable_factory(name, truncate=False, type_in_key=False):
+    table = Table(name, truncate=truncate)
+
+    metadata = table.get_custom_metadata()
+    if metadata is not None:
+        version = metadata.get('version', None)
+        if version is None:
+            raise RuntimeError('{} - table with metadata but no version'.format(name))
+
+        if version == 1:
+            return _BPTable_v1(table, type_in_key=type_in_key)
+
+        raise RuntimeError('{} - table with unknown version: {}'.format(name, version))
+
+    # no metadata, could be a new table or an old one
+    if table.num_indicators > 0:
+        if type_in_key:
+            raise RuntimeError('Old BPtable0 can\'t be used with multiple indicator types')
+
+        return _BPTable_v0(table)
+
+    # new table
+    return _BPTable_v1(table, type_in_key=type_in_key)
 
 
 class IndicatorStatus(object):
@@ -58,7 +181,7 @@ class IndicatorStatus(object):
     def __init__(self, indicator, attributes, itable, now, in_feed_threshold):
         self.state = 0
 
-        self.cv = itable.get(indicator)
+        self.cv = itable.get(indicator, itype=attributes.get('type', None))
         if self.cv is None:
             return
         self.state = self.state | IndicatorStatus.D_MASK
@@ -71,8 +194,6 @@ class IndicatorStatus(object):
 
         if self.cv.get('_withdrawn', None) is not None:
             self.state = self.state | IndicatorStatus.W_MASK
-
-        LOG.debug('status %s %d', self.cv, self.state)
 
 
 class BasePollerFT(base.BaseFT):
@@ -201,6 +322,7 @@ class BasePollerFT(base.BaseFT):
 
         self.source_name = self.config.get('source_name', self.name)
         self.attributes = self.config.get('attributes', {})
+        self.multiple_indicator_types = self.config.get('multiple_indicator_types', False)
         self.interval = self.config.get('interval', 3600)
         self.num_retries = self.config.get('num_retries', 2)
 
@@ -238,10 +360,11 @@ class BasePollerFT(base.BaseFT):
         self.last_run = None
 
     def _initialize_table(self, truncate=False):
-        self.table = table.Table(self.name, truncate=truncate)
-        self.table.create_index('_age_out')
-        self.table.create_index('_withdrawn')
-        self.table.create_index('_last_run')
+        self.table = _bptable_factory(
+            self.name,
+            truncate=truncate,
+            type_in_key=self.multiple_indicator_types
+        )
 
     def initialize(self):
         self._initialize_table()
@@ -309,6 +432,30 @@ class BasePollerFT(base.BaseFT):
             except:
                 LOG.exception('Exception in _age_out')
 
+    def _flush(self):
+        with self.state_lock:
+            if self.state != ft_states.STARTED:
+                return
+
+            try:
+                now = utc_millisec()
+
+                for i, v in self.table.query(include_value=True):
+                    if v.get('_withdrawn', None) is not None:
+                        continue
+
+                    self._controlled_emit_withdraw(indicator=i)
+                    v['_withdrawn'] = now
+                    self.table.put(i, v)
+
+                    self.statistics['flushed'] += 1
+
+            except gevent.GreenletExit:
+                raise
+
+            except:
+                LOG.exception('Exception in _flush')
+
     def _sudden_death(self):
         if self.last_successful_run is None:
             return
@@ -335,11 +482,11 @@ class BasePollerFT(base.BaseFT):
             if self.state != ft_states.STARTED:
                 return
 
-            for i in self.table.query(index='_withdrawn',
-                                      to_key=now,
-                                      include_value=False):
+            for i, v in self.table.query(index='_withdrawn',
+                                         to_key=now,
+                                         include_value=True):
                 LOG.debug('%s - %s collected', self.name, i)
-                self.table.delete(i)
+                self.table.delete(i, itype=v.get('type', None))
                 self.statistics['garbage_collected'] += 1
 
     def _compare_attributes(self, oa, na):
@@ -512,7 +659,7 @@ class BasePollerFT(base.BaseFT):
             gevent.sleep(random.randint(1, 5))
 
         LOG.debug("%s - End of polling - #indicators: %d",
-                  self.name, self.table.num_indicators)
+                  self.name, self.table.length())
 
         self.last_run = lastrun
         self.sub_state = _result
@@ -546,6 +693,9 @@ class BasePollerFT(base.BaseFT):
 
                 elif command == 'rebuild':
                     self._rebuild()
+
+                elif command == 'flush':
+                    self._flush()
 
                 else:
                     LOG.error('%s - unknown command: %s', self.name, command)
@@ -665,6 +815,15 @@ class BasePollerFT(base.BaseFT):
 
         return result
 
+    def mgmtbus_signal(self, source=None, signal=None):
+        if signal == 'flush':
+            self._actor_queue.put(
+                (utc_millisec(), 'flush')
+            )
+            self._actor_queue.put(
+                (utc_millisec(), 'gc')
+            )
+
     @property
     def sub_state(self):
         return (self._sub_state, self._sub_state_message)
@@ -685,7 +844,7 @@ class BasePollerFT(base.BaseFT):
         self.poll_event.set()
 
     def length(self, source=None):
-        return self.table.num_indicators
+        return self.table.length()
 
     def start(self):
         super(BasePollerFT, self).start()
@@ -717,7 +876,7 @@ class BasePollerFT(base.BaseFT):
 
         self.table.close()
 
-        LOG.info("%s - # indicators: %d", self.name, self.table.num_indicators)
+        LOG.info("%s - # indicators: %d", self.name, self.table.length())
 
     @staticmethod
     def gc(name, config=None):
