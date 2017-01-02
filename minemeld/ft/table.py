@@ -24,6 +24,8 @@ Numbers are 8-bit unsigned.
 - Index Last Global Id: (0,1, <indexnum>)
 - Last Update Key: (0,2)
 - Number of Indicators: (0,3)
+- Table Last Global ID: (0,4)
+- Custom Metadata: (0,5)
 - Indicator Version: (1,0,<indicator>)
 - Indicator: (1,1,<indicator>)
 
@@ -85,6 +87,8 @@ START_INDEX_KEY = struct.pack("BBB", 0, 1, 0)
 END_INDEX_KEY = struct.pack("BBB", 0, 1, 0xFF)
 LAST_UPDATE_KEY = struct.pack("BB", 0, 2)
 NUM_INDICATORS_KEY = struct.pack("BB", 0, 3)
+TABLE_LAST_GLOBAL_ID = struct.pack("BB", 0, 4)
+CUSTOM_METADATA = struct.pack("BB", 0, 5)
 
 LOG = logging.getLogger(__name__)
 
@@ -118,11 +122,13 @@ class Table(object):
         self.last_update = 0
         self.indexes = {}
         self.num_indicators = 0
+        self.last_global_id = 0
 
         batch = self.db.write_batch()
-        batch.put(SCHEMAVERSION_KEY, struct.pack("B", 0))
+        batch.put(SCHEMAVERSION_KEY, struct.pack("B", 1))
         batch.put(LAST_UPDATE_KEY, struct.pack(">Q", self.last_update))
         batch.put(NUM_INDICATORS_KEY, struct.pack(">Q", self.num_indicators))
+        batch.put(TABLE_LAST_GLOBAL_ID, struct.pack(">Q", self.last_global_id))
         batch.write()
 
     def _read_metadata(self):
@@ -130,7 +136,12 @@ class Table(object):
         if sv is None:
             return self._init_db()
         sv = struct.unpack("B", sv)[0]
-        if sv != 0:
+        if sv == 0:
+            # add table last global id
+            self._upgrade_from_s0()
+        elif sv == 1:
+            pass
+        else:
             raise InvalidTableException("Schema version not supported")
 
         self.indexes = {}
@@ -164,6 +175,11 @@ class Table(object):
             raise InvalidTableException("NUM_INDICATORS_KEY not found")
         self.num_indicators = struct.unpack(">Q", t)[0]
 
+        t = self._get(TABLE_LAST_GLOBAL_ID)
+        if t is None:
+            raise InvalidTableException("TABLE_LAST_GLOBAL_ID not found")
+        self.last_global_id = struct.unpack(">Q", t)[0]
+
     def _get(self, key):
         try:
             result = self.db.get(key)
@@ -174,6 +190,20 @@ class Table(object):
 
     def __del__(self):
         self.close()
+
+    def get_custom_metadata(self):
+        cmetadata = self._get(CUSTOM_METADATA)
+        if cmetadata is None:
+            return None
+        return ujson.loads(cmetadata)
+
+    def set_custom_metadata(self, metadata=None):
+        if metadata is None:
+            self.db.delete(CUSTOM_METADATA)
+            return
+
+        cmetadata = ujson.dumps(metadata)
+        self.db.put(CUSTOM_METADATA, cmetadata)
 
     def close(self):
         if self.db is not None:
@@ -277,19 +307,17 @@ class Table(object):
         ikeyv = self._indicator_key_version(key)
 
         exists = self._get(ikeyv)
-        if exists is not None:
-            cversion = struct.unpack(">Q", exists)[0]
-        else:
-            cversion = -1
+        self.last_global_id += 1
+        cversion = self.last_global_id
 
         now = time.time()
         self.last_update = now
-        cversion = cversion+1
 
         batch = self.db.write_batch()
         batch.put(ikey, struct.pack(">Q", cversion)+ujson.dumps(value))
         batch.put(ikeyv, struct.pack(">Q", cversion))
         batch.put(LAST_UPDATE_KEY, struct.pack(">Q", self.last_update))
+        batch.put(TABLE_LAST_GLOBAL_ID, struct.pack(">Q", self.last_global_id))
 
         if exists is None:
             self.num_indicators += 1
@@ -451,3 +479,56 @@ class Table(object):
 
             except gevent.GreenletExit:
                 break
+
+    def _upgrade_from_s0(self):
+        LOG.info('Upgrading from schema version 0 to schema version 1')
+
+        LOG.info('Loading indexes...')
+        indexes = {}
+        ri = self.db.iterator(
+            start=START_INDEX_KEY,
+            stop=END_INDEX_KEY
+        )
+        with ri:
+            for k, v in ri:
+                _, _, indexid = struct.unpack("BBB", k)
+                if v in indexes:
+                    raise InvalidTableException("2 indexes with the same name")
+                indexes[v] = {
+                    'id': indexid,
+                    'last_global_id': 0
+                }
+        for i in indexes:
+            lgi = self._get(self._last_global_id_key(indexes[i]['id']))
+            if lgi is not None:
+                indexes[i]['last_global_id'] = struct.unpack(">Q", lgi)[0]
+            else:
+                indexes[i]['last_global_id'] = -1
+
+        LOG.info('Scanning indexes...')
+        last_global_id = 0
+        for i, idata in indexes.iteritems():
+            from_key = struct.pack("BBB", 2, idata['id'], 0xF0)
+            include_start = False
+            to_key = struct.pack("BBB", 2, idata['id'], 0xF1)
+            include_stop = False
+
+            ri = self.db.iterator(
+                start=from_key,
+                stop=to_key,
+                include_value=True,
+                include_start=include_start,
+                include_stop=include_stop,
+                reverse=False
+            )
+            with ri:
+                for ikey, ekey in ri:
+                    iversion = struct.unpack(">Q", ekey[:8])[0]
+                    if iversion > last_global_id:
+                        last_global_id = iversion+1
+
+        LOG.info('Last global id: {}'.format(last_global_id))
+        batch = self.db.write_batch()
+        batch.put(SCHEMAVERSION_KEY, struct.pack("B", 1))
+        batch.put(TABLE_LAST_GLOBAL_ID, struct.pack(">Q", last_global_id))
+        batch.write()
