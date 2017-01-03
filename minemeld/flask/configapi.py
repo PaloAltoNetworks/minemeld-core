@@ -703,7 +703,12 @@ def _init_config():
 
     except ValueError:
         LOG.info('Loading running config in memory')
-        _load_running_config()
+
+        try:
+            _load_running_config()
+
+        except OSError:
+            LOG.exception('Error loading running config')
 
 
 def init_app(app):

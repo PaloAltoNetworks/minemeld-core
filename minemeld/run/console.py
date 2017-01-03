@@ -96,6 +96,7 @@ def hup(ctx, target):
     if target is None:
         raise click.UsageError(message='target required')
 
+    target = 'mbus:directslave:'+target
     print _send_cmd(ctx, target, 'hup')
 
     ctx.obj['COMM'].stop()
