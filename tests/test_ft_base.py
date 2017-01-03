@@ -86,8 +86,7 @@ class MineMeldFTBaseTests(unittest.TestCase):
                 'get',
                 'get_all',
                 'get_range',
-                'length',
-                'hup'
+                'length'
             ]
         )
 
@@ -123,8 +122,7 @@ class MineMeldFTBaseTests(unittest.TestCase):
                 'get',
                 'get_all',
                 'get_range',
-                'length',
-                'hup'
+                'length'
             ]
         )
 
@@ -169,8 +167,7 @@ class MineMeldFTBaseTests(unittest.TestCase):
                 'get',
                 'get_all',
                 'get_range',
-                'length',
-                'hup'
+                'length'
             ]
         )
 
@@ -239,8 +236,7 @@ class MineMeldFTBaseTests(unittest.TestCase):
                 'get',
                 'get_all',
                 'get_range',
-                'length',
-                'hup'
+                'length'
             ]
         )
 

@@ -102,8 +102,7 @@ class MineMeldFTRedisTests(unittest.TestCase):
                 'get',
                 'get_all',
                 'get_range',
-                'length',
-                'hup'
+                'length'
             ]
         )
 
@@ -134,12 +133,12 @@ class MineMeldFTRedisTests(unittest.TestCase):
 
         SR = redis.StrictRedis()
 
-        b.update('a', indicator='testi', value={'test': 'v'})
+        b.filtered_update('a', indicator='testi', value={'test': 'v'})
         sm = SR.zrange(FTNAME, 0, -1)
         self.assertEqual(len(sm), 1)
         self.assertIn('testi', sm)
 
-        b.withdraw('a', indicator='testi')
+        b.filtered_withdraw('a', indicator='testi')
         sm = SR.zrange(FTNAME, 0, -1)
         self.assertEqual(len(sm), 0)
 
@@ -169,18 +168,18 @@ class MineMeldFTRedisTests(unittest.TestCase):
         b.start()
         time.sleep(1)
 
-        b.update('a', indicator='testi', value={'test': 'v'})
+        b.filtered_update('a', indicator='testi', value={'test': 'v'})
         self.assertEqual(b.length(), 1)
         status = b.mgmtbus_status()
         self.assertEqual(status['statistics']['added'], 1)
 
-        b.update('a', indicator='testi', value={'test': 'v2'})
+        b.filtered_update('a', indicator='testi', value={'test': 'v2'})
         self.assertEqual(b.length(), 1)
         status = b.mgmtbus_status()
         self.assertEqual(status['statistics']['added'], 1)
         self.assertEqual(status['statistics']['removed'], 0)
 
-        b.withdraw('a', indicator='testi')
+        b.filtered_withdraw('a', indicator='testi')
         self.assertEqual(b.length(), 0)
         status = b.mgmtbus_status()
         self.assertEqual(status['statistics']['removed'], 1)
@@ -212,14 +211,14 @@ class MineMeldFTRedisTests(unittest.TestCase):
 
         SR = redis.StrictRedis()
 
-        b.update('a', indicator='testi', value={'test': 'v'})
+        b.filtered_update('a', indicator='testi', value={'test': 'v'})
         sm = SR.zrange(FTNAME, 0, -1)
         self.assertEqual(len(sm), 1)
         self.assertIn('testi', sm)
         sm = SR.hlen(FTNAME+'.value')
         self.assertEqual(sm, 1)
 
-        b.withdraw('a', indicator='testi')
+        b.filtered_withdraw('a', indicator='testi')
         sm = SR.zrange(FTNAME, 0, -1)
         self.assertEqual(len(sm), 0)
         sm = SR.hlen(FTNAME+'.value')
