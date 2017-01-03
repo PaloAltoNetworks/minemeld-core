@@ -137,6 +137,17 @@ def _parse_args():
     return parser.parse_args()
 
 
+def _setup_environment(config):
+    # make config dir available to nodes
+    cdir = config
+    if not os.path.isdir(cdir):
+        cdir = os.path.dirname(config)
+    os.environ['MM_CONFIG_DIR'] = cdir
+
+    if not 'REQUESTS_CA_BUNDLE' in os.environ and 'MM_CA_BUNDLE' in os.environ:
+        os.environ['REQUESTS_CA_BUNDLE'] = os.environ['MM_CA_BUNDLE']
+
+
 def main():
     mbusmaster = None
     processes_lock = None
@@ -201,11 +212,7 @@ def main():
     LOG.info("Starting mm-run.py version %s", __version__)
     LOG.info("mm-run.py arguments: %s", args)
 
-    # make config dir available to nodes
-    cdir = args.config
-    if not os.path.isdir(cdir):
-        cdir = os.path.dirname(args.config)
-    os.environ['MM_CONFIG_DIR'] = cdir
+    _setup_environment(args.config)
 
     # load and validate config
     config = minemeld.run.config.load_config(args.config)
