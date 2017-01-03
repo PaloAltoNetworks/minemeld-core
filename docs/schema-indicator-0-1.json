@@ -8,7 +8,20 @@
         "type": {
             "description": "type of the indicator",
             "type": "string",
-            "enum": ["IPv4", "IPv6", "domain", "URL", "sha256", "sha1", "md5", "ssdeep"]
+            "enum": [
+                "IPv4",
+                "IPv6",
+                "domain",
+                "URL",
+                "sha256",
+                "sha1",
+                "md5",
+                "ssdeep",
+                "mutex",
+                "windows-registry-value",
+                "user-agent.fragment",
+                "file.name"
+            ]
         },
         "direction": {
             "description": "direction of the session, applies to IPv4",
