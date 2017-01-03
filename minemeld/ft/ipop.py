@@ -253,8 +253,7 @@ class AggregateIPv4FT(actorbase.ActorBaseFT):
     def filtered_update(self, source=None, indicator=None, value=None):
         vtype = value.get('type', None)
         if vtype != 'IPv4':
-            LOG.debug('%s - update received from %s with type != IPv4 (%s)',
-                      self.name, source, vtype)
+            self.statistics['update.ignored'] += 1
             return
 
         v, newindicator = self._add_indicator(source, indicator, value)
@@ -318,6 +317,10 @@ class AggregateIPv4FT(actorbase.ActorBaseFT):
     @base._counting('withdraw.processed')
     def filtered_withdraw(self, source=None, indicator=None, value=None):
         LOG.debug("%s - withdraw from %s - %s", self.name, source, indicator)
+
+        if value is not None and value.get('type', None) != 'IPv4':
+            self.statistics['withdraw.ignored'] += 1
+            return
 
         ik = self._indicator_key(indicator, source)
 

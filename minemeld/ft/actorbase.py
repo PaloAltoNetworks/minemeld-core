@@ -9,7 +9,7 @@ from minemeld.ft.base import BaseFT, _counting
 
 LOG = logging.getLogger(__name__)
 
-ActorCommand = namedtuple('ActorCommand', ['commnad', 'kwargs_'])
+ActorCommand = namedtuple('ActorCommand', ['command', 'kwargs_'])
 
 
 class ActorBaseFT(BaseFT):
@@ -25,25 +25,25 @@ class ActorBaseFT(BaseFT):
 
     @_counting('checkpoint.queued')
     def checkpoint(self, **kwargs):
-        self._actor_queue.put(ActorCommand(commnad='checkpoint', kwargs_=kwargs))
+        self._actor_queue.put(ActorCommand(command='checkpoint', kwargs_=kwargs))
 
     @_counting('update.queued')
     def update(self, **kwargs):
-        self._actor_queue.put(ActorCommand(commnad='update', kwargs_=kwargs))
+        self._actor_queue.put(ActorCommand(command='update', kwargs_=kwargs))
 
     @_counting('withdraw.queued')
     def withdraw(self, **kwargs):
-        self._actor_queue.put(ActorCommand(commnad='withdraw', kwargs_=kwargs))
+        self._actor_queue.put(ActorCommand(command='withdraw', kwargs_=kwargs))
 
     def _actor_loop(self):
         while True:
             acommand = self._actor_queue.get()
 
-            if acommand.commnad == 'checkpoint':
+            if acommand.command == 'checkpoint':
                 method = super(ActorBaseFT, self).checkpoint
-            elif acommand.commnad == 'update':
+            elif acommand.command == 'update':
                 method = super(ActorBaseFT, self).update
-            elif acommand.commnad == 'withdraw':
+            elif acommand.command == 'withdraw':
                 method = super(ActorBaseFT, self).withdraw
             elif acommand.command == 'rebuild':
                 method = self._rebuild
