@@ -47,9 +47,6 @@ def generate_panosurl_feed(feed, start, num, desc, value):
     cstart = start
 
     while cstart < (start+num):
-        LOG.debug("cstart: %s start+num: %s", cstart, start+num)
-        LOG.debug("interval: %s desc: %s",
-                  min(start+num - cstart, FEED_INTERVAL), desc)
         ilist = zrange(feed, cstart,
                        cstart-1+min(start+num - cstart, FEED_INTERVAL))
 
@@ -78,9 +75,6 @@ def generate_plain_feed(feed, start, num, desc, value):
     cstart = start
 
     while cstart < (start+num):
-        LOG.debug("cstart: %s start+num: %s", cstart, start+num)
-        LOG.debug("interval: %s desc: %s",
-                  min(start+num - cstart, FEED_INTERVAL), desc)
         ilist = zrange(feed, cstart,
                        cstart-1+min(start+num - cstart, FEED_INTERVAL))
 
@@ -107,9 +101,6 @@ def generate_json_feed(feed, start, num, desc, value):
     firstelement = True
 
     while cstart < (start+num):
-        LOG.debug("cstart: %s start+num: %s", cstart, start+num)
-        LOG.debug("interval: %s desc: %s",
-                  min(start+num - cstart, FEED_INTERVAL), desc)
         ilist = zrange(feed, cstart,
                        cstart-1+min(start+num - cstart, FEED_INTERVAL))
 

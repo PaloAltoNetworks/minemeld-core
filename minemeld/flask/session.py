@@ -61,6 +61,12 @@ class RedisSessionInterface(flask.sessions.SessionInterface):
         return timedelta(minutes=10)
 
     def open_session(self, app, request):
+        LOG.info(
+            'redis connection pool: in use: {} available: {}'.format(
+                len(self.redis.connection_pool._in_use_connections),
+                len(self.redis.connection_pool._available_connections)
+            )
+        )
         sid = request.cookies.get(app.session_cookie_name)
         if not sid:
             sid = self.generate_sid()
@@ -104,8 +110,13 @@ class RedisSessionInterface(flask.sessions.SessionInterface):
 
 
 def init_app(app, redis_url):
+    redis_cp = redis.ConnectionPool.from_url(
+        redis_url,
+        max_connections=int(os.environ.get('REDIS_SESSIONS_MAX_CONNECTIONS', 20))
+    )
+
     app.session_interface = RedisSessionInterface(
-        redis_=redis.StrictRedis.from_url(redis_url)
+        redis_=redis.StrictRedis(connection_pool=redis_cp)
     )
     app.config.update(
         SESSION_COOKIE_NAME='mm-session',
