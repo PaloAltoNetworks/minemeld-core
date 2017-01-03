@@ -41,6 +41,10 @@ class YamlFT(basepoller.BasePollerFT):
             )
         self.lock_path = self.path+'.lock'
 
+    def _flush(self):
+        self.file_monitor_mtime = None
+        super(YamlFT, self)._flush()
+
     def _process_item(self, item):
         indicator = item.pop('indicator', None)
         if indicator is None:

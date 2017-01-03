@@ -395,12 +395,12 @@ class BasePollerFT(base.BaseFT):
             self._emit_counter = 0
         self.emit_update(indicator, value)
 
-    def _controlled_emit_withdraw(self, indicator):
+    def _controlled_emit_withdraw(self, indicator, value):
         self._emit_counter += 1
         if self._emit_counter == 15937:
             gevent.sleep(0.001)
             self._emit_counter = 0
-        self.emit_withdraw(indicator=indicator)
+        self.emit_withdraw(indicator=indicator, value=value)
 
     def _age_out(self):
         with self.state_lock:
@@ -418,7 +418,10 @@ class BasePollerFT(base.BaseFT):
                     if v.get('_withdrawn', None) is not None:
                         continue
 
-                    self._controlled_emit_withdraw(indicator=i)
+                    self._controlled_emit_withdraw(
+                        indicator=i,
+                        value=v
+                    )
                     v['_withdrawn'] = now
                     self.table.put(i, v)
 
@@ -444,7 +447,10 @@ class BasePollerFT(base.BaseFT):
                     if v.get('_withdrawn', None) is not None:
                         continue
 
-                    self._controlled_emit_withdraw(indicator=i)
+                    self._controlled_emit_withdraw(
+                        indicator=i,
+                        value=v
+                    )
                     v['_withdrawn'] = now
                     self.table.put(i, v)
 
@@ -815,14 +821,16 @@ class BasePollerFT(base.BaseFT):
 
         return result
 
-    def mgmtbus_signal(self, source=None, signal=None):
-        if signal == 'flush':
-            self._actor_queue.put(
-                (utc_millisec(), 'flush')
-            )
-            self._actor_queue.put(
-                (utc_millisec(), 'gc')
-            )
+    def mgmtbus_signal(self, source=None, signal=None, **kwargs):
+        if signal != 'flush':
+            raise NotImplementedError('Unknown signal {}'.format(signal))
+            
+        self._actor_queue.put(
+            (utc_millisec(), 'flush')
+        )
+        self._actor_queue.put(
+            (utc_millisec(), 'gc')
+        )
 
     @property
     def sub_state(self):
