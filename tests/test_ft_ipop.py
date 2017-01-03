@@ -196,7 +196,11 @@ class MineMeldFTIPOpTests(unittest.TestCase):
                 },
                 {
                     'method': 'withdraw',
-                    'indicator': '192.168.0.2-192.168.0.3'
+                    'indicator': '192.168.0.2-192.168.0.3',
+                    'value': {
+                        's1$b': 1,
+                        'sources': ['s1s']
+                    }
                 },
                 {
                     'method': 'update',
@@ -317,7 +321,10 @@ class MineMeldFTIPOpTests(unittest.TestCase):
                     },
                     {
                         'method': 'withdraw',
-                        'indicator': '192.168.0.0-192.168.255.255'
+                        'indicator': '192.168.0.0-192.168.255.255',
+                        'value': {
+                            's1$a': 1
+                        }
                     }
                 ],
                 all_here=True
@@ -398,7 +405,10 @@ class MineMeldFTIPOpTests(unittest.TestCase):
                     },
                     {
                         'method': 'withdraw',
-                        'indicator': '192.168.0.0-192.168.255.255'
+                        'indicator': '192.168.0.0-192.168.255.255',
+                        'value': {
+                            's1$a': 1
+                        }
                     }
                 ],
                 all_here=True
@@ -479,7 +489,10 @@ class MineMeldFTIPOpTests(unittest.TestCase):
                     },
                     {
                         'method': 'withdraw',
-                        'indicator': '192.168.0.0-192.168.255.255'
+                        'indicator': '192.168.0.0-192.168.255.255',
+                        'value': {
+                            's1$a': 1
+                        }
                     }
                 ],
                 all_here=True
@@ -505,7 +518,10 @@ class MineMeldFTIPOpTests(unittest.TestCase):
                     },
                     {
                         'method': 'withdraw',
-                        'indicator': '192.168.0.2-192.168.255.255'
+                        'indicator': '192.168.0.2-192.168.255.255',
+                        'value': {
+                            's1$a': 1
+                        }
                     }
                 ],
                 all_here=True
@@ -877,7 +893,10 @@ class MineMeldFTIPOpTests(unittest.TestCase):
                 [
                     {
                         'method': 'withdraw',
-                        'indicator': '192.168.0.0-192.168.255.255'
+                        'indicator': '192.168.0.0-192.168.255.255',
+                        'value': {
+                            's1$a': 1
+                        }
                     }
                 ],
                 all_here=True
@@ -928,7 +947,12 @@ class MineMeldFTIPOpTests(unittest.TestCase):
                 [
                     {
                         'method': 'withdraw',
-                        'indicator': '192.168.0.0-192.168.0.0'
+                        'indicator': '192.168.0.0-192.168.0.0',
+                        'value': {
+                            'type': 'IPv4',
+                            'sources': ['s1s'],
+                            's1$a': 1
+                        }
                     }
                 ],
                 all_here=True

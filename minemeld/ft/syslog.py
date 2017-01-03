@@ -137,11 +137,11 @@ class SyslogMatcher(actorbase.ActorBaseFT):
                 self.table_indicators.delete(itype+indicator)
 
         if v is not None:
-            for i in self.table.query(index='syslog_original_indicator',
-                                      from_key=itype+indicator,
-                                      to_key=itype+indicator,
-                                      include_value=False):
-                self.emit_withdraw(i)
+            for i, v in self.table.query(index='syslog_original_indicator',
+                                         from_key=itype+indicator,
+                                         to_key=itype+indicator,
+                                         include_value=True):
+                self.emit_withdraw(i, value=v)
                 self.table.delete(i)
 
     def _handle_ip(self, ip, source=True, message=None):
@@ -541,7 +541,7 @@ class SyslogMiner(base.BaseFT):
 
                     i, _ = i.split('\0', 1)
 
-                    self.emit_withdraw(indicator=i)
+                    self.emit_withdraw(indicator=i, value=v)
                     self.table.delete(i)
 
                     self.statistics['aged_out'] += 1
