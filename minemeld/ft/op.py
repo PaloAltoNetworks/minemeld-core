@@ -171,7 +171,7 @@ class AggregateFT(actorbase.ActorBaseFT):
                 if ebl > 1:
                     self._emit_update_indicator(indicator)
                 else:
-                    self.emit_withdraw(indicator)
+                    self.emit_withdraw(indicator, value=cvalue)
 
     def get(self, source=None, indicator=None):
         mv = {}

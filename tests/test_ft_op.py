@@ -186,6 +186,7 @@ class MineMeldFTOpTests(unittest.TestCase):
         pargs = ochannel.publish.call_args[0]
         self.assertEqual(pargs[0], 'withdraw')
         self.assertEqual(pargs[1]['indicator'], 'i')
+        self.assertIn('value', pargs[1])
 
         a.stop()
 
@@ -286,6 +287,7 @@ class MineMeldFTOpTests(unittest.TestCase):
         self.assertEqual(ochannel.publish.call_count, 5)
         pargs = ochannel.publish.call_args[0]
         self.assertEqual(pargs[0], 'withdraw')
+        self.assertIn('value', pargs[1])
 
         a.stop()
 
@@ -343,6 +345,7 @@ class MineMeldFTOpTests(unittest.TestCase):
         self.assertEqual(ochannel.publish.call_count, 1)
         pargs = ochannel.publish.call_args[0]
         self.assertEqual(pargs[0], 'withdraw')
+        self.assertIn('value', pargs[1])
 
         a.stop()
 
@@ -389,6 +392,7 @@ class MineMeldFTOpTests(unittest.TestCase):
         pargs = ochannel.publish.call_args[0]
         self.assertEqual(pargs[0], 'withdraw')
         self.assertEqual(pargs[1]['indicator'], 'i')
+        self.assertIn('value', pargs[1])
 
         a.filtered_update('s3', indicator='i', value={'s3$a': 1, 'sources': ['s3s']})
         self.assertEqual(ochannel.publish.call_count, 2)
@@ -512,6 +516,7 @@ class MineMeldFTOpTests(unittest.TestCase):
         pargs = ochannel.publish.call_args[0]
         self.assertEqual(pargs[0], 'withdraw')
         self.assertEqual(pargs[1]['indicator'], 'i')
+        self.assertIn('value', pargs[1])
 
         a.stop()
 

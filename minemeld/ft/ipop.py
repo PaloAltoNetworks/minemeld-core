@@ -85,17 +85,20 @@ class AggregateIPv4FT(actorbase.ActorBaseFT):
     def _indicator_key(self, indicator, source):
         return indicator+'\x00'+source
 
-    def _calc_indicator_value(self, uuids):
+    def _calc_indicator_value(self, uuids, additional_uuid=None, additional_value=None):
         mv = {'sources': []}
         for uuid_ in uuids:
-            # uuid_ = str(uuid.UUID(bytes=uuid_))
-            k, v = next(
-                self.table.query('_id', from_key=uuid_, to_key=uuid_,
-                                 include_value=True),
-                (None, None)
-            )
-            if k is None:
-                LOG.error("Unable to find key associated with uuid: %s", uuid_)
+            if uuid_ == additional_uuid:
+                v = additional_value
+            else:
+                # uuid_ = str(uuid.UUID(bytes=uuid_))
+                k, v = next(
+                    self.table.query('_id', from_key=uuid_, to_key=uuid_,
+                                     include_value=True),
+                    (None, None)
+                )
+                if k is None:
+                    LOG.error("Unable to find key associated with uuid: %s", uuid_)
 
             for vk in v:
                 if vk in mv and vk in RESERVED_ATTRIBUTES:
@@ -312,7 +315,10 @@ class AggregateIPv4FT(actorbase.ActorBaseFT):
                     )
 
         for u in removed:
-            self.emit_withdraw(u.indicator())
+            self.emit_withdraw(
+                u.indicator(),
+                value=self._calc_indicator_value(u.uuids)
+            )
 
     @base._counting('withdraw.processed')
     def filtered_withdraw(self, source=None, indicator=None, value=None):
@@ -375,7 +381,14 @@ class AggregateIPv4FT(actorbase.ActorBaseFT):
                     )
 
         for u in removed:
-            self.emit_withdraw(u.indicator())
+            self.emit_withdraw(
+                u.indicator(),
+                value=self._calc_indicator_value(
+                    u.uuids,
+                    additional_uuid=v['_id'],
+                    additional_value=v
+                )
+            )
 
     def _send_indicators(self, source=None, from_key=None, to_key=None):
         if from_key is None:
