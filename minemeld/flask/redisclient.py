@@ -31,9 +31,11 @@ def teardown(exception):
     SR = getattr(g, '_redis_client', None)
     if SR is not None:
         g._redis_client = None
-        LOG.debug(
-            'redis connection pool: %d',
-            len(REDIS_CP._in_use_connections)
+        LOG.info(
+            'redis connection pool: in use: {} available: {}'.format(
+                len(REDIS_CP._in_use_connections),
+                len(REDIS_CP._available_connections)
+            )
         )
 
 
