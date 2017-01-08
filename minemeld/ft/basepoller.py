@@ -131,7 +131,7 @@ class _BPTable_v1(_BaseBPTable):
     def _type_key(self, indicator, itype):
         if itype is None:
             raise RuntimeError('Type None in table with type in key')
-        return '{}::{}'.format(itype, indicator)
+        return u'{}::{}'.format(itype, indicator)
 
     def _type_key_indicator(self, key):
         return key.split('::', 1)[1]

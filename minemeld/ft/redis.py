@@ -54,11 +54,14 @@ class RedisSet(actorbase.ActorBaseFT):
     def read_checkpoint(self):
         self._connect_redis()
         self.last_checkpoint = self.SR.get(self.redis_skey_chkp)
-        self.SR.delete(self.redis_skey_chkp)
 
     def create_checkpoint(self, value):
         self._connect_redis()
         self.SR.set(self.redis_skey_chkp, value)
+
+    def remove_checkpoint(self):
+        self._connect_redis()
+        self.SR.delete(self.redis_skey_chkp)
 
     def _connect_redis(self):
         if self.SR is not None:

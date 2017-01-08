@@ -166,11 +166,11 @@ class MineMeldFTTaxiiTests(unittest.TestCase):
 
         b.start()
         # __init__ + get chkp + delete chkp
-        self.assertEqual(len(SR_mock.mock_calls), 5)
+        self.assertEqual(len(SR_mock.mock_calls), 6)
         SR_mock.reset_mock()
 
         # unicast
-        b.update(
+        b.filtered_update(
             'a',
             indicator='1.1.1.1',
             value={
@@ -197,7 +197,7 @@ class MineMeldFTTaxiiTests(unittest.TestCase):
         SR_mock.reset_mock()
 
         # CIDR
-        b.update(
+        b.filtered_update(
             'a',
             indicator='1.1.1.0/24',
             value={
@@ -224,7 +224,7 @@ class MineMeldFTTaxiiTests(unittest.TestCase):
         SR_mock.reset_mock()
 
         # fake range
-        b.update(
+        b.filtered_update(
             'a',
             indicator='1.1.1.1-1.1.1.1',
             value={
@@ -251,7 +251,7 @@ class MineMeldFTTaxiiTests(unittest.TestCase):
         SR_mock.reset_mock()
 
         # fake range 2
-        b.update(
+        b.filtered_update(
             'a',
             indicator='1.1.1.0-1.1.1.31',
             value={
@@ -278,7 +278,7 @@ class MineMeldFTTaxiiTests(unittest.TestCase):
         SR_mock.reset_mock()
 
         # real range
-        b.update(
+        b.filtered_update(
             'a',
             indicator='1.1.1.0-1.1.1.33',
             value={
@@ -333,11 +333,11 @@ class MineMeldFTTaxiiTests(unittest.TestCase):
 
         b.start()
         # __init__ + get chkp + delete chkp
-        self.assertEqual(len(SR_mock.mock_calls), 5)
+        self.assertEqual(len(SR_mock.mock_calls), 6)
         SR_mock.reset_mock()
 
         # unicast
-        b.update(
+        b.filtered_update(
             'a',
             indicator='example.com',
             value={
@@ -389,11 +389,11 @@ class MineMeldFTTaxiiTests(unittest.TestCase):
 
         b.start()
         # __init__ + get chkp + delete chkp
-        self.assertEqual(len(SR_mock.mock_calls), 5)
+        self.assertEqual(len(SR_mock.mock_calls), 6)
         SR_mock.reset_mock()
 
         # unicast
-        b.update(
+        b.filtered_update(
             'a',
             indicator='www.example.com/admin.php',
             value={
@@ -445,11 +445,11 @@ class MineMeldFTTaxiiTests(unittest.TestCase):
 
         b.start()
         # __init__ + get chkp + delete chkp
-        self.assertEqual(len(SR_mock.mock_calls), 5)
+        self.assertEqual(len(SR_mock.mock_calls), 6)
         SR_mock.reset_mock()
 
         # unicast
-        b.update(
+        b.filtered_update(
             'a',
             indicator=u'☃.net/påth',
             value={

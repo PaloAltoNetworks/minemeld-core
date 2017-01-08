@@ -49,7 +49,10 @@ class _Filters(object):
                 'actions': []
             }
 
-            for c in f.get('conditions', []):
+            fconditions = f.get('conditions', None)
+            if fconditions is None:
+                fconditions = []
+            for c in fconditions:
                 cf['conditions'].append(condition.Condition(c))
 
             for a in f.get('actions'):
@@ -268,8 +271,6 @@ class BaseFT(object):
 
                 LOG.debug('%s - restored checkpoint: %s', self.name, self.last_checkpoint)
 
-            os.remove(self.name+'.chkp')
-
             # old_status is missing in old releases
             # stick to the old behavior
             if saved_config and saved_config != config:
@@ -314,6 +315,13 @@ class BaseFT(object):
         with open(self.name+'.chkp', 'w') as f:
             f.write(json.dumps(contents))
             f.write('\n')
+
+    def remove_checkpoint(self):
+        try:
+            os.remove('{}.chkp'.format(self.name))
+
+        except (IOError, OSError):
+            pass
 
     def _saved_state_restore(self, saved_state):
         pass
@@ -594,17 +602,20 @@ class BaseFT(object):
 
     def mgmtbus_initialize(self):
         self.state = ft_states.INIT
+        self.remove_checkpoint()
         self.initialize()
         return 'OK'
 
     def mgmtbus_rebuild(self):
         self.state = ft_states.REBUILDING
+        self.remove_checkpoint()
         self.rebuild()
         self.state = ft_states.INIT
         return 'OK'
 
     def mgmtbus_reset(self):
         self.state = ft_states.RESET
+        self.remove_checkpoint()
         self.reset()
         self.state = ft_states.INIT
         return 'OK'
