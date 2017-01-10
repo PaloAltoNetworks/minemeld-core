@@ -465,9 +465,12 @@ class Table(object):
     def _compact_loop(self):
         while True:
             try:
+                counter = 0
                 for idx in self.indexes.keys():
                     for i in self.query(index=idx, include_value=False):
-                        pass
+                        if counter % 512 == 0:
+                            gevent.sleep(0.001)  # yield to other greenlets
+                        counter += 1
 
             except gevent.GreenletExit:
                 break
