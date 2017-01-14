@@ -27,6 +27,7 @@ REDIS_URL = os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0')
 def create_app():
     app = Flask(__name__)
     app.logger.addHandler(logging.StreamHandler())
+    app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # max 5MB for uploads
 
     # extension code
     from . import config
@@ -35,6 +36,7 @@ def create_app():
     from . import mmrpc
     from . import redisclient
     from . import supervisorclient
+    from . import jobs
 
     session.init_app(app, REDIS_URL)
     aaa.LOGIN_MANAGER.init_app(app)
@@ -48,6 +50,7 @@ def create_app():
     mmrpc.init_app(app)
     redisclient.init_app(app)
     supervisorclient.init_app(app)
+    jobs.init_app(app)
 
     # entrypoints
     from . import metricsapi  # noqa
@@ -64,6 +67,8 @@ def create_app():
     from . import statusapi  # noqa
     from . import tracedapi  # noqa
     from . import logsapi  # noqa
+    from . import extensionsapi  # noqa
+    from . import jobsapi  # noqa
 
     configapi.init_app(app)
 
@@ -81,6 +86,8 @@ def create_app():
     app.register_blueprint(aaaapi.BLUEPRINT)
     app.register_blueprint(tracedapi.BLUEPRINT)
     app.register_blueprint(logsapi.BLUEPRINT)
+    app.register_blueprint(extensionsapi.BLUEPRINT)
+    app.register_blueprint(jobsapi.BLUEPRINT)
 
     # install blueprints from extensions
     for apiname, apimmep in minemeld.loader.map(minemeld.loader.MM_API_ENTRYPOINT).iteritems():
