@@ -2,7 +2,7 @@ import logging
 
 import pip
 
-from pkg_resources import iter_entry_points
+from pkg_resources import WorkingSet
 from collections import namedtuple
 
 
@@ -20,6 +20,8 @@ MMEntryPoint = namedtuple(
 )
 
 _ENTRYPOINT_GROUPS = {}
+
+_WS = WorkingSet()
 
 
 def _installed_versions():
@@ -51,7 +53,7 @@ def _initialize_entry_point_group(entrypoint_group):
 
     cache = {}
     result = {}
-    for ep in iter_entry_points(entrypoint_group):
+    for ep in _WS.iter_entry_points(entrypoint_group):
         egg_name = ep.dist.egg_name()
         conflicts = cache.get(egg_name, None)
         if conflicts is None:
@@ -74,6 +76,13 @@ def _initialize_entry_point_group(entrypoint_group):
         )
 
     _ENTRYPOINT_GROUPS[entrypoint_group] = result
+
+
+def bump_workingset():
+    global _WS, _ENTRYPOINT_GROUPS
+
+    _WS = WorkingSet()
+    _ENTRYPOINT_GROUPS = {}
 
 
 def list(entrypoint_group):

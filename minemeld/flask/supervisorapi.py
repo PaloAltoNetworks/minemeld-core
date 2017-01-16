@@ -1,4 +1,4 @@
-#  Copyright 2015 Palo Alto Networks, Inc
+#  Copyright 2015-2017 Palo Alto Networks, Inc
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -12,10 +12,12 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import os
 import logging
+import time
+from signal import SIGHUP
 
 import psutil
-import time
 import gevent
 import xmlrpclib
 import supervisor.xmlrpc
@@ -133,5 +135,16 @@ def restart_minemeld_engine():
         }), 400
 
     gevent.spawn(_restart_engine)
+
+    return jsonify(result='OK')
+
+
+@BLUEPRINT.route('/supervisor/minemeld-web/hup', methods=['GET'])
+@login_required
+def hup_minemeld_web():
+    info = MMSupervisor.supervisor.getProcessInfo('minemeld-web')
+
+    apipid = info['pid']
+    os.kill(apipid, SIGHUP)
 
     return jsonify(result='OK')

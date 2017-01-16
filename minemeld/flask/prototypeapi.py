@@ -19,7 +19,7 @@ import os.path
 
 import yaml
 import filelock
-from flask import g, jsonify, request, Blueprint
+from flask import jsonify, request, Blueprint
 from flask.ext.login import login_required
 
 import minemeld.loader
@@ -38,11 +38,13 @@ LOCAL_PROTOTYPE_PATH = 'MINEMELD_LOCAL_PROTOTYPE_PATH'
 
 BLUEPRINT = Blueprint('prototype', __name__, url_prefix='')
 
+PROTOTYPE_PATHS = None
+
 
 def _prototype_paths():
-    paths = getattr(g, 'prototype_paths', None)
-    if paths is not None:
-        return paths
+    global PROTOTYPE_PATHS
+    if PROTOTYPE_PATHS is not None:
+        return PROTOTYPE_PATHS
 
     paths = config.get(PROTOTYPE_ENV, None)
     if paths is None:
@@ -60,7 +62,7 @@ def _prototype_paths():
         except:
             LOG.exception('Exception loading paths from {}'.format(pname))
 
-    g.prototype_paths = paths
+    PROTOTYPE_PATHS = paths
 
     return paths
 
@@ -315,3 +317,8 @@ def delete_local_prototype(prototypename):
             yaml.safe_dump(library_contents, f, indent=4, default_flow_style=False)
 
     return jsonify(result='OK'), 200
+
+
+def reset_prototype_paths():
+    global PROTOTYPE_PATHS
+    PROTOTYPE_PATHS = None
