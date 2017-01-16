@@ -12,7 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import logging
 import datetime
 
 import pytz
@@ -22,20 +21,21 @@ import libtaxii
 import libtaxii.constants
 import stix.core
 
-from flask import request, Response, stream_with_context, Blueprint
-from flask.ext.login import login_required, current_user
+from flask import request, Response, stream_with_context
+from flask.ext.login import current_user
 
 from .redisclient import SR
 from .taxiiutils import taxii_check, get_taxii_feeds
+from .aaa import MMBlueprint
+from .logger import LOG
 from minemeld.ft.utils import dt_to_millisec
 
 
 __all__ = ['BLUEPRINT']
 
 
-BLUEPRINT = Blueprint('taxiipoll', __name__, url_prefix='')
+BLUEPRINT = MMBlueprint('taxiipoll', __name__, url_prefix='')
 
-LOG = logging.getLogger(__name__)
 
 _TAXII_POLL_RESPONSE_HEADER = """
 <taxii_11:Poll_Response xmlns:taxii="http://taxii.mitre.org/messages/taxii_xml_binding-1" xmlns:taxii_11="http://taxii.mitre.org/messages/taxii_xml_binding-1.1" xmlns:tdq="http://taxii.mitre.org/query/taxii_default_query-1" message_id="%(message_id)s" in_response_to="%(in_response_to)s" collection_name="%(collection_name)s" more="false" result_part_number="1">
@@ -141,8 +141,7 @@ def data_feed_11(rmsgid, cname, excbegtime, incendtime):
     )
 
 
-@BLUEPRINT.route('/taxii-poll-service', methods=['POST'])
-@login_required
+@BLUEPRINT.route('/taxii-poll-service', methods=['POST'], feeds=True, read_write=False)
 @taxii_check
 def taxii_poll_service():
     taxiict = request.headers['X-TAXII-Content-Type']

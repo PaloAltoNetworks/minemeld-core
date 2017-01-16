@@ -1,6 +1,5 @@
 # amqp connection
 import json
-import logging
 
 import gevent
 import gevent.event
@@ -14,12 +13,10 @@ import minemeld.comm
 from minemeld.mgmtbus import MGMTBUS_PREFIX
 
 from . import config
+from .logger import LOG
 
 
 __all__ = ['init_app', 'MMMaster', 'MMRpcClient', 'MMStateFanout']
-
-
-LOG = logging.getLogger(__name__)
 
 
 class _MMMasterConnection(object):
@@ -79,7 +76,6 @@ class _MMRpcClient(object):
 
     def send_raw_cmd(self, target, method, params={}, timeout=10):
         self._open_channel()
-        LOG.debug('MMRpcClient channel open')
 
         return self.comm.send_rpc(target, method, params, timeout=timeout)
 

@@ -12,23 +12,20 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import logging
-
-from flask import request, jsonify, Blueprint
+from flask import request, jsonify
 import flask.ext.login
 
 from . import aaa
+from .logger import LOG
 
 
 __all__ = ['BLUEPRINT']
 
 
-LOG = logging.getLogger(__name__)
-
-BLUEPRINT = Blueprint('login', __name__, url_prefix='')
+BLUEPRINT = aaa.MMBlueprint('login', __name__, url_prefix='')
 
 
-@BLUEPRINT.route('/login', methods=['GET', 'POST'])
+@BLUEPRINT.route('/login', methods=['GET', 'POST'], login_required=False, read_write=False)
 def login():
     username = request.values.get('u')
     if username is None:
@@ -38,7 +35,7 @@ def login():
     if password is None:
         return jsonify(error='Missing password'), 400
 
-    user = aaa.check_user(username, password)
+    user = aaa.check_admin_user(username, password)
     if user is None:
         return jsonify(error="Wrong credentials"), 401
 
@@ -46,7 +43,7 @@ def login():
     return 'OK'
 
 
-@BLUEPRINT.route('/logout', methods=['GET'])
+@BLUEPRINT.route('/logout', methods=['GET'], login_required=False, read_write=False)
 def logout():
     flask.ext.login.logout_user()
     return 'OK'

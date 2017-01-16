@@ -12,31 +12,28 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import logging
-
 import os
 import os.path
 
 import yaml
 import filelock
-from flask import jsonify, request, Blueprint
-from flask.ext.login import login_required
+from flask import jsonify, request
 
 import minemeld.loader
 
 from . import config
 from .utils import running_config, committed_config
+from .aaa import MMBlueprint
+from .logger import LOG
 
 
 __all__ = ['BLUEPRINT']
 
 
-LOG = logging.getLogger(__name__)
-
 PROTOTYPE_ENV = 'MINEMELD_PROTOTYPE_PATH'
 LOCAL_PROTOTYPE_PATH = 'MINEMELD_LOCAL_PROTOTYPE_PATH'
 
-BLUEPRINT = Blueprint('prototype', __name__, url_prefix='')
+BLUEPRINT = MMBlueprint('prototype', __name__, url_prefix='')
 
 PROTOTYPE_PATHS = None
 
@@ -104,8 +101,7 @@ def _local_library_path(prototypename):
     return library_path, prototype
 
 
-@BLUEPRINT.route('/prototype', methods=['GET'])
-@login_required
+@BLUEPRINT.route('/prototype', methods=['GET'], read_write=False)
 def list_prototypes():
     paths = _prototype_paths()
 
@@ -137,8 +133,7 @@ def list_prototypes():
     return jsonify(result=prototypes)
 
 
-@BLUEPRINT.route('/prototype/<prototypename>', methods=['GET'])
-@login_required
+@BLUEPRINT.route('/prototype/<prototypename>', methods=['GET'], read_write=False)
 def get_prototype(prototypename):
     toks = prototypename.split('.', 1)
     if len(toks) != 2:
@@ -203,8 +198,7 @@ def get_prototype(prototypename):
         return jsonify(result=result), 200
 
 
-@BLUEPRINT.route('/prototype/<prototypename>', methods=['POST'])
-@login_required
+@BLUEPRINT.route('/prototype/<prototypename>', methods=['POST'], read_write=True)
 def add_local_prototype(prototypename):
     AUTHOR_ = 'minemeld-web'
     DESCRIPTION_ = 'Local prototype library managed via MineMeld WebUI'
@@ -276,8 +270,7 @@ def add_local_prototype(prototypename):
     return jsonify(result='OK'), 200
 
 
-@BLUEPRINT.route('/prototype/<prototypename>', methods=['DELETE'])
-@login_required
+@BLUEPRINT.route('/prototype/<prototypename>', methods=['DELETE'], read_write=True)
 def delete_local_prototype(prototypename):
     try:
         library_path, prototype = _local_library_path(prototypename)

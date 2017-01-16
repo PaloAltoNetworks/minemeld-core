@@ -12,29 +12,26 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import logging
 import psutil
 import os
 import yaml
 import uuid
 import time
 
-from flask import Response, stream_with_context, jsonify, Blueprint, request
-from flask.ext.login import login_required
+from flask import Response, stream_with_context, jsonify, request
 
 from .mmrpc import MMMaster
 from .mmrpc import MMStateFanout
 from .mmrpc import MMRpcClient
 from .redisclient import SR
+from .aaa import MMBlueprint
+from .logger import LOG
 
 
 __all__ = ['BLUEPRINT']
 
 
-LOG = logging.getLogger(__name__)
-
-
-BLUEPRINT = Blueprint('status', __name__, url_prefix='/status')
+BLUEPRINT = MMBlueprint('status', __name__, url_prefix='/status')
 
 
 def stream_events():
@@ -111,8 +108,7 @@ class _PubSubWrapper(object):
         self.pubsub = None
 
 
-@BLUEPRINT.route('/events/query/<quuid>')
-@login_required
+@BLUEPRINT.route('/events/query/<quuid>', read_write=False)
 def get_query_events(quuid):
     try:
         uuid.UUID(quuid)
@@ -127,8 +123,7 @@ def get_query_events(quuid):
     return r
 
 
-@BLUEPRINT.route('/events/status')
-@login_required
+@BLUEPRINT.route('/events/status', read_write=False)
 def get_status_events():
     swc_response = stream_with_context(
         _PubSubWrapper('mm-engine-status.*', pattern=True)
@@ -138,8 +133,7 @@ def get_status_events():
     return r
 
 
-@BLUEPRINT.route('/system', methods=['GET'])
-@login_required
+@BLUEPRINT.route('/system', methods=['GET'], read_write=False)
 def get_system_status():
     res = {}
     res['cpu'] = psutil.cpu_percent(interval=1, percpu=True)
@@ -150,8 +144,7 @@ def get_system_status():
     return jsonify(result=res, timestamp=int(time.time()*1000))
 
 
-@BLUEPRINT.route('/minemeld', methods=['GET'])
-@login_required
+@BLUEPRINT.route('/minemeld', methods=['GET'], read_write=False)
 def get_minemeld_status():
     status = MMMaster.status()
 
@@ -167,8 +160,7 @@ def get_minemeld_status():
     return jsonify(result=result)
 
 
-@BLUEPRINT.route('/config', methods=['GET'])
-@login_required
+@BLUEPRINT.route('/config', methods=['GET'], read_write=False)
 def get_minemeld_running_config():
     rcpath = os.path.join(
         os.path.dirname(os.environ.get('MM_CONFIG')),
@@ -181,8 +173,7 @@ def get_minemeld_running_config():
 
 
 # XXX this should be moved to a different endpoint
-@BLUEPRINT.route('/<nodename>/hup', methods=['GET', 'POST'])
-@login_required
+@BLUEPRINT.route('/<nodename>/hup', methods=['GET', 'POST'], read_write=False)
 def hup_node(nodename):
     status = MMMaster.status()
     tr = status.get('result', None)
@@ -199,8 +190,7 @@ def hup_node(nodename):
 
 
 # XXX this should be moved to a different endpoint
-@BLUEPRINT.route('/<nodename>/signal/<signalname>', methods=['GET', 'POST'])
-@login_required
+@BLUEPRINT.route('/<nodename>/signal/<signalname>', methods=['GET', 'POST'], read_write=False)
 def signal_node(nodename, signalname):
     status = MMMaster.status()
     tr = status.get('result', None)

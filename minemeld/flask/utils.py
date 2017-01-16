@@ -14,11 +14,8 @@
 
 import os
 import re
-import logging
 
 import yaml
-
-LOG = logging.getLogger(__name__)
 
 
 class DirSnapshot(object):

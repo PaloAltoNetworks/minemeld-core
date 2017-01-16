@@ -12,13 +12,13 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import logging
 import uuid
 
-from flask import request, jsonify, Blueprint
-from flask.ext.login import login_required
+from flask import request, jsonify
 
 from .mmrpc import MMRpcClient
+from .aaa import MMBlueprint
+from .logger import LOG
 
 import minemeld.traced
 
@@ -26,13 +26,10 @@ import minemeld.traced
 __all__ = ['BLUEPRINT']
 
 
-LOG = logging.getLogger(__name__)
-
-BLUEPRINT = Blueprint('traced', __name__, url_prefix='/traced')
+BLUEPRINT = MMBlueprint('traced', __name__, url_prefix='/traced')
 
 
-@BLUEPRINT.route('/query')
-@login_required
+@BLUEPRINT.route('/query', read_write=False)
 def traced_query():
     query_uuid = request.args.get('uuid', None)
     if query_uuid is None:
@@ -77,8 +74,7 @@ def traced_query():
 
 
 @BLUEPRINT.route('/query/<query_uuid>/kill')
-@login_required
-def traced_kill_query(query_uuid):
+def traced_kill_query(query_uuid, read_write=False):
     try:
         uuid.UUID(query_uuid)
     except ValueError:

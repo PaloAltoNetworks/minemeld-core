@@ -12,30 +12,29 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import logging
 import os
 import os.path
 
 import rrdtool
 
-from flask import request, jsonify, Blueprint
-from flask.ext.login import login_required
+from flask import request, jsonify
 
 import minemeld.collectd
 
 from . import config
+from .aaa import MMBlueprint
+from .logger import LOG
 
 
 __all__ = ['BLUEPRINT']
 
 
-LOG = logging.getLogger(__name__)
 RRD_PATH = config.get('RRD_PATH', '/var/lib/collectd/rrd/minemeld/')
 RRD_SOCKET_PATH = config.get('RRD_SOCKET_PATH', '/var/run/collectd.sock')
 ALLOWED_CF = ['MAX', 'MIN', 'AVERAGE']
 
 
-BLUEPRINT = Blueprint('metrics', __name__, url_prefix='/metrics')
+BLUEPRINT = MMBlueprint('metrics', __name__, url_prefix='/metrics')
 
 
 def _list_metrics(prefix=None):
@@ -91,14 +90,12 @@ def _fetch_metric(cc, metric, type_=None,
     return result
 
 
-@BLUEPRINT.route('/')
-@login_required
+@BLUEPRINT.route('/', read_write=False)
 def get_metrics():
     return jsonify(result=_list_metrics())
 
 
-@BLUEPRINT.route('/minemeld/<nodetype>')
-@login_required
+@BLUEPRINT.route('/minemeld/<nodetype>', read_write=False)
 def get_node_type_metrics(nodetype):
     cf = str(request.args.get('cf', 'MAX')).upper()
     if cf not in ALLOWED_CF:
@@ -138,8 +135,7 @@ def get_node_type_metrics(nodetype):
     return jsonify(result=result)
 
 
-@BLUEPRINT.route('/minemeld')
-@login_required
+@BLUEPRINT.route('/minemeld', read_write=False)
 def get_global_metrics():
     cf = str(request.args.get('cf', 'MAX')).upper()
     if cf not in ALLOWED_CF:
@@ -182,8 +178,7 @@ def get_global_metrics():
     return jsonify(result=result)
 
 
-@BLUEPRINT.route('/<node>')
-@login_required
+@BLUEPRINT.route('/<node>', read_write=False)
 def get_node_metrics(node):
     cf = str(request.args.get('cf', 'MAX')).upper()
     if cf not in ALLOWED_CF:
@@ -223,8 +218,7 @@ def get_node_metrics(node):
     return jsonify(result=result)
 
 
-@BLUEPRINT.route('/<node>/<metric>', methods=['GET'])
-@login_required
+@BLUEPRINT.route('/<node>/<metric>', methods=['GET'], read_write=False)
 def get_metric(node, metric):
     cf = str(request.args.get('cf', 'MAX')).upper()
     if cf not in ALLOWED_CF:

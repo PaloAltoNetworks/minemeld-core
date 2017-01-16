@@ -12,32 +12,30 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import logging
 import re
 
 import libtaxii
 import libtaxii.messages_11
 import libtaxii.constants
 
-from flask import request, Blueprint
-from flask.ext.login import login_required, current_user
+from flask import request
+from flask.ext.login import current_user
 
 from . import config
 from .taxiiutils import taxii_check, taxii_make_response, get_taxii_feeds
+from .aaa import MMBlueprint
+from .logger import LOG
 
 
 __all__ = ['BLUEPRINT']
 
 
-LOG = logging.getLogger(__name__)
-
 HOST_RE = re.compile('^[a-zA-Z\d-]{1,63}(?:\.[a-zA-Z\d-]{1,63})*(?::[0-9]{1,5})*$')
 
-BLUEPRINT = Blueprint('taxiicollmgmt', __name__, url_prefix='')
+BLUEPRINT = MMBlueprint('taxiicollmgmt', __name__, url_prefix='')
 
 
-@BLUEPRINT.route('/taxii-collection-management-service', methods=['POST'])
-@login_required
+@BLUEPRINT.route('/taxii-collection-management-service', methods=['POST'], feeds=True, read_write=False)
 @taxii_check
 def taxii_collection_mgmt_service():
     taxii_feeds = get_taxii_feeds()

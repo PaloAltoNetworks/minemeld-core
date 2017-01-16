@@ -895,10 +895,10 @@ class MineMeldFlaskAAATests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
 
         resp = self._taxii_discovery_request(username='user1', password='password2')
-        self.assertEqual(resp.status_code, 401)
+        self.assertEqual(resp.status_code, 200)
 
         resp = self._taxii_discovery_request(username='admin', password='password1')
-        self.assertEqual(resp.status_code, 401)
+        self.assertEqual(resp.status_code, 200)
 
         resp = self._taxii_collection_request()
         self.assertEqual(self._num_collections(resp), 1)
@@ -916,10 +916,10 @@ class MineMeldFlaskAAATests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
 
         resp = self._taxii_collection_request(username='user1', password='password2')
-        self.assertEqual(resp.status_code, 401)
+        self.assertEqual(resp.status_code, 200)
 
         resp = self._taxii_collection_request(username='admin', password='password2')
-        self.assertEqual(resp.status_code, 401)
+        self.assertEqual(resp.status_code, 200)
 
     @mock.patch.dict('minemeld.flask.config.os.environ', {
         'MM_CONFIG': '.',
@@ -1051,10 +1051,10 @@ class MineMeldFlaskAAATests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
 
         resp = self._taxii_discovery_request(username='user1', password='password2')
-        self.assertEqual(resp.status_code, 401)
+        self.assertEqual(resp.status_code, 200)
 
         resp = self._taxii_discovery_request(username='admin', password='password1')
-        self.assertEqual(resp.status_code, 401)
+        self.assertEqual(resp.status_code, 200)
 
         resp = self._taxii_collection_request()
         self.assertEqual(self._num_collections(resp), 1)
@@ -1073,10 +1073,10 @@ class MineMeldFlaskAAATests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
 
         resp = self._taxii_collection_request(username='user1', password='password2')
-        self.assertEqual(resp.status_code, 401)
+        self.assertEqual(resp.status_code, 200)
 
         resp = self._taxii_collection_request(username='admin', password='password2')
-        self.assertEqual(resp.status_code, 401)
+        self.assertEqual(resp.status_code, 200)
 
     @mock.patch.dict('minemeld.flask.config.os.environ', {
         'MM_CONFIG': '.',
@@ -1338,10 +1338,10 @@ class MineMeldFlaskAAATests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
 
         resp = self._taxii_poll_request('feed1', username='user1', password='password2')
-        self.assertEqual(resp.status_code, 401)
+        self.assertEqual(resp.status_code, 200)
 
         resp = self._taxii_poll_request('feed1', username='admin', password='password1')
-        self.assertEqual(resp.status_code, 401)
+        self.assertEqual(resp.status_code, 200)
 
     @mock.patch.dict('minemeld.flask.config.os.environ', {
         'MM_CONFIG': '.',
@@ -1391,7 +1391,7 @@ class MineMeldFlaskAAATests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
 
         resp = self._taxii_poll_request('feed1', username='user1', password='password2')
-        self.assertEqual(resp.status_code, 401)
+        self.assertEqual(resp.status_code, 200)
 
         resp = self._taxii_poll_request('feed1', username='admin', password='password1')
-        self.assertEqual(resp.status_code, 401)
+        self.assertEqual(resp.status_code, 200)

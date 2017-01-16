@@ -14,7 +14,6 @@
 
 import os
 import uuid
-import logging
 import tempfile
 import subprocess
 import shutil
@@ -27,16 +26,15 @@ import psutil
 import werkzeug.local
 import gevent
 from gevent.subprocess import Popen
-
 from flask import g
+
 from . import REDIS_URL
 from . import config
+from .logger import LOG
 
 
 __all__ = ['init_app', 'JOBS_MANAGER']
 
-
-LOG = logging.getLogger(__name__)
 
 REDIS_CP = redis.ConnectionPool.from_url(
     REDIS_URL,

@@ -16,7 +16,6 @@ import sys
 import os
 import os.path
 import shutil
-import logging
 import functools
 import subprocess
 import uuid
@@ -26,9 +25,8 @@ from tempfile import NamedTemporaryFile
 import filelock
 from gevent import Timeout
 from gevent.subprocess import Popen
-from flask import Blueprint, jsonify, request
+from flask import jsonify, request
 from werkzeug.utils import secure_filename
-from flask.ext.login import login_required
 
 import minemeld.extensions
 import minemeld.loader
@@ -36,14 +34,14 @@ import minemeld.loader
 from . import config
 from .jobs import JOBS_MANAGER
 from .prototypeapi import reset_prototype_paths
+from .aaa import MMBlueprint
+from .logger import LOG
 
 
 __all__ = ['BLUEPRINT']
 
 
-LOG = logging.getLogger(__name__)
-
-BLUEPRINT = Blueprint('extensions', __name__, url_prefix='')
+BLUEPRINT = MMBlueprint('extensions', __name__, url_prefix='')
 
 
 def _get_extensions():
@@ -145,8 +143,7 @@ def _safe_remove(path, g=None):
         LOG.exception('Exception removing {}'.format(path))
 
 
-@BLUEPRINT.route('/extensions', methods=['GET'])
-@login_required
+@BLUEPRINT.route('/extensions', methods=['GET'], read_write=False)
 def list_extensions():
     extensions = _get_extensions()
 
@@ -164,8 +161,7 @@ def list_extensions():
     return jsonify(result=result)
 
 
-@BLUEPRINT.route('/extensions/<extension>/activate', methods=['POST'])
-@login_required
+@BLUEPRINT.route('/extensions/<extension>/activate', methods=['POST'], read_write=True)
 def activate_extension(extension):
     params = request.get_json(silent=True)
     if params is None:
@@ -218,8 +214,7 @@ def activate_extension(extension):
     return jsonify(result=jobid)
 
 
-@BLUEPRINT.route('/extensions/<extension>/deactivate', methods=['GET', 'POST'])
-@login_required
+@BLUEPRINT.route('/extensions/<extension>/deactivate', methods=['GET', 'POST'], read_write=True)
 def deactivate_extension(extension):
     params = request.get_json(silent=True)
     if params is None:
@@ -272,8 +267,7 @@ def deactivate_extension(extension):
     return jsonify(result=jobid)
 
 
-@BLUEPRINT.route('/extensions/<extension>/uninstall', methods=['GET', 'POST'])
-@login_required
+@BLUEPRINT.route('/extensions/<extension>/uninstall', methods=['GET', 'POST'], read_write=True)
 def uninstall_extension(extension):
     params = request.get_json(silent=True)
     if params is None:
@@ -322,8 +316,7 @@ def uninstall_extension(extension):
     return jsonify(result='ok')
 
 
-@BLUEPRINT.route('/extensions', methods=['POST'])
-@login_required
+@BLUEPRINT.route('/extensions', methods=['POST'], read_write=True)
 def upload_extension():
     library_directory = config.get('MINEMELD_LOCAL_LIBRARY_PATH', None)
     if library_directory is None:
@@ -378,8 +371,7 @@ def upload_extension():
     return jsonify(result='OK')
 
 
-@BLUEPRINT.route('/extensions/git-refs', methods=['GET'])
-@login_required
+@BLUEPRINT.route('/extensions/git-refs', methods=['GET'], read_write=False)
 def get_git_refs():
     git_endpoint = request.values.get('ep', None)
     if git_endpoint is None:
@@ -421,8 +413,7 @@ def get_git_refs():
     return jsonify(result=[line.rsplit('/', 1)[-1] for line in git_stdout.splitlines()])
 
 
-@BLUEPRINT.route('/extensions/git-install', methods=['POST'])
-@login_required
+@BLUEPRINT.route('/extensions/git-install', methods=['POST'], read_write=True)
 def install_from_git():
     library_directory = config.get('MINEMELD_LOCAL_LIBRARY_PATH', None)
     if library_directory is None:

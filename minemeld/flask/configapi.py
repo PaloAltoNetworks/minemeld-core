@@ -12,8 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import logging
-
 import os.path
 import os
 import yaml
@@ -25,18 +23,18 @@ import copy
 
 import minemeld.run.config
 
-from flask import request, jsonify, Blueprint
-from flask.ext.login import login_required
+from flask import request, jsonify
 
 from .redisclient import SR
 from .mmrpc import MMRpcClient
+from .aaa import MMBlueprint
+from .logger import LOG
 from . import utils
 
 
 __all__ = ['BLUEPRINT']
 
 
-LOG = logging.getLogger(__name__)
 FEED_INTERVAL = 100
 REDIS_KEY_PREFIX = 'mm:config:'
 REDIS_KEY_CONFIG = REDIS_KEY_PREFIX+'candidate'
@@ -44,7 +42,7 @@ REDIS_NODES_LIST = 'nodes'
 LOCK_TIMEOUT = 3000
 
 
-BLUEPRINT = Blueprint('config', __name__, url_prefix='/config')
+BLUEPRINT = MMBlueprint('config', __name__, url_prefix='/config')
 
 
 class VersionMismatchError(Exception):
@@ -389,21 +387,18 @@ def _set_node(nodenum, nodebody):
     return str(result)
 
 
-@BLUEPRINT.route('/running', methods=['GET'])
-@login_required
+@BLUEPRINT.route('/running', methods=['GET'], read_write=False)
 def get_running_config():
     return jsonify(result=utils.running_config())
 
 
-@BLUEPRINT.route('/committed', methods=['GET'])
-@login_required
+@BLUEPRINT.route('/committed', methods=['GET'], read_write=False)
 def get_committed_config():
     return jsonify(result=utils.committed_config())
 
 
 # API for manipulating candidate config
-@BLUEPRINT.route('/reload', methods=['GET'])
-@login_required
+@BLUEPRINT.route('/reload', methods=['GET'], read_write=False)
 def reload_running_config():
     cname = request.args.get('c', 'running')
 
@@ -422,8 +417,7 @@ def reload_running_config():
     return jsonify(result=str(version))
 
 
-@BLUEPRINT.route('/commit', methods=['POST'])
-@login_required
+@BLUEPRINT.route('/commit', methods=['POST'], read_write=True)
 def commit():
     try:
         body = request.get_json()
@@ -448,8 +442,7 @@ def commit():
     return jsonify(result='OK')
 
 
-@BLUEPRINT.route('/info', methods=['GET'])
-@login_required
+@BLUEPRINT.route('/info', methods=['GET'], read_write=False)
 def get_config_info():
     try:
         result = _config_info(lock=True)
@@ -459,8 +452,7 @@ def get_config_info():
     return jsonify(result=result)
 
 
-@BLUEPRINT.route('/full', methods=['GET'])
-@login_required
+@BLUEPRINT.route('/full', methods=['GET'], read_write=False)
 def get_config_full():
     try:
         result = _config_full(lock=True)
@@ -471,8 +463,7 @@ def get_config_full():
     return jsonify(result=result)
 
 
-@BLUEPRINT.route('/fabric', methods=['GET'])
-@login_required
+@BLUEPRINT.route('/fabric', methods=['GET'], read_write=False)
 def get_fabric():
     try:
         result = _get_stanza('fabric', lock=True)
@@ -485,8 +476,7 @@ def get_fabric():
     return jsonify(result=result)
 
 
-@BLUEPRINT.route('/mgmtbus', methods=['GET'])
-@login_required
+@BLUEPRINT.route('/mgmtbus', methods=['GET'], read_write=False)
 def get_mgmtbus():
     try:
         result = _get_stanza('mgmtbus', lock=True)
@@ -499,8 +489,7 @@ def get_mgmtbus():
     return jsonify(result=result)
 
 
-@BLUEPRINT.route('/node', methods=['POST'])
-@login_required
+@BLUEPRINT.route('/node', methods=['POST'], read_write=False)
 def create_node():
     try:
         body = request.get_json()
@@ -517,8 +506,7 @@ def create_node():
     return jsonify(result=result)
 
 
-@BLUEPRINT.route('/node/<nodenum>', methods=['GET'])
-@login_required
+@BLUEPRINT.route('/node/<nodenum>', methods=['GET'], read_write=False)
 def get_node(nodenum):
     try:
         nodenum = int(nodenum)
@@ -537,8 +525,7 @@ def get_node(nodenum):
     return jsonify(result=result)
 
 
-@BLUEPRINT.route('/node/<nodenum>', methods=['PUT'])
-@login_required
+@BLUEPRINT.route('/node/<nodenum>', methods=['PUT'], read_write=False)
 def set_node(nodenum):
     try:
         nodenum = int(nodenum)
@@ -561,8 +548,7 @@ def set_node(nodenum):
     return jsonify(result=result)
 
 
-@BLUEPRINT.route('/node/<nodenum>', methods=['DELETE'])
-@login_required
+@BLUEPRINT.route('/node/<nodenum>', methods=['DELETE'], read_write=False)
 def delete_node(nodenum):
     try:
         nodenum = int(nodenum)
@@ -584,8 +570,7 @@ def delete_node(nodenum):
 
 
 # API for working with side configs and dynamic data files
-@BLUEPRINT.route('/data/<datafilename>', methods=['GET'])
-@login_required
+@BLUEPRINT.route('/data/<datafilename>', methods=['GET'], read_write=False)
 def get_config_data(datafilename):
     cpath = os.path.dirname(os.environ.get('MM_CONFIG'))
 
@@ -613,8 +598,7 @@ def get_config_data(datafilename):
     return jsonify(result=result)
 
 
-@BLUEPRINT.route('/data/<datafilename>', methods=['PUT'])
-@login_required
+@BLUEPRINT.route('/data/<datafilename>', methods=['PUT'], read_write=True)
 def save_config_data(datafilename):
     cpath = os.path.dirname(os.environ.get('MM_CONFIG'))
     tdir = os.path.dirname(os.path.join(cpath, datafilename))
@@ -648,8 +632,7 @@ def save_config_data(datafilename):
     return jsonify(result='ok'), 200
 
 
-@BLUEPRINT.route('/data/<datafilename>/append', methods=['POST'])
-@login_required
+@BLUEPRINT.route('/data/<datafilename>/append', methods=['POST'], read_write=True)
 def append_config_data(datafilename):
     cpath = os.path.dirname(os.environ.get('MM_CONFIG'))
     tdir = os.path.dirname(os.path.join(cpath, datafilename))

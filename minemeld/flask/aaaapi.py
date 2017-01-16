@@ -12,21 +12,20 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import logging
 import collections
 
-from flask import request, jsonify, Blueprint
-from flask.ext.login import login_required
+from flask import request, jsonify
+from flask.ext.login import current_user
 
 from . import config
+from .aaa import MMBlueprint
+from .logger import LOG
 
 
 __all__ = ['BLUEPRINT']
 
 
-BLUEPRINT = Blueprint('aaa', __name__, url_prefix='/aaa')
-
-LOG = logging.getLogger(__name__)
+BLUEPRINT = MMBlueprint('aaa', __name__, url_prefix='/aaa')
 
 API_USERS_ATTRS_ATTR = 'API_USERS_ATTRS'
 FEEDS_USERS_ATTRS_ATTR = 'FEEDS_USERS_ATTRS'
@@ -59,8 +58,15 @@ _SUBSYSTEM_MAP = {
 _FEEDS_ATTRS = config.APIConfigDict(attribute=FEEDS_ATTRS_ATTR, level=50)
 
 
-@BLUEPRINT.route('/users/<subsystem>', methods=['GET'])
-@login_required
+@BLUEPRINT.route('/users/current', methods=['GET'], read_write=False)
+def get_current_user():
+    return jsonify(result={
+        'id': current_user.get_id(),
+        'read_write': current_user.is_read_write()
+    })
+
+
+@BLUEPRINT.route('/users/<subsystem>', methods=['GET'], read_write=False)
 def get_users(subsystem):
     subsystem = _SUBSYSTEM_MAP.get(subsystem, None)
     if subsystem is None:
@@ -72,7 +78,6 @@ def get_users(subsystem):
     }
     users = config.get(subsystem.authdb).users()
     users_attrs = subsystem.attrs.value()
-    LOG.debug(users_attrs)
     for u in users:
         attrs = {}
         if u in users_attrs:
@@ -82,8 +87,7 @@ def get_users(subsystem):
     return jsonify(result=result)
 
 
-@BLUEPRINT.route('/users/<subsystem>/<username>', methods=['PUT'])
-@login_required
+@BLUEPRINT.route('/users/<subsystem>/<username>', methods=['PUT'], read_write=True)
 def set_user_password(subsystem, username):
     subsystem = _SUBSYSTEM_MAP.get(subsystem, None)
     if subsystem is None:
@@ -105,8 +109,7 @@ def set_user_password(subsystem, username):
         return jsonify(result='ok')
 
 
-@BLUEPRINT.route('/users/<subsystem>/<username>/attributes', methods=['POST'])
-@login_required
+@BLUEPRINT.route('/users/<subsystem>/<username>/attributes', methods=['POST'], read_write=True)
 def set_user_attributes(subsystem, username):
     subsystem = _SUBSYSTEM_MAP.get(subsystem, None)
     if subsystem is None:
@@ -133,8 +136,7 @@ def set_user_attributes(subsystem, username):
         return jsonify(result='ok')
 
 
-@BLUEPRINT.route('/users/<subsystem>/<username>', methods=['DELETE'])
-@login_required
+@BLUEPRINT.route('/users/<subsystem>/<username>', methods=['DELETE'], read_write=True)
 def delete_user(subsystem, username):
     subsystem = _SUBSYSTEM_MAP.get(subsystem, None)
     if subsystem is None:
@@ -154,8 +156,7 @@ def delete_user(subsystem, username):
         return jsonify(result='ok')
 
 
-@BLUEPRINT.route('/feeds', methods=['GET'])
-@login_required
+@BLUEPRINT.route('/feeds', methods=['GET'], read_write=False)
 def get_feeds():
     result = {
         'enabled': config.get(
@@ -167,8 +168,7 @@ def get_feeds():
     return jsonify(result=result)
 
 
-@BLUEPRINT.route('/feeds/<feedname>/attributes', methods=['PUT', 'POST'])
-@login_required
+@BLUEPRINT.route('/feeds/<feedname>/attributes', methods=['PUT', 'POST'], read_write=True)
 def set_feed_attributes(feedname):
     with config.lock():
         try:
@@ -184,8 +184,7 @@ def set_feed_attributes(feedname):
         return jsonify(result='ok')
 
 
-@BLUEPRINT.route('/feeds/<feedname>', methods=['DELETE'])
-@login_required
+@BLUEPRINT.route('/feeds/<feedname>', methods=['DELETE'], read_write=True)
 def delete_feed(feedname):
     with config.lock():
         _FEEDS_ATTRS.delete(feedname)
@@ -193,8 +192,7 @@ def delete_feed(feedname):
         return jsonify(result='ok')
 
 
-@BLUEPRINT.route('/tags', methods=['GET'])
-@login_required
+@BLUEPRINT.route('/tags', methods=['GET'], read_write=False)
 def get_tags():
     tags = set()
 

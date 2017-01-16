@@ -15,19 +15,19 @@
 import os
 
 import gevent
-import logging
 
 import yaml
 import filelock
 import passlib.apache
 
 from . import utils
+from .logger import LOG
+
 
 CONFIG = {}
 API_CONFIG_PATH = None
 API_CONFIG_LOCK = None
 
-LOG = logging.getLogger(__name__)
 CONFIG_FILES_RE = '^(?:(?:[0-9]+.*\.yml)|(?:.*\.htpasswd))$'
 
 _AUTH_DBS = {
@@ -186,8 +186,6 @@ def _config_monitor(config_path):
 def init():
     global API_CONFIG_PATH
     global API_CONFIG_LOCK
-
-    logging.basicConfig(level=logging.DEBUG)
 
     config_path = os.environ.get('MM_CONFIG', None)
     if config_path is None:

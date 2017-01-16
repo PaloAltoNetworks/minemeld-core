@@ -12,24 +12,20 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import logging
-
-from flask import send_from_directory, Blueprint, jsonify
-from flask.ext.login import login_required
+from flask import send_from_directory, jsonify
 
 from . import config
+from .aaa import MMBlueprint
+from .logger import LOG
 
 
 __all__ = ['BLUEPRINT']
 
 
-LOG = logging.getLogger(__name__)
-
-BLUEPRINT = Blueprint('logs', __name__, url_prefix='/logs')
+BLUEPRINT = MMBlueprint('logs', __name__, url_prefix='/logs')
 
 
-@BLUEPRINT.route('/minemeld-engine.log', methods=['GET'])
-@login_required
+@BLUEPRINT.route('/minemeld-engine.log', methods=['GET'], read_write=True)
 def get_minemeld_engine_log():
     log_directory = config.get('MINEMELD_LOG_DIRECTORY_PATH', None)
     if log_directory is None:
@@ -38,8 +34,7 @@ def get_minemeld_engine_log():
     return send_from_directory(log_directory, 'minemeld-engine.log', as_attachment=True)
 
 
-@BLUEPRINT.route('/minemeld-web.log', methods=['GET'])
-@login_required
+@BLUEPRINT.route('/minemeld-web.log', methods=['GET'], read_write=True)
 def get_minemeld_web_log():
     log_directory = config.get('MINEMELD_LOG_DIRECTORY_PATH', None)
     if log_directory is None:
