@@ -89,7 +89,8 @@ def service_status():
     for p in pinfo:
         process = {
             'statename': p['statename'],
-            'start': p['start']
+            'start': p['start'],
+            'children': None
         }
 
         try:
@@ -98,7 +99,6 @@ def service_status():
 
         except:
             LOG.exception("Error retrieving childen of %d" % p['pid'])
-            pass
 
         supervisorstate['processes'][p['name']] = process
 

@@ -16,7 +16,9 @@ import uuid
 
 from flask import request, jsonify
 
+from . import config
 from .mmrpc import MMRpcClient
+from .jobs import JOBS_MANAGER
 from .aaa import MMBlueprint
 from .logger import LOG
 
@@ -73,8 +75,8 @@ def traced_query():
     return jsonify(result=result), 200
 
 
-@BLUEPRINT.route('/query/<query_uuid>/kill')
-def traced_kill_query(query_uuid, read_write=False):
+@BLUEPRINT.route('/query/<query_uuid>/kill', read_write=False)
+def traced_kill_query(query_uuid):
     try:
         uuid.UUID(query_uuid)
     except ValueError:
@@ -85,3 +87,24 @@ def traced_kill_query(query_uuid, read_write=False):
     })
 
     return jsonify(result=result), 200
+
+
+@BLUEPRINT.route('/purge-all', read_write=True)
+def traced_purge_all():
+    traced_purge_path = config.get('MINEMELD_TRACED_PURGE_PATH', None)
+    if traced_purge_path is None:
+        return jsonify(error={'message': 'MINEMELD_TRACED_PURGE_PATH not set'}), 500
+
+    jobs = JOBS_MANAGER.get_jobs(job_group='traced-purge')
+    for jobid, jobdata in jobs.iteritems():
+        if jobdata == 'RUNNING':
+            return jsonify(error={'message': 'a trace purge job is already running'}), 400
+
+    jobid = JOBS_MANAGER.exec_job(
+        job_group='traced-purge',
+        description='purge all traces',
+        args=[traced_purge_path, '--all'],
+        data={}
+    )
+
+    return jsonify(result=jobid)

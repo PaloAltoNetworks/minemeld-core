@@ -20,6 +20,7 @@ import time
 
 from flask import Response, stream_with_context, jsonify, request
 
+from . import config
 from .mmrpc import MMMaster
 from .mmrpc import MMStateFanout
 from .mmrpc import MMRpcClient
@@ -135,11 +136,15 @@ def get_status_events():
 
 @BLUEPRINT.route('/system', methods=['GET'], read_write=False)
 def get_system_status():
+    data_path = config.get('MINEMELD_LOCAL_PATH', None)
+    if data_path is None:
+        jsonify(error={'message': 'MINEMELD_LOCAL_PATH not set'}), 500
+
     res = {}
     res['cpu'] = psutil.cpu_percent(interval=1, percpu=True)
     res['memory'] = psutil.virtual_memory().percent
     res['swap'] = psutil.swap_memory().percent
-    res['disk'] = psutil.disk_usage('/').percent
+    res['disk'] = psutil.disk_usage(data_path).percent
 
     return jsonify(result=res, timestamp=int(time.time()*1000))
 
