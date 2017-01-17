@@ -12,22 +12,19 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import logging
-
 import yaml
 
-from flask.ext.login import login_required
-from flask import jsonify, request, Blueprint
+from flask import jsonify, request
 
 import minemeld.ft.condition
+from .aaa import MMBlueprint
+from .logger import LOG
 
 
 __all__ = ['BLUEPRINT']
 
 
-LOG = logging.getLogger(__name__)
-
-BLUEPRINT = Blueprint('validate', __name__, url_prefix='/validate')
+BLUEPRINT = MMBlueprint('validate', __name__, url_prefix='/validate')
 
 
 def _return_validation_error(msg):
@@ -36,8 +33,7 @@ def _return_validation_error(msg):
     }), 400
 
 
-@BLUEPRINT.route('/syslogminerrule', methods=['POST'])
-@login_required
+@BLUEPRINT.route('/syslogminerrule', methods=['POST'], read_write=False)
 def validate_syslogminerrule():
     try:
         crule = request.data

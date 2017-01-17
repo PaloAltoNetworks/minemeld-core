@@ -14,32 +14,28 @@
 
 import os
 import os.path
-import logging
 
-from flask import send_from_directory, Blueprint, jsonify
-from flask.ext.login import login_required
+from flask import send_from_directory, jsonify
 
 from .jobs import JOBS_MANAGER
+from .aaa import MMBlueprint
+from .logger import LOG
 
 
 __all__ = ['BLUEPRINT']
 
 
-LOG = logging.getLogger(__name__)
-
-BLUEPRINT = Blueprint('jobs', __name__, url_prefix='/jobs')
+BLUEPRINT = MMBlueprint('jobs', __name__, url_prefix='/jobs')
 
 
-@BLUEPRINT.route('/<job_group>', methods=['GET'])
-@login_required
+@BLUEPRINT.route('/<job_group>', methods=['GET'], read_write=False)
 def get_jobs(job_group):
     jobs = JOBS_MANAGER.get_jobs(job_group)
 
     return jsonify(result=jobs)
 
 
-@BLUEPRINT.route('/<job_group>/<jobid>', methods=['GET'])
-@login_required
+@BLUEPRINT.route('/<job_group>/<jobid>', methods=['GET'], read_write=False)
 def get_job(job_group, jobid):
     jobs = JOBS_MANAGER.get_jobs(job_group)
     if jobid not in jobs:
@@ -48,8 +44,7 @@ def get_job(job_group, jobid):
     return jsonify(result=jobs[jobid])
 
 
-@BLUEPRINT.route('/<job_group>/<jobid>/log', methods=['GET'])
-@login_required
+@BLUEPRINT.route('/<job_group>/<jobid>/log', methods=['GET'], read_write=False)
 def get_job_log(job_group, jobid):
     jobs = JOBS_MANAGER.get_jobs(job_group)
     if jobid not in jobs:

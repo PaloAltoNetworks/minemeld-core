@@ -13,7 +13,6 @@
 #  limitations under the License.
 
 import os
-import logging
 import time
 from signal import SIGHUP
 
@@ -22,19 +21,18 @@ import gevent
 import xmlrpclib
 import supervisor.xmlrpc
 
-from flask import jsonify, Blueprint
-from flask.ext.login import login_required
+from flask import jsonify
 
 from . import config
 from .supervisorclient import MMSupervisor
+from .aaa import MMBlueprint
+from .logger import LOG
 
 
 __all__ = ['BLUEPRINT']
 
 
-LOG = logging.getLogger(__name__)
-
-BLUEPRINT = Blueprint('supervisor', __name__, url_prefix='')
+BLUEPRINT = MMBlueprint('supervisor', __name__, url_prefix='')
 
 
 def _restart_engine():
@@ -77,8 +75,7 @@ def _restart_engine():
     LOG.info('Started minemeld-engine')
 
 
-@BLUEPRINT.route('/supervisor', methods=['GET'])
-@login_required
+@BLUEPRINT.route('/supervisor', methods=['GET'], read_write=False)
 def service_status():
     try:
         supervisorstate = MMSupervisor.supervisor.getState()
@@ -108,24 +105,21 @@ def service_status():
     return jsonify(result=supervisorstate)
 
 
-@BLUEPRINT.route('/supervisor/minemeld-engine/start', methods=['GET'])
-@login_required
+@BLUEPRINT.route('/supervisor/minemeld-engine/start', methods=['GET'], read_write=True)
 def start_minemeld_engine():
     result = MMSupervisor.supervisor.startProcess('minemeld-engine', False)
 
     return jsonify(result=result)
 
 
-@BLUEPRINT.route('/supervisor/minemeld-engine/stop', methods=['GET'])
-@login_required
+@BLUEPRINT.route('/supervisor/minemeld-engine/stop', methods=['GET'], read_write=True)
 def stop_minemeld_engine():
     result = MMSupervisor.supervisor.stopProcess('minemeld-engine', False)
 
     return jsonify(result=result)
 
 
-@BLUEPRINT.route('/supervisor/minemeld-engine/restart', methods=['GET'])
-@login_required
+@BLUEPRINT.route('/supervisor/minemeld-engine/restart', methods=['GET'], read_write=True)
 def restart_minemeld_engine():
     info = MMSupervisor.supervisor.getProcessInfo('minemeld-engine')
     if info['statename'] == 'STARTING' or info['statename'] == 'STOPPING':
@@ -139,8 +133,7 @@ def restart_minemeld_engine():
     return jsonify(result='OK')
 
 
-@BLUEPRINT.route('/supervisor/minemeld-web/hup', methods=['GET'])
-@login_required
+@BLUEPRINT.route('/supervisor/minemeld-web/hup', methods=['GET'], read_write=True)
 def hup_minemeld_web():
     info = MMSupervisor.supervisor.getProcessInfo('minemeld-web')
 

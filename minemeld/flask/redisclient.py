@@ -1,17 +1,16 @@
 import os
-import logging
 
 import redis
 import werkzeug.local
 
 from flask import g
+
 from . import REDIS_URL
+from .logger import LOG
 
 
 __all__ = ['init_app', 'SR']
 
-
-LOG = logging.getLogger(__name__)
 
 REDIS_CP = redis.ConnectionPool.from_url(
     REDIS_URL,
@@ -31,7 +30,7 @@ def teardown(exception):
     SR = getattr(g, '_redis_client', None)
     if SR is not None:
         g._redis_client = None
-        LOG.info(
+        LOG.debug(
             'redis connection pool: in use: {} available: {}'.format(
                 len(REDIS_CP._in_use_connections),
                 len(REDIS_CP._available_connections)

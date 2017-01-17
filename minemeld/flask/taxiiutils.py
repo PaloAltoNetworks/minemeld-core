@@ -12,15 +12,13 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import logging
 import functools
 
 from flask import request
 from flask import make_response
 
 from .mmrpc import MMMaster
-
-LOG = logging.getLogger(__name__)
+from .logger import LOG
 
 
 def taxii_make_response(m11):

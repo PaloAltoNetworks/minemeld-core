@@ -13,7 +13,6 @@
 #  limitations under the License.
 
 import os
-import logging
 from datetime import timedelta
 from uuid import uuid4
 
@@ -22,7 +21,8 @@ import redis
 import werkzeug.datastructures
 import flask.sessions
 
-LOG = logging.getLogger(__name__)
+from .logger import LOG
+
 
 SESSION_EXPIRATION_ENV = 'SESSION_EXPIRATION'
 DEFAULT_SESSION_EXPIRATION = 10
@@ -61,8 +61,8 @@ class RedisSessionInterface(flask.sessions.SessionInterface):
         return timedelta(minutes=10)
 
     def open_session(self, app, request):
-        LOG.info(
-            'redis connection pool: in use: {} available: {}'.format(
+        LOG.debug(
+            'redis session connection pool: in use: {} available: {}'.format(
                 len(self.redis.connection_pool._in_use_connections),
                 len(self.redis.connection_pool._available_connections)
             )

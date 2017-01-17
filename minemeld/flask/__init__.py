@@ -18,16 +18,17 @@ import logging
 from flask import Flask
 
 import minemeld.loader
+from .logger import LOG
 
-
-LOG = logging.getLogger(__name__)
 REDIS_URL = os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0')
 
 
 def create_app():
     app = Flask(__name__)
-    app.logger.addHandler(logging.StreamHandler())
+
     app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # max 5MB for uploads
+
+    LOG.init_app(app)
 
     # extension code
     from . import config
@@ -39,13 +40,13 @@ def create_app():
     from . import jobs
 
     session.init_app(app, REDIS_URL)
-    aaa.LOGIN_MANAGER.init_app(app)
+    aaa.init_app(app)
 
     config.init()
     if config.get('DEBUG', False):
-        app.logger.setLevel(logging.DEBUG)
+        logging.getLogger().setLevel(logging.DEBUG)
     else:
-        app.logger.setLevel(logging.INFO)
+        logging.getLogger().setLevel(logging.INFO)
 
     mmrpc.init_app(app)
     redisclient.init_app(app)
