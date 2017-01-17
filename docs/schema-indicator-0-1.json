@@ -20,7 +20,8 @@
                 "mutex",
                 "windows-registry-value",
                 "user-agent.fragment",
-                "file.name"
+                "file.name",
+                "process.command_line"
             ]
         },
         "direction": {
