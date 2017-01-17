@@ -119,7 +119,7 @@ def _update_freeze_file():
 
 
 def _extensions_changed(activated_path, deactivated_path, g):
-    if g.value == 0:
+    if g is not None and g.value == 0:
         # process was successful
         if deactivated_path is not None:
             try:
