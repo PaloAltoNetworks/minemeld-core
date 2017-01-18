@@ -325,6 +325,7 @@ class BasePollerFT(base.BaseFT):
         self.multiple_indicator_types = self.config.get('multiple_indicator_types', False)
         self.interval = self.config.get('interval', 3600)
         self.num_retries = self.config.get('num_retries', 2)
+        self.aggregate_indicators = self.config.get('aggregate_indicators', False)
 
         _age_out = self.config.get('age_out', {})
 
@@ -506,6 +507,44 @@ class BasePollerFT(base.BaseFT):
 
         return current
 
+    def _aggregate_iterator(self, iterator):
+        _agg_table = _bptable_factory(
+            '{}.aggregate-temp'.format(self.name),
+            truncate=True,
+            type_in_key=True
+        )
+
+        for nitem, item in enumerate(iterator):
+            if nitem != 0 and nitem % 1024 == 0:
+                gevent.sleep(0.001)
+
+            with self.state_lock:
+                if self.state != ft_states.STARTED:
+                    LOG.info(
+                        '%s - state not STARTED, aggregation not performed',
+                        self.name
+                    )
+                    raise RuntimeError('Wrong state')
+
+                try:
+                    ipairs = self._process_item(item)
+
+                except gevent.GreenletExit:
+                    raise
+
+                except:
+                    self.statistics['error.parsing'] += 1
+                    LOG.exception('%s - Exception parsing %s', self.name, item)
+                    continue
+
+                for indicator, attributes in ipairs:
+                    _agg_table.put(indicator, attributes)
+
+        return _agg_table
+
+    def _aggregate_process_item(self, item):
+        return [item]
+
     def _polling_loop(self):
         LOG.info("Polling %s", self.name)
 
@@ -517,12 +556,19 @@ class BasePollerFT(base.BaseFT):
                     '%s - state not STARTED, polling not performed',
                     self.name
                 )
-                return
+                return False
 
             iterator = self._build_iterator(now)
 
             if iterator is None:
                 return False
+
+        process_item = self._process_item
+        agg_table = None
+        if self.aggregate_indicators:
+            agg_table = self._aggregate_iterator(iterator)
+            process_item = self._aggregate_process_item
+            iterator = agg_table.query(include_value=True)
 
         for nitem, item in enumerate(iterator):
             if nitem != 0 and nitem % 1024 == 0:
@@ -533,7 +579,7 @@ class BasePollerFT(base.BaseFT):
                     break
 
                 try:
-                    ipairs = self._process_item(item)
+                    ipairs = process_item(item)
 
                 except gevent.GreenletExit:
                     raise
@@ -616,6 +662,11 @@ class BasePollerFT(base.BaseFT):
                         LOG.error('%s - indicator state unhandled: %s',
                                   self.name, istatus.state)
                         continue
+
+        if agg_table is not None:
+            iterator.close()
+            agg_table.close()
+            shutil.rmtree('{}.aggregate-temp'.format(self.name))
 
         return True
 
@@ -890,3 +941,4 @@ class BasePollerFT(base.BaseFT):
     def gc(name, config=None):
         base.BaseFT.gc(name, config=config)
         shutil.rmtree(name, ignore_errors=True)
+        shutil.rmtree('{}.aggregate-temp'.format(name))
