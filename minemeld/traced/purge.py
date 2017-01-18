@@ -23,6 +23,11 @@ def _parse_args():
         help='Dry run'
     )
     parser.add_argument(
+        '--all',
+        action='store_true',
+        help='Delete all traces'
+    )
+    parser.add_argument(
         'config',
         action='store',
         metavar='CONFIG',
@@ -164,7 +169,7 @@ def main():
             LOG.debug("Invalid table name: %s", t)
             continue
 
-        if d < oldest:
+        if d < oldest or args.all:
             LOG.info('Marking table %s for removal', t)
             tobe_removed.append(t)
 

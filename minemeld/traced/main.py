@@ -118,7 +118,8 @@ def main():
     trace_writer = minemeld.traced.writer.Writer(
         comm,
         store,
-        topic=config.get('topic', 'mbus:log')
+        topic=config.get('topic', 'mbus:log'),
+        config=config.get('writer', {})
     )
 
     query_processor = minemeld.traced.queryprocessor.QueryProcessor(

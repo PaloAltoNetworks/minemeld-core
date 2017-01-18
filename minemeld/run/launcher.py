@@ -26,6 +26,8 @@ import argparse
 import os
 import math
 
+import psutil
+
 import minemeld.chassis
 import minemeld.mgmtbus
 import minemeld.run.config
@@ -69,6 +71,28 @@ def _run_chassis(fabricconfig, mgmtbusconfig, fts):
     except:
         LOG.exception('Exception in chassis main procedure')
         raise
+
+
+def _check_disk_space(num_nodes):
+    free_disk_per_node = int(os.environ.get(
+        'MM_DISK_SPACE_PER_NODE',
+        10*1024  # default: 10MB per node
+    ))
+    needed_disk = free_disk_per_node*num_nodes*1024
+    free_disk = psutil.disk_usage('.').free
+
+    LOG.debug('Disk space - needed: {} available: {}'.format(needed_disk, free_disk))
+
+    if free_disk <= needed_disk:
+        LOG.critical(
+            ('Not enough space left on the device, available: {} needed: {}'
+             ' - please delete traces, logs and old engine versions and restart').format(
+             free_disk, needed_disk
+            )
+        )
+        return None
+
+    return free_disk
 
 
 def _parse_args():
@@ -115,6 +139,7 @@ def main():
     mbusmaster = None
     processes_lock = None
     processes = None
+    disk_space_monitor_glet = None
 
     def _cleanup():
         if mbusmaster is not None:
@@ -149,6 +174,15 @@ def main():
         _cleanup()
         signal_received.set()
 
+    def _disk_space_monitor(num_nodes):
+        while True:
+            if _check_disk_space(num_nodes=num_nodes) is None:
+                _cleanup()
+                signal_received.set()
+                break
+
+            gevent.sleep(60)
+
     args = _parse_args()
 
     # logging
@@ -176,6 +210,10 @@ def main():
 
     LOG.info("mm-run.py config: %s", config)
 
+    if _check_disk_space(num_nodes=len(config.nodes)) is None:
+        LOG.critical('Not enough disk space available, exit')
+        return 2
+
     np = args.multiprocessing
     if np == 0:
         np = multiprocessing.cpu_count()
@@ -185,7 +223,7 @@ def main():
     npc = args.nodes_per_chassis
     if npc <= 0:
         LOG.critical('nodes-per-chassis should be a positive integer')
-        return 1
+        return 2
 
     np = min(
         int(math.ceil(len(config.nodes)/npc)),
@@ -248,6 +286,8 @@ def main():
         _cleanup()
         raise
 
+    disk_space_monitor_glet = gevent.spawn(_disk_space_monitor, len(config.nodes))
+
     try:
         while not signal_received.wait(timeout=1.0):
             with processes_lock:
@@ -258,5 +298,9 @@ def main():
 
     except KeyboardInterrupt:
         LOG.info("Ctrl-C received, exiting")
+
     except:
         LOG.exception("Exception in main loop")
+
+    if disk_space_monitor_glet is not None:
+        disk_space_monitor_glet.kill()
