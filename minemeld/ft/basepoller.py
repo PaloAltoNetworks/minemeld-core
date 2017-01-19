@@ -297,6 +297,7 @@ class BasePollerFT(base.BaseFT):
 
     def __init__(self, name, chassis, config):
         self.table = None
+        self.agg_table = None
 
         self._actor_queue = gevent.queue.Queue(maxsize=128)
         self._actor_glet = None
@@ -508,7 +509,11 @@ class BasePollerFT(base.BaseFT):
         return current
 
     def _aggregate_iterator(self, iterator):
-        _agg_table = _bptable_factory(
+        if self.agg_table is not None:
+            self.agg_table.close()
+            self.agg_table = None
+
+        self.agg_table = _bptable_factory(
             '{}.aggregate-temp'.format(self.name),
             truncate=True,
             type_in_key=True
@@ -538,9 +543,9 @@ class BasePollerFT(base.BaseFT):
                     continue
 
                 for indicator, attributes in ipairs:
-                    _agg_table.put(indicator, attributes)
+                    self.agg_table.put(indicator, attributes)
 
-        return _agg_table
+        return self.agg_table
 
     def _aggregate_process_item(self, item):
         return [item]
@@ -663,9 +668,10 @@ class BasePollerFT(base.BaseFT):
                                   self.name, istatus.state)
                         continue
 
-        if agg_table is not None:
+        if self.agg_table is not None:
             iterator.close()
-            agg_table.close()
+            self.agg_table.close()
+            self.agg_table = None
             shutil.rmtree('{}.aggregate-temp'.format(self.name))
 
         return True
