@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 #  Copyright 2015 Palo Alto Networks, Inc
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
@@ -821,6 +822,25 @@ class MineMeldFTBasePollerTests(unittest.TestCase):
         bpt0.close()
 
         bpt1 = minemeld.ft.basepoller._bptable_factory(FTNAME, truncate=False, type_in_key=True)
+        bpt1.close()
+
+    @mock.patch.object(gevent, 'spawn')
+    @mock.patch.object(gevent, 'spawn_later')
+    @mock.patch.object(gevent, 'sleep', side_effect=gevent.GreenletExit())
+    @mock.patch('gevent.event.Event', side_effect=gevent_event_mock_factory)
+    @mock.patch('minemeld.ft.basepoller.utc_millisec', side_effect=logical_millisec)
+    def test_bptable_8(self, um_mock, event_mock,
+                       sleep_mock, spawnl_mock, spawn_mock):
+        t = minemeld.ft.table.Table(FTNAME, truncate=True)
+        bpt1 = minemeld.ft.basepoller._BPTable_v1(t, type_in_key=True)
+        bpt1.put(indicator=u'☃.net/påth', value={u'☃.net/påth': 1, 'type': u'☃.net/påth'})
+        t = bpt1.get(u'☃.net/påth', itype=u'☃.net/påth')
+        self.assertNotEqual(t, None)
+
+        k, v = next(bpt1.query(include_value=True))
+        self.assertEqual(k, u'☃.net/påth')
+        self.assertEqual(v, {u'☃.net/påth': 1, 'type': u'☃.net/påth'})
+
         bpt1.close()
 
     @mock.patch.object(gevent, 'spawn')
