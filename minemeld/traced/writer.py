@@ -67,7 +67,7 @@ class Writer(object):
         )
 
         self._disk_monitor_glet = DiskSpaceMonitor(
-            threshold=config.get('threshold', 90),
+            threshold=config.get('threshold', 70),
             low_disk=self._low_disk
         )
         self._disk_monitor_glet.start()
