@@ -397,9 +397,9 @@ class Table(object):
             for ekey in ri:
                 ekey = ekey[2:]
                 if include_value:
-                    yield ekey, self.get(ekey)
+                    yield ekey.decode('utf8', 'ignore'), self.get(ekey)
                 else:
-                    yield ekey
+                    yield ekey.decode('utf8', 'ignore')
 
     def _query_by_index(self, index, from_key=None, to_key=None,
                         include_value=False, include_stop=True,
@@ -456,9 +456,9 @@ class Table(object):
                     continue
 
                 if include_value:
-                    yield ekey, self.get(ekey)
+                    yield ekey.decode('utf8', 'ignore'), self.get(ekey)
                 else:
-                    yield ekey
+                    yield ekey.decode('utf8', 'ignore')
 
         LOG.info('Deleted in scan of {}: {}'.format(index, ldeleted))
 
