@@ -530,7 +530,8 @@ class BasePollerFT(base.BaseFT):
                         '%s - state not STARTED, aggregation not performed',
                         self.name
                     )
-                    raise RuntimeError('Wrong state')
+                    self.agg_table.close()
+                    return False
 
                 try:
                     ipairs = self._process_item(item)
@@ -546,7 +547,7 @@ class BasePollerFT(base.BaseFT):
                 for indicator, attributes in ipairs:
                     self.agg_table.put(indicator, attributes)
 
-        return self.agg_table
+        return True
 
     def _aggregate_process_item(self, item):
         return [item]
@@ -570,11 +571,12 @@ class BasePollerFT(base.BaseFT):
                 return False
 
         process_item = self._process_item
-        agg_table = None
         if self.aggregate_indicators:
-            agg_table = self._aggregate_iterator(iterator)
+            if not self._aggregate_iterator(iterator):
+                return False
+
             process_item = self._aggregate_process_item
-            iterator = agg_table.query(include_value=True)
+            iterator = self.agg_table.query(include_value=True)
 
         for nitem, item in enumerate(iterator):
             if nitem != 0 and nitem % 1024 == 0:
