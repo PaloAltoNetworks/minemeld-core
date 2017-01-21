@@ -125,7 +125,7 @@ def _extensions_changed(activated_path, deactivated_path, g):
             try:
                 sys.path.remove(deactivated_path)
             except ValueError:
-                pass
+                LOG.error('extensions_changed: Error removing {}'.format(deactivated_path))
 
         if activated_path is not None:
             if activated_path not in sys.path:
