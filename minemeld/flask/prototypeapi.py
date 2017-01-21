@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import sys
 import os
 import os.path
 
@@ -54,6 +55,14 @@ def _prototype_paths():
             LOG.info('Prototype entry point {} not loadable, ignored'.format(pname))
             continue
         try:
+            # even if old dist is no longer available, old module could be cached
+            cmodule = sys.modules.get(mmep.ep.module_name, None)
+            cmodule_path = getattr(cmodule, '__path__', None)
+            if cmodule is not None and cmodule_path is not None:
+                if not cmodule_path[0].startswith(mmep.ep.dist.location):
+                    LOG.info('Invalidting cache for {}'.format(mmep.ep.module_name))
+                    sys.modules.pop(mmep.ep.module_name)
+
             ep = mmep.ep.load()
             paths.append(ep())
         except:
