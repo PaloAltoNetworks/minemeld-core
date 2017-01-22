@@ -168,6 +168,7 @@ class MineMeldFTTaxiiTests(unittest.TestCase):
         # __init__ + get chkp + delete chkp
         self.assertEqual(len(SR_mock.mock_calls), 6)
         SR_mock.reset_mock()
+        SR_mock.return_value.zcard.return_value = 1
 
         # unicast
         b.filtered_update(
@@ -276,6 +277,7 @@ class MineMeldFTTaxiiTests(unittest.TestCase):
         self.assertEqual(cyboxprops['address_value'], '1.1.1.0/27')
         self.assertEqual(cyboxprops['xsi:type'], 'AddressObjectType')
         SR_mock.reset_mock()
+        SR_mock.return_value.zcard.return_value = 1
 
         # real range
         b.filtered_update(
@@ -335,6 +337,7 @@ class MineMeldFTTaxiiTests(unittest.TestCase):
         # __init__ + get chkp + delete chkp
         self.assertEqual(len(SR_mock.mock_calls), 6)
         SR_mock.reset_mock()
+        SR_mock.return_value.zcard.return_value = 1
 
         # unicast
         b.filtered_update(
@@ -391,6 +394,7 @@ class MineMeldFTTaxiiTests(unittest.TestCase):
         # __init__ + get chkp + delete chkp
         self.assertEqual(len(SR_mock.mock_calls), 6)
         SR_mock.reset_mock()
+        SR_mock.return_value.zcard.return_value = 1
 
         # unicast
         b.filtered_update(
@@ -447,6 +451,7 @@ class MineMeldFTTaxiiTests(unittest.TestCase):
         # __init__ + get chkp + delete chkp
         self.assertEqual(len(SR_mock.mock_calls), 6)
         SR_mock.reset_mock()
+        SR_mock.return_value.zcard.return_value = 1
 
         # unicast
         b.filtered_update(
@@ -473,6 +478,194 @@ class MineMeldFTTaxiiTests(unittest.TestCase):
         cyboxprops = indicator['observable']['object']['properties']
         self.assertEqual(cyboxprops['type'], 'URL')
         self.assertEqual(cyboxprops['value'], u'\u2603.net/p\xe5th')
+        SR_mock.reset_mock()
+
+        b.stop()
+
+    @mock.patch.object(redis, 'StrictRedis')
+    @mock.patch.object(gevent, 'Greenlet')
+    def test_datafeed_overflow(self, glet_mock, SR_mock):
+        config = {}
+        chassis = mock.Mock()
+
+        chassis.request_sub_channel.return_value = None
+        ochannel = mock.Mock()
+        chassis.request_pub_channel.return_value = ochannel
+        chassis.request_rpc_channel.return_value = None
+        rpcmock = mock.Mock()
+        rpcmock.get.return_value = {'error': None, 'result': 'OK'}
+        chassis.send_rpc.return_value = rpcmock
+
+        b = minemeld.ft.taxii.DataFeed(FTNAME, chassis, config)
+
+        inputs = ['a']
+        output = False
+
+        b.connect(inputs, output)
+        b.mgmtbus_initialize()
+
+        b.start()
+        # __init__ + get chkp + delete chkp
+        self.assertEqual(len(SR_mock.mock_calls), 6)
+        SR_mock.reset_mock()
+        SR_mock.return_value.zcard.return_value = b.max_entries
+
+        # unicast
+        b.filtered_update(
+            'a',
+            indicator=u'☃.net/påth',
+            value={
+                'type': 'URL',
+                'confidence': 100,
+                'share_level': 'green',
+                'sources': ['test.1']
+            }
+        )
+        for call in SR_mock.mock_calls:
+            name, args, kwargs = call
+            if name == '().pipeline().__enter__().hset':
+                self.fail(msg='hset found')
+
+        self.assertEqual(b.statistics['drop.overflow'], 1)
+
+        SR_mock.reset_mock()
+        SR_mock.return_value.zcard.return_value = b.max_entries - 1
+
+        # unicast
+        b.filtered_update(
+            'a',
+            indicator=u'☃.net/påth',
+            value={
+                'type': 'URL',
+                'confidence': 100,
+                'share_level': 'green',
+                'sources': ['test.1']
+            }
+        )
+        for call in SR_mock.mock_calls:
+            name, args, kwargs = call
+            if name == '().pipeline().__enter__().hset':
+                break
+        else:
+            self.fail(msg='hset not found')
+
+        self.assertEqual(args[2].startswith('lz4'), True)
+        stixdict = json.loads(lz4.decompress(args[2][3:]))
+
+        indicator = stixdict['indicators'][0]
+        cyboxprops = indicator['observable']['object']['properties']
+        self.assertEqual(cyboxprops['type'], 'URL')
+        self.assertEqual(cyboxprops['value'], u'\u2603.net/p\xe5th')
+
+        b.stop()
+
+    @mock.patch.object(redis, 'StrictRedis')
+    @mock.patch.object(gevent, 'Greenlet')
+    def test_datafeed_update_hash(self, glet_mock, SR_mock):
+        config = {}
+        chassis = mock.Mock()
+
+        chassis.request_sub_channel.return_value = None
+        ochannel = mock.Mock()
+        chassis.request_pub_channel.return_value = ochannel
+        chassis.request_rpc_channel.return_value = None
+        rpcmock = mock.Mock()
+        rpcmock.get.return_value = {'error': None, 'result': 'OK'}
+        chassis.send_rpc.return_value = rpcmock
+
+        b = minemeld.ft.taxii.DataFeed(FTNAME, chassis, config)
+
+        inputs = ['a']
+        output = False
+
+        b.connect(inputs, output)
+        b.mgmtbus_initialize()
+
+        b.start()
+        # __init__ + get chkp + delete chkp
+        self.assertEqual(len(SR_mock.mock_calls), 6)
+        SR_mock.reset_mock()
+        SR_mock.return_value.zcard.return_value = 1
+
+        # sha1
+        b.filtered_update(
+            'a',
+            indicator='a6a5418b4d67d9f3a33cbf184b25ac7f9fa87d33',
+            value={
+                'type': 'sha1',
+                'confidence': 100,
+                'share_level': 'green',
+                'sources': ['test.1']
+            }
+        )
+        for call in SR_mock.mock_calls:
+            name, args, kwargs = call
+            if name == '().pipeline().__enter__().hset':
+                break
+        else:
+            self.fail(msg='hset not found')
+
+        self.assertEqual(args[2].startswith('lz4'), True)
+        stixdict = json.loads(lz4.decompress(args[2][3:]))
+
+        indicator = stixdict['indicators'][0]
+        cyboxprops = indicator['observable']['object']['properties']
+        self.assertEqual(cyboxprops['hashes'][0]['simple_hash_value'], 'a6a5418b4d67d9f3a33cbf184b25ac7f9fa87d33')
+        self.assertEqual(cyboxprops['hashes'][0]['type']['value'], 'SHA1')
+        SR_mock.reset_mock()
+
+        # md5
+        b.filtered_update(
+            'a',
+            indicator='e23fadd6ceef8c618fc1c65191d846fa',
+            value={
+                'type': 'md5',
+                'confidence': 100,
+                'share_level': 'green',
+                'sources': ['test.1']
+            }
+        )
+        for call in SR_mock.mock_calls:
+            name, args, kwargs = call
+            if name == '().pipeline().__enter__().hset':
+                break
+        else:
+            self.fail(msg='hset not found')
+
+        self.assertEqual(args[2].startswith('lz4'), True)
+        stixdict = json.loads(lz4.decompress(args[2][3:]))
+
+        indicator = stixdict['indicators'][0]
+        cyboxprops = indicator['observable']['object']['properties']
+        self.assertEqual(cyboxprops['hashes'][0]['simple_hash_value'], 'e23fadd6ceef8c618fc1c65191d846fa')
+        self.assertEqual(cyboxprops['hashes'][0]['type']['value'], 'MD5')
+        SR_mock.reset_mock()
+
+        # sha256
+        b.filtered_update(
+            'a',
+            indicator='a6cba85bc92e0cff7a450b1d873c0eaa2e9fc96bf472df0247a26bec77bf3ff9',
+            value={
+                'type': 'sha256',
+                'confidence': 100,
+                'share_level': 'green',
+                'sources': ['test.1']
+            }
+        )
+        for call in SR_mock.mock_calls:
+            name, args, kwargs = call
+            if name == '().pipeline().__enter__().hset':
+                break
+        else:
+            self.fail(msg='hset not found')
+
+        self.assertEqual(args[2].startswith('lz4'), True)
+        stixdict = json.loads(lz4.decompress(args[2][3:]))
+
+        indicator = stixdict['indicators'][0]
+        cyboxprops = indicator['observable']['object']['properties']
+        self.assertEqual(cyboxprops['hashes'][0]['simple_hash_value'], 'a6cba85bc92e0cff7a450b1d873c0eaa2e9fc96bf472df0247a26bec77bf3ff9')
+        self.assertEqual(cyboxprops['hashes'][0]['type']['value'], 'SHA256')
         SR_mock.reset_mock()
 
         b.stop()

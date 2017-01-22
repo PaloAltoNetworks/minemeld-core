@@ -46,6 +46,7 @@ class RedisSet(actorbase.ActorBaseFT):
             'last_seen'
         )
         self.store_value = self.config.get('store_value', False)
+        self.max_entries = self.config.get('max_entries', 1000 * 1000)
 
     def connect(self, inputs, output):
         output = False
@@ -88,6 +89,10 @@ class RedisSet(actorbase.ActorBaseFT):
         self.SR.delete(self.redis_skey_value)
 
     def _add_indicator(self, score, indicator, value):
+        if self.length() >= self.max_entries:
+            self.statistics['drop.overflow'] += 1
+            return
+
         with self.SR.pipeline() as p:
             p.multi()
 
