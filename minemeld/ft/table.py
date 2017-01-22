@@ -115,7 +115,8 @@ class Table(object):
         )
         self._read_metadata()
 
-        self.compact_interval = int(os.environ.get('MM_TABLE_COMPACT_INTERVAL', '86400'))
+        self.compact_interval = int(os.environ.get('MM_TABLE_COMPACT_INTERVAL', 3600 * 6))
+        self.compact_delay = int(os.environ.get('MM_TABLE_COMPACT_DELAY', 3600))
         self._compact_glet = gevent.spawn(self._compact_loop)
 
     def _init_db(self):
@@ -463,8 +464,12 @@ class Table(object):
         LOG.info('Deleted in scan of {}: {}'.format(index, ldeleted))
 
     def _compact_loop(self):
+        gevent.sleep(self.compact_delay)
+
         while True:
             try:
+                gevent.idle()
+
                 counter = 0
                 for idx in self.indexes.keys():
                     for i in self.query(index=idx, include_value=False):

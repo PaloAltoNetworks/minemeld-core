@@ -43,6 +43,7 @@ import cybox.core
 import cybox.objects.address_object
 import cybox.objects.domain_name_object
 import cybox.objects.uri_object
+import cybox.objects.file_object
 
 from . import basepoller
 from . import base
@@ -759,6 +760,24 @@ def _stix_url_observable(namespace, indicator, value):
     return [o]
 
 
+def _stix_hash_observable(namespace, indicator, value):
+    id_ = '{}:observable-{}'.format(
+        namespace,
+        uuid.uuid4()
+    )
+
+    uo = cybox.objects.file_object.File()
+    uo.add_hash(indicator)
+
+    o = cybox.core.Observable(
+        title='{}: {}'.format(value['type'], indicator),
+        id_=id_,
+        item=uo
+    )
+
+    return [o]
+
+
 _TYPE_MAPPING = {
     'IPv4': {
         'indicator_type': stix.common.vocabs.IndicatorType.TERM_IP_WATCHLIST,
@@ -775,6 +794,18 @@ _TYPE_MAPPING = {
     'domain': {
         'indicator_type': stix.common.vocabs.IndicatorType.TERM_URL_WATCHLIST,
         'mapper': _stix_domain_observable
+    },
+    'sha256': {
+        'indicator_type': stix.common.vocabs.IndicatorType.TERM_FILE_HASH_WATCHLIST,
+        'mapper': _stix_hash_observable
+    },
+    'sha1': {
+        'indicator_type': stix.common.vocabs.IndicatorType.TERM_FILE_HASH_WATCHLIST,
+        'mapper': _stix_hash_observable
+    },
+    'md5': {
+        'indicator_type': stix.common.vocabs.IndicatorType.TERM_FILE_HASH_WATCHLIST,
+        'mapper': _stix_hash_observable
     }
 }
 
@@ -809,6 +840,8 @@ class DataFeed(actorbase.ActorBaseFT):
         if self.age_out_interval < 60:
             LOG.info('%s - age out interval too small, forced to 60 seconds')
             self.age_out_interval = 60
+
+        self.max_entries = self.config.get('max_entries', 1000 * 1000)
 
     def connect(self, inputs, output):
         output = False
@@ -862,9 +895,16 @@ class DataFeed(actorbase.ActorBaseFT):
         self.SR.delete(self.redis_skey_value)
 
     def _add_indicator(self, score, indicator, value):
+        LOG.info(self.length())
+        if self.length() >= self.max_entries:
+            LOG.info('dropped overflow')
+            self.statistics['drop.overflow'] += 1
+            return
+
         type_ = value['type']
         type_mapper = _TYPE_MAPPING.get(type_, None)
         if type_mapper is None:
+            self.statistics['drop.unknown_type'] += 1
             LOG.error('%s - Unsupported indicator type: %s', self.name, type_)
             return
 
