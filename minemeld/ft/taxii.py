@@ -895,7 +895,6 @@ class DataFeed(actorbase.ActorBaseFT):
         self.SR.delete(self.redis_skey_value)
 
     def _add_indicator(self, score, indicator, value):
-        LOG.info(self.length())
         if self.length() >= self.max_entries:
             LOG.info('dropped overflow')
             self.statistics['drop.overflow'] += 1
