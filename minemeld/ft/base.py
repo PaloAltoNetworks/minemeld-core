@@ -29,6 +29,7 @@ from . import ft_states
 from . import utils
 
 
+DISABLE_FULL_TRACE = 'MM_DISABLE_FULL_TRACE' in os.environ
 LOG = logging.getLogger(__name__)
 
 
@@ -466,7 +467,8 @@ class BaseFT(object):
         LOG.debug('%s {%s} - update from %s value %s',
                   self.name, self.state, source, value)
 
-        self.trace('RECVD_UPDATE', indicator, source_node=source, value=value)
+        if not DISABLE_FULL_TRACE:
+            self.trace('RECVD_UPDATE', indicator, source_node=source, value=value)
 
         if self.state not in [ft_states.STARTED, ft_states.CHECKPOINT]:
             self.statistics['error.wrong_state'] += 1
@@ -489,7 +491,9 @@ class BaseFT(object):
         )
 
         if fltindicator is None:
-            self.trace('DROP_UPDATE', indicator, source_node=source, value=value)
+            if not DISABLE_FULL_TRACE:
+                self.trace('DROP_UPDATE', indicator, source_node=source, value=value)
+
             self.filtered_withdraw(
                 source=source,
                 indicator=indicator,
@@ -513,7 +517,8 @@ class BaseFT(object):
         LOG.debug('%s {%s} - withdraw from %s value %s',
                   self.name, self.state, source, value)
 
-        self.trace('RECVD_WITHDRAW', indicator, source_node=source, value=value)
+        if not DISABLE_FULL_TRACE:
+            self.trace('RECVD_WITHDRAW', indicator, source_node=source, value=value)
 
         if self.state not in [ft_states.STARTED, ft_states.CHECKPOINT]:
             self.statistics['error.wrong_state'] += 1
@@ -531,7 +536,8 @@ class BaseFT(object):
         )
 
         if fltindicator is None:
-            self.trace('DROP_WITHDRAW', indicator, source_node=source, value=value)
+            if not DISABLE_FULL_TRACE:
+                self.trace('DROP_WITHDRAW', indicator, source_node=source, value=value)
             return
 
         if fltvalue is not None:
