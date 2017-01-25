@@ -43,6 +43,8 @@ __all__ = ['BLUEPRINT']
 
 BLUEPRINT = MMBlueprint('extensions', __name__, url_prefix='')
 
+DISABLE_NEW_EXTENSIONS = config.get('DISABLE_NEW_EXTENSIONS', False)
+
 
 def _get_extensions():
     library_directory = config.get('MINEMELD_LOCAL_LIBRARY_PATH', None)
@@ -163,6 +165,9 @@ def list_extensions():
 
 @BLUEPRINT.route('/extensions/<extension>/activate', methods=['POST'], read_write=True)
 def activate_extension(extension):
+    if DISABLE_NEW_EXTENSIONS:
+        return 'Disabled', 403
+
     params = request.get_json(silent=True)
     if params is None:
         return jsonify(error={'message': 'no params'}), 400
@@ -216,6 +221,9 @@ def activate_extension(extension):
 
 @BLUEPRINT.route('/extensions/<extension>/deactivate', methods=['GET', 'POST'], read_write=True)
 def deactivate_extension(extension):
+    if DISABLE_NEW_EXTENSIONS:
+        return 'Disabled', 403
+
     params = request.get_json(silent=True)
     if params is None:
         return jsonify(error={'message': 'no params'}), 400
@@ -269,6 +277,9 @@ def deactivate_extension(extension):
 
 @BLUEPRINT.route('/extensions/<extension>/uninstall', methods=['GET', 'POST'], read_write=True)
 def uninstall_extension(extension):
+    if DISABLE_NEW_EXTENSIONS:
+        return 'Disabled', 403
+
     params = request.get_json(silent=True)
     if params is None:
         return jsonify(error={'message': 'no params'}), 400
@@ -318,6 +329,9 @@ def uninstall_extension(extension):
 
 @BLUEPRINT.route('/extensions', methods=['POST'], read_write=True)
 def upload_extension():
+    if DISABLE_NEW_EXTENSIONS:
+        return 'Disabled', 403
+
     library_directory = config.get('MINEMELD_LOCAL_LIBRARY_PATH', None)
     if library_directory is None:
         raise RuntimeError('MINEMELD_LOCAL_LIBRARY_PATH not set')
@@ -373,6 +387,9 @@ def upload_extension():
 
 @BLUEPRINT.route('/extensions/git-refs', methods=['GET'], read_write=False)
 def get_git_refs():
+    if DISABLE_NEW_EXTENSIONS:
+        return 'Disabled', 403
+
     git_endpoint = request.values.get('ep', None)
     if git_endpoint is None:
         return jsonify(error={'message': 'Missing endpoint'}), 400
@@ -415,6 +432,9 @@ def get_git_refs():
 
 @BLUEPRINT.route('/extensions/git-install', methods=['POST'], read_write=True)
 def install_from_git():
+    if DISABLE_NEW_EXTENSIONS:
+        return 'Disabled', 403
+
     library_directory = config.get('MINEMELD_LOCAL_LIBRARY_PATH', None)
     if library_directory is None:
         raise RuntimeError('MINEMELD_LOCAL_LIBRARY_PATH not set')
