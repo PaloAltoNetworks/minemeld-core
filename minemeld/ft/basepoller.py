@@ -950,4 +950,4 @@ class BasePollerFT(base.BaseFT):
     def gc(name, config=None):
         base.BaseFT.gc(name, config=config)
         shutil.rmtree(name, ignore_errors=True)
-        shutil.rmtree('{}.aggregate-temp'.format(name))
+        shutil.rmtree('{}.aggregate-temp'.format(name), ignore_errors=True)
