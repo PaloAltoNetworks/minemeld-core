@@ -14,7 +14,9 @@
 
 import re
 import cStringIO
+import json
 
+from netaddr import IPRange, AddrFormatError
 from flask import request, jsonify, Response, stream_with_context
 from flask.ext.login import current_user
 
@@ -35,7 +37,20 @@ _INVALID_TOKEN_RE = re.compile('(?:[^\./+=\?&]+\*[^\./+=\?&]*)|(?:[^\./+=\?&]*\*
 BLUEPRINT = MMBlueprint('feeds', __name__, url_prefix='/feeds')
 
 
-def generate_panosurl_feed(feed, start, num, desc, value):
+def _translate_ip_ranges(indicator, value=None):
+    if value is not None and value['type'] != 'IPv4':
+        return [indicator]
+
+    try:
+        ip_range = IPRange(*indicator.split('-', 1))
+
+    except (AddrFormatError, ValueError, TypeError):
+        return [indicator]
+
+    return [str(x) if x.size != 1 else str(x.network) for x in ip_range.cidrs()]
+
+
+def generate_panosurl_feed(feed, start, num, desc, value, **kwargs):
     zrange = SR.zrange
     if desc:
         zrange = SR.zrevrange
@@ -63,7 +78,7 @@ def generate_panosurl_feed(feed, start, num, desc, value):
         cstart += 100
 
 
-def generate_plain_feed(feed, start, num, desc, value):
+def generate_plain_feed(feed, start, num, desc, value, **kwargs):
     zrange = SR.zrange
     if desc:
         zrange = SR.zrevrange
@@ -71,11 +86,16 @@ def generate_plain_feed(feed, start, num, desc, value):
     if num is None:
         num = (1 << 32)-1
 
+    translate_ip_ranges = kwargs.pop('translate_ip_ranges', False)
+
     cstart = start
 
     while cstart < (start+num):
         ilist = zrange(feed, cstart,
                        cstart-1+min(start+num - cstart, FEED_INTERVAL))
+
+        if translate_ip_ranges:
+            ilist = [xi for i in ilist for xi in _translate_ip_ranges(i)]
 
         yield '\n'.join(ilist)+'\n'
 
@@ -85,13 +105,15 @@ def generate_plain_feed(feed, start, num, desc, value):
         cstart += 100
 
 
-def generate_json_feed(feed, start, num, desc, value):
+def generate_json_feed(feed, start, num, desc, value, **kwargs):
     zrange = SR.zrange
     if desc:
         zrange = SR.zrevrange
 
     if num is None:
         num = (1 << 32)-1
+
+    translate_ip_ranges = kwargs.pop('translate_ip_ranges', False)
 
     if value == 'json':
         yield '[\n'
@@ -105,27 +127,33 @@ def generate_json_feed(feed, start, num, desc, value):
 
         result = cStringIO.StringIO()
 
-        for i in ilist:
-            v = SR.hget(feed+'.value', i)
+        for indicator in ilist:
+            v = SR.hget(feed+'.value', indicator)
+
+            xindicators = [indicator]
+            if translate_ip_ranges and '-' in indicator:
+                xindicators = _translate_ip_ranges(indicator, None if v is None else json.loads(v))
+
             if v is None:
                 v = 'null'
 
-            if value == 'json' and not firstelement:
-                result.write(',\n')
+            for i in xindicators:
+                if value == 'json' and not firstelement:
+                    result.write(',\n')
 
-            if value == 'json-seq':
-                result.write('\x1E')
+                if value == 'json-seq':
+                    result.write('\x1E')
 
-            result.write('{"indicator":"')
-            result.write(i)
-            result.write('","value":')
-            result.write(v)
-            result.write('}')
+                result.write('{"indicator":"')
+                result.write(i)
+                result.write('","value":')
+                result.write(v)
+                result.write('}')
 
-            if value == 'json-seq':
-                result.write('\n')
+                if value == 'json-seq':
+                    result.write('\n')
 
-            firstelement = False
+                firstelement = False
 
         yield result.getvalue()
 
@@ -204,6 +232,9 @@ def get_feed_content(feed):
     if value is not None and value not in _FEED_FORMATS:
         return jsonify(error="unknown format %s" % value), 400
 
+    kwargs = {}
+    kwargs['translate_ip_ranges'] = int(request.values.get('tr', 0))  # generate IP ranges
+
     mimetype = 'text/plain'
     formatter = generate_plain_feed
     if value in _FEED_FORMATS:
@@ -212,7 +243,7 @@ def get_feed_content(feed):
 
     return Response(
         stream_with_context(
-            formatter(feed, start, num, desc, value)
+            formatter(feed, start, num, desc, value, **kwargs)
         ),
         mimetype=mimetype
     )
