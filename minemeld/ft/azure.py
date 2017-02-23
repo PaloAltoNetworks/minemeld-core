@@ -119,7 +119,11 @@ class AzureXML(basepoller.BasePollerFT):
                       self.name, r.status_code, r.content)
             raise
 
-        rtree = lxml.etree.parse(r.raw)
+        parser = lxml.etree.XMLParser()
+        for chunk in r.iter_content(chunk_size=10 * 1024):
+            parser.feed(chunk)
+        rtree = parser.close()
+
         regions = rtree.xpath(REGIONS_XPATH)
 
         for r in regions:
