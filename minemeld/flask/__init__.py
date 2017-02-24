@@ -57,6 +57,7 @@ def create_app():
     from . import metricsapi  # noqa
     from . import feedredis  # noqa
     from . import configapi  # noqa
+    from . import configdataapi  # noqa
     from . import taxiidiscovery  # noqa
     from . import taxiicollmgmt  # noqa
     from . import taxiipoll  # noqa
@@ -77,6 +78,7 @@ def create_app():
     app.register_blueprint(statusapi.BLUEPRINT)
     app.register_blueprint(feedredis.BLUEPRINT)
     app.register_blueprint(configapi.BLUEPRINT)
+    app.register_blueprint(configdataapi.BLUEPRINT)
     app.register_blueprint(taxiidiscovery.BLUEPRINT)
     app.register_blueprint(taxiicollmgmt.BLUEPRINT)
     app.register_blueprint(taxiipoll.BLUEPRINT)

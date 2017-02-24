@@ -85,14 +85,14 @@ class TaxiiClient(basepoller.BasePollerFT):
         if isinstance(self.key_file, bool) and self.key_file:
             self.key_file = os.path.join(
                 os.environ['MM_CONFIG_DIR'],
-                '%s-key.pem' % self.name
+                '%s.pem' % self.name
             )
 
         self.cert_file = self.config.get('cert_file', None)
         if isinstance(self.cert_file, bool) and self.cert_file:
             self.cert_file = os.path.join(
                 os.environ['MM_CONFIG_DIR'],
-                '%s-key.pem' % self.name
+                '%s.crt' % self.name
             )
 
         self.side_config_path = self.config.get('side_config', None)
@@ -186,12 +186,14 @@ class TaxiiClient(basepoller.BasePollerFT):
         up = urlparse.urlparse(self.discovery_service)
         hostname = up.hostname
         path = up.path
+        port = up.port
 
         resp = tc.call_taxii_service2(
             hostname,
             path,
             libtaxii.constants.VID_TAXII_XML_11,
-            request
+            request,
+            port=port
         )
 
         tm = libtaxii.get_message_from_http_response(resp, msg_id)
@@ -219,12 +221,14 @@ class TaxiiClient(basepoller.BasePollerFT):
         up = urlparse.urlparse(self.collection_mgmt_service)
         hostname = up.hostname
         path = up.path
+        port = up.port
 
         resp = tc.call_taxii_service2(
             hostname,
             path,
             libtaxii.constants.VID_TAXII_XML_11,
-            request
+            request,
+            port=port
         )
 
         tm = libtaxii.get_message_from_http_response(resp, msg_id)
@@ -273,12 +277,14 @@ class TaxiiClient(basepoller.BasePollerFT):
         up = urlparse.urlparse(self.poll_service)
         hostname = up.hostname
         path = up.path
+        port = up.port
 
         resp = tc.call_taxii_service2(
             hostname,
             path,
             libtaxii.constants.VID_TAXII_XML_11,
-            request
+            request,
+            port=port
         )
 
         return libtaxii.get_message_from_http_response(resp, msg_id)
@@ -305,12 +311,14 @@ class TaxiiClient(basepoller.BasePollerFT):
         up = urlparse.urlparse(self.poll_service)
         hostname = up.hostname
         path = up.path
+        port = up.port
 
         resp = tc.call_taxii_service2(
             hostname,
             path,
             libtaxii.constants.VID_TAXII_XML_11,
-            request
+            request,
+            port
         )
 
         tm = libtaxii.get_message_from_http_response(resp, msg_id)
@@ -678,6 +686,38 @@ class TaxiiClient(basepoller.BasePollerFT):
             os.remove(side_config_path)
         except:
             pass
+
+        cert_path = None
+        if config is not None:
+            cert_path = config.get('cert_file', None)
+
+            if isinstance(cert_path, bool) and cert_path:
+                cert_path = os.path.join(
+                    os.environ['MM_CONFIG_DIR'],
+                    '{}.crt'.format(name)
+                )
+
+            if cert_path is not None:
+                try:
+                    os.remove(cert_path)
+                except:
+                    pass
+
+        key_path = None
+        if config is not None:
+            key_path = config.get('key_file', None)
+
+            if isinstance(key_path, bool) and key_path:
+                key_path = os.path.join(
+                    os.environ['MM_CONFIG_DIR'],
+                    '{}.pem'.format(name)
+                )
+
+            if key_path is not None:
+                try:
+                    os.remove(key_path)
+                except:
+                    pass
 
 
 def _stix_ip_observable(namespace, indicator, value):
