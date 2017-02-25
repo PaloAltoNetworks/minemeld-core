@@ -121,7 +121,10 @@ class O365XML(basepoller.BasePollerFT):
                       self.name, r.status_code, r.text)
             raise
 
-        rtree = lxml.etree.parse(r.raw)
+        parser = lxml.etree.XMLParser()
+        for chunk in r.iter_content(chunk_size=10 * 1024):
+            parser.feed(chunk)
+        rtree = parser.close()
 
         products = self.products
         if len(products) == 0:

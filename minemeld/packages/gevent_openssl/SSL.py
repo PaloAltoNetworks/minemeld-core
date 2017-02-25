@@ -42,9 +42,11 @@ class Connection(object):
         return Connection(self._context, sock), addr
 
     def do_handshake(self):
-        # handshake is blocking as some sites are super sensible
-        # to handshake timeouts (to avoid DDoS)
-        return self._connection.do_handshake()
+        # even if some sites are super sensible
+        # to handshake timeouts (to avoid DDoS),
+        # we have to make handshake not blocking to avoid issues
+        # with firewalls or other middle boxes dropping the connection
+        return self.__iowait(self._connection.do_handshake)
 
     def connect(self, *args, **kwargs):
         return self.__iowait(self._connection.connect, *args, **kwargs)
