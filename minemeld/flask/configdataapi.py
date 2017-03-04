@@ -191,7 +191,7 @@ class _CDataCertificate(_CDataUploadOnly):
 
 class _CDataPrivateKey(_CDataUploadOnly):
     def __init__(self, cpath, datafilename):
-        super(_CDataCertificate, self).__init__(
+        super(_CDataPrivateKey, self).__init__(
             extension='pem',
             cpath=cpath,
             datafilename=datafilename
@@ -224,9 +224,9 @@ def save_config_data(datafilename):
     if datafiletype == 'yaml':
         result = _CDataYaml(cpath, datafilename).create()
     elif datafiletype == 'cert':
-        _CDataCertificate(cpath, datafilename).create()
+        result = _CDataCertificate(cpath, datafilename).create()
     elif datafiletype == 'pkey':
-        _CDataPrivateKey(cpath, datafilename).create()
+        result = _CDataPrivateKey(cpath, datafilename).create()
     else:
         return jsonify(error=dict(message='Unknown data file type')), 400
 

@@ -1,4 +1,4 @@
-#  Copyright 2015-2016 Palo Alto Networks, Inc
+#  Copyright 2015-present Palo Alto Networks, Inc
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -38,6 +38,7 @@ import libtaxii.messages_11
 import stix.core.stix_package
 import stix.indicator
 import stix.common.vocabs
+import stix.extensions.marking.ais
 
 import cybox.core
 import cybox.objects.address_object
@@ -75,24 +76,40 @@ class TaxiiClient(basepoller.BasePollerFT):
 
         self.ip_version_auto_detect = self.config.get('ip_version_auto_detect', True)
         self.discovery_service = self.config.get('discovery_service', None)
+        self.collection = self.config.get('collection', None)
+
+        # option for enabling client authentication
+        self.client_credentials_required = self.config.get(
+            'client_credentials_required',
+            True
+        )
         self.username = self.config.get('username', None)
         self.password = self.config.get('password', None)
-        self.collection = self.config.get('collection', None)
-        self.prefix = self.config.get('prefix', self.name)
-        self.ca_file = self.config.get('ca_file', None)
+        if self.username is not None or self.password is not None:
+            self.client_credentials_required = False
 
+        # option for enabling client cert, default disabled
+        self.client_cert_required = self.config.get('client_cert_required', False)
         self.key_file = self.config.get('key_file', None)
-        if isinstance(self.key_file, bool) and self.key_file:
+        if self.key_file is None and self.client_cert_required:
             self.key_file = os.path.join(
                 os.environ['MM_CONFIG_DIR'],
                 '%s.pem' % self.name
             )
-
         self.cert_file = self.config.get('cert_file', None)
-        if isinstance(self.cert_file, bool) and self.cert_file:
+        if self.cert_file is None and self.client_cert_required:
             self.cert_file = os.path.join(
                 os.environ['MM_CONFIG_DIR'],
                 '%s.crt' % self.name
+            )
+
+        self.subscription_id_required = self.config.get('subscription_id_required', False)
+
+        self.ca_file = self.config.get('ca_file', None)
+        if self.ca_file is None:
+            self.ca_file = os.path.join(
+                os.environ['MM_CONFIG_DIR'],
+                '%s-ca.crt' % self.name
             )
 
         self.side_config_path = self.config.get('side_config', None)
@@ -101,6 +118,8 @@ class TaxiiClient(basepoller.BasePollerFT):
                 os.environ['MM_CONFIG_DIR'],
                 '%s_side_config.yml' % self.name
             )
+
+        self.prefix = self.config.get('prefix', self.name)
 
         self.confidence_map = self.config.get('confidence_map', {
             'low': 40,
@@ -111,6 +130,10 @@ class TaxiiClient(basepoller.BasePollerFT):
         self._load_side_config()
 
     def _load_side_config(self):
+        if not self.client_credentials_required and not self.subscription_id_required:
+            LOG.info('{} - side config not needed'.format(self.name))
+            return
+
         try:
             with open(self.side_config_path, 'r') as f:
                 sconfig = yaml.safe_load(f)
@@ -119,12 +142,34 @@ class TaxiiClient(basepoller.BasePollerFT):
             LOG.error('%s - Error loading side config: %s', self.name, str(e))
             return
 
-        username = sconfig.get('username', None)
-        password = sconfig.get('password', None)
-        if username is not None and password is not None:
-            self.username = username
-            self.password = password
-            LOG.info('Loaded credentials from side config')
+        if self.client_credentials_required:
+            username = sconfig.get('username', None)
+            password = sconfig.get('password', None)
+            if username is not None and password is not None:
+                self.username = username
+                self.password = password
+                LOG.info('{} - Loaded credentials from side config'.format(self.name))
+
+        if self.subscription_id_required:
+            subscription_id = sconfig.get('subscription_id', None)
+            if subscription_id is not None:
+                self.subscription_id = subscription_id
+                LOG.info('{} - Loaded subscription id from side config'.format(self.name))
+
+    def _saved_state_restore(self, saved_state):
+        super(TaxiiClient, self)._saved_state_restore(saved_state)
+        self.last_taxii_run = saved_state.get('last_taxii_run', None)
+        LOG.info('last_taxii_run from sstate: %s', self.last_taxii_run)
+
+    def _saved_state_create(self):
+        sstate = super(TaxiiClient, self)._saved_state_create()
+        sstate['last_taxii_run'] = self.last_taxii_run
+
+        return sstate
+
+    def _saved_state_reset(self):
+        super(TaxiiClient, self)._saved_state_reset()
+        self.last_taxii_run = None
 
     def _build_taxii_client(self):
         result = libtaxii.clients.HttpClient()
@@ -170,7 +215,7 @@ class TaxiiClient(basepoller.BasePollerFT):
                     libtaxii.clients.HttpClient.AUTH_NONE
                 )
 
-        if self.ca_file is not None:
+        if self.ca_file is not None and os.path.isfile(self.ca_file):
             result.set_verify_server(
                 verify_server=True,
                 ca_file=self.ca_file
@@ -259,7 +304,19 @@ class TaxiiClient(basepoller.BasePollerFT):
                 (self.name, self.collection, tci.collection_type)
             )
 
-        self.poll_service = tci.polling_service_instances[0].poll_address
+        for pi in tci.polling_service_instances:
+            LOG.info('{} - message binding: {}'.format(
+                self.name, pi.poll_message_bindings
+            ))
+            if pi.poll_message_bindings[0] == libtaxii.constants.VID_TAXII_XML_11:
+                self.poll_service = pi.poll_address
+                LOG.info('{} - poll service found'.format(self.name))
+                break
+        else:
+            raise RuntimeError(
+                '%s - collection %s does not support TAXII 1.1 message binding (%s)' %
+                (self.name, self.collection, tci.collection_type)
+            )
 
         LOG.debug('%s - poll service: %s',
                   self.name, self.poll_service)
@@ -291,17 +348,23 @@ class TaxiiClient(basepoller.BasePollerFT):
 
     def _poll_collection(self, tc, begin=None, end=None):
         msg_id = libtaxii.messages_11.generate_message_id()
-        pps = libtaxii.messages_11.PollParameters(
-            response_type='FULL',
-            allow_asynch=False
-        )
-        request = libtaxii.messages_11.PollRequest(
+
+        prargs = dict(
             message_id=msg_id,
             collection_name=self.collection,
             exclusive_begin_timestamp_label=begin,
             inclusive_end_timestamp_label=end,
-            poll_parameters=pps
         )
+        if self.subscription_id_required:
+            prargs['subscription_id'] = self.subscription_id
+        else:
+            pps = libtaxii.messages_11.PollParameters(
+                response_type='FULL',
+                allow_asynch=False
+            )
+            prargs['poll_parameters'] = pps
+
+        request = libtaxii.messages_11.PollRequest(**prargs)
 
         LOG.debug('%s - first poll request %s',
                   self.name, request.to_xml(pretty_print=True))
@@ -382,6 +445,9 @@ class TaxiiClient(basepoller.BasePollerFT):
                         ci = {
                             'timestamp': dt_to_millisec(i.timestamp),
                         }
+
+                        if i.description is not None:
+                            ci['description'] = i.description
 
                         if i.confidence is not None:
                             confidence = str(i.confidence.value).lower()
@@ -485,12 +551,6 @@ class TaxiiClient(basepoller.BasePollerFT):
                     return None
 
         elif ot == 'AddressObjectType':
-            source = op.get('is_source', None)
-            if source is True:
-                result['direction'] = 'inbound'
-            elif source is False:
-                result['direction'] = 'outbound'
-
             ov = op.get('address_value', None)
             if ov is None:
                 LOG.error('%s - no value in observable props', self.name)
@@ -508,6 +568,12 @@ class TaxiiClient(basepoller.BasePollerFT):
                     result['type'] = 'IPv6'
                 elif addrcat == 'ipv4-addr':
                     result['type'] = 'IPv4'
+                elif addrcat == 'e-mail':
+                    result['type'] = 'email-addr'
+                else:
+                    LOG.error('{} - unknown address category: {}'.format(self.name, addrcat))
+                    return None
+
             else:
                 # some feeds do not set the IP Address type and it
                 # defaults to ipv4-addr even if the IP is IPv6
@@ -517,11 +583,23 @@ class TaxiiClient(basepoller.BasePollerFT):
                 else:
                     address = ov
 
-                parsed = netaddr.IPNetwork(address)
+                try:
+                    parsed = netaddr.IPNetwork(address)
+                except netaddr.AddrFormatError:
+                    LOG.error('{} - Unknown IP version: {}'.format(self.name, address))
+                    return None
+
                 if parsed.version == 4:
                     result['type'] = 'IPv4'
                 elif parsed.version == 6:
                     result['type'] = 'IPv6'
+
+            if result['type'] in ['IPv4', 'IPv6']:
+                source = op.get('is_source', None)
+                if source is True:
+                    result['direction'] = 'inbound'
+                elif source is False:
+                    result['direction'] = 'outbound'
 
             if 'type' not in result:
                 LOG.error('%s - no IP category and unknown version')
@@ -572,6 +650,9 @@ class TaxiiClient(basepoller.BasePollerFT):
         iid, iv, stix_objects = item
 
         value['%s_indicator' % self.prefix] = iid
+
+        if 'description' in iv:
+            value['{}_indicator_description'.format(self.prefix)] = iv['description']
 
         if 'confidence' in iv:
             value['confidence'] = iv['confidence']
@@ -640,6 +721,24 @@ class TaxiiClient(basepoller.BasePollerFT):
         return result
 
     def _build_iterator(self, now):
+        if self.client_credentials_required:
+            if self.username is None or self.password is None:
+                raise RuntimeError(
+                    '%s - username or password required and not set, poll not performed' % self.name
+                )
+        if self.cert_file is not None and not os.path.isfile(self.cert_file):
+            raise RuntimeError(
+                '%s - client cert required and not set, poll not performed' % self.name
+            )
+        if self.key_file is not None and not os.path.isfile(self.key_file):
+            raise RuntimeError(
+                '%s - client cert key required and not set, poll not performed' % self.name
+            )
+        if self.subscription_id_required and self.subscription_id is None:
+            raise RuntimeError(
+                '%s - subscription id required and not set, poll not performed' % self.name
+            )
+
         tc = self._build_taxii_client()
         self._discover_services(tc)
         self._check_collections(tc)
@@ -664,6 +763,10 @@ class TaxiiClient(basepoller.BasePollerFT):
 
         return result
 
+    def _flush(self):
+        self.last_taxii_run = None
+        super(TaxiiClient, self)._flush()
+
     def hup(self, source=None):
         LOG.info('%s - hup received, reload side config', self.name)
         self._load_side_config()
@@ -687,11 +790,14 @@ class TaxiiClient(basepoller.BasePollerFT):
         except:
             pass
 
+        client_cert_required = False
+        if config is not None:
+            client_cert_required = config.get('client_cert_required', False)
+
         cert_path = None
         if config is not None:
             cert_path = config.get('cert_file', None)
-
-            if isinstance(cert_path, bool) and cert_path:
+            if cert_path is None and client_cert_required:
                 cert_path = os.path.join(
                     os.environ['MM_CONFIG_DIR'],
                     '{}.crt'.format(name)
@@ -706,8 +812,7 @@ class TaxiiClient(basepoller.BasePollerFT):
         key_path = None
         if config is not None:
             key_path = config.get('key_file', None)
-
-            if isinstance(key_path, bool) and key_path:
+            if key_path is None and client_cert_required:
                 key_path = os.path.join(
                     os.environ['MM_CONFIG_DIR'],
                     '{}.pem'.format(name)
