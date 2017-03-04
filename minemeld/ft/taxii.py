@@ -17,14 +17,14 @@ from __future__ import absolute_import
 import logging
 import copy
 import urlparse
-import datetime
-import pytz
+import uuid
 import os.path
-import lz4
+from datetime import datetime, timedelta
 
+import pytz
+import lz4
 import lxml.etree
 import yaml
-import uuid
 import redis
 import gevent
 import gevent.event
@@ -73,6 +73,10 @@ class TaxiiClient(basepoller.BasePollerFT):
                 self.name, self.initial_interval
             )
             self.initial_interval = 86400
+        self.max_poll_dt = self.config.get(
+            'max_poll_dt',
+            86400
+        )
 
         self.ip_version_auto_detect = self.config.get('ip_version_auto_detect', True)
         self.discovery_service = self.config.get('discovery_service', None)
@@ -420,6 +424,27 @@ class TaxiiClient(basepoller.BasePollerFT):
         return [[iid, iv, params]
                 for iid, iv in stix_objects['indicators'].iteritems()]
 
+    def _incremental_poll_collection(self, taxii_client, begin, end):
+        cbegin = begin
+        dt = timedelta(seconds=self.max_poll_dt)
+
+        while cbegin < end:
+            cend = min(end, cbegin+dt)
+
+            LOG.info('{} - polling {!r} to {!r}'.format(self.name, cbegin, cend))
+            result = self._poll_collection(
+                taxii_client,
+                begin=cbegin,
+                end=cend
+            )
+
+            for i in result:
+                yield i
+
+            self.last_taxii_run = dt_to_millisec(cend)
+
+            cbegin = cend
+
     def _handle_content_blocks(self, content_blocks, objects):
         try:
             for cb in content_blocks:
@@ -446,8 +471,9 @@ class TaxiiClient(basepoller.BasePollerFT):
                             'timestamp': dt_to_millisec(i.timestamp),
                         }
 
-                        if i.description is not None:
-                            ci['description'] = i.description
+                        if i.description is not None and i.description.structuring_format is None:
+                            # copy description only if there is no markup to avoid side-effects
+                            ci['description'] = i.description.value
 
                         if i.confidence is not None:
                             confidence = str(i.confidence.value).lower()
@@ -619,7 +645,7 @@ class TaxiiClient(basepoller.BasePollerFT):
                     return None
 
         else:
-            LOG.error('%s - unknown type %s', self.name, ot)
+            LOG.error('{} - unknown type {} {!r}'.format(self.name, ot, op))
             return None
 
         result['indicator'] = ov
@@ -667,6 +693,9 @@ class TaxiiClient(basepoller.BasePollerFT):
 
         composed_observables = []
         for o in iv['observables']:
+            if o is None:
+                continue
+
             v = copy.copy(value)
 
             ob = o
@@ -747,21 +776,17 @@ class TaxiiClient(basepoller.BasePollerFT):
         if last_run is None:
             last_run = now-(self.initial_interval*1000)
 
-        begin = datetime.datetime.fromtimestamp(last_run/1000)
+        begin = datetime.fromtimestamp(last_run/1000)
         begin = begin.replace(tzinfo=pytz.UTC)
 
-        end = datetime.datetime.fromtimestamp(now/1000)
+        end = datetime.fromtimestamp(now/1000)
         end = end.replace(tzinfo=pytz.UTC)
 
-        result = self._poll_collection(
-            tc,
+        return self._incremental_poll_collection(
+            taxii_client=tc,
             begin=begin,
             end=end
         )
-
-        self.last_taxii_run = now
-
-        return result
 
     def _flush(self):
         self.last_taxii_run = None
@@ -1085,7 +1110,7 @@ class DataFeed(actorbase.ActorBaseFT):
                     value['type'],
                     ', '.join(value['sources'])
                 ),
-                timestamp=datetime.datetime.utcnow().replace(tzinfo=pytz.utc)
+                timestamp=datetime.utcnow().replace(tzinfo=pytz.utc)
             )
 
             confidence = value.get('confidence', None)
