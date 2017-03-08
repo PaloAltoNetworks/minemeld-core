@@ -12,13 +12,10 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import os.path
-import os
 import yaml
 import uuid
 import time
 import json
-import filelock
 import copy
 
 import minemeld.run.config
@@ -26,7 +23,6 @@ import minemeld.run.config
 from flask import request, jsonify
 
 from .redisclient import SR
-from .mmrpc import MMRpcClient
 from .aaa import MMBlueprint
 from .logger import LOG
 from . import utils
@@ -567,116 +563,6 @@ def delete_node(nodenum):
         return jsonify(error={'message': str(e)}), 500
 
     return jsonify(result=result)
-
-
-# API for working with side configs and dynamic data files
-@BLUEPRINT.route('/data/<datafilename>', methods=['GET'], read_write=False)
-def get_config_data(datafilename):
-    cpath = os.path.dirname(os.environ.get('MM_CONFIG'))
-
-    fdfname = datafilename+'.yml'
-
-    lockfname = os.path.join(cpath, fdfname+'.lock')
-    lock = filelock.FileLock(lockfname)
-
-    os.listdir(cpath)
-    if fdfname not in os.listdir(cpath):
-        return jsonify(error={
-            'message': 'Unknown config data file'
-        }), 400
-
-    try:
-        with lock.acquire(timeout=10):
-            with open(os.path.join(cpath, fdfname), 'r') as f:
-                result = yaml.safe_load(f)
-
-    except Exception as e:
-        return jsonify(error={
-            'message': 'Error loading config data file: %s' % str(e)
-        }), 500
-
-    return jsonify(result=result)
-
-
-@BLUEPRINT.route('/data/<datafilename>', methods=['PUT'], read_write=True)
-def save_config_data(datafilename):
-    cpath = os.path.dirname(os.environ.get('MM_CONFIG'))
-    tdir = os.path.dirname(os.path.join(cpath, datafilename))
-
-    if not os.path.samefile(cpath, tdir):
-        return jsonify(error={'msg': 'Wrong config data filename'}), 400
-
-    fdfname = os.path.join(cpath, datafilename+'.yml')
-
-    lockfname = fdfname+'.lock'
-    lock = filelock.FileLock(lockfname)
-
-    try:
-        body = request.get_json()
-    except Exception as e:
-        return jsonify(error={'message': str(e)}), 400
-
-    try:
-        with lock.acquire(timeout=10):
-            with open(fdfname, 'w') as f:
-                yaml.safe_dump(body, stream=f)
-    except Exception as e:
-        return jsonify(error={
-            'message': str(e)
-        }), 500
-
-    hup = request.args.get('h', None)
-    if hup is not None:
-        MMRpcClient.send_cmd(hup, 'hup', {'source': 'minemeld-web'})
-
-    return jsonify(result='ok'), 200
-
-
-@BLUEPRINT.route('/data/<datafilename>/append', methods=['POST'], read_write=True)
-def append_config_data(datafilename):
-    cpath = os.path.dirname(os.environ.get('MM_CONFIG'))
-    tdir = os.path.dirname(os.path.join(cpath, datafilename))
-
-    if not os.path.samefile(cpath, tdir):
-        return jsonify(error={'msg': 'Wrong config data filename'}), 400
-
-    cdfname = os.path.join(cpath, datafilename+'.yml')
-
-    lockfname = cdfname+'.lock'
-    lock = filelock.FileLock(lockfname)
-
-    try:
-        with lock.acquire(timeout=10):
-            if not os.path.isfile(cdfname):
-                config_data_file = []
-            else:
-                with open(cdfname, 'r') as f:
-                    config_data_file = yaml.safe_load(f)
-
-            if type(config_data_file) != list:
-                raise RuntimeError('Config data file is not a list')
-
-            body = request.get_json()
-            if body is None:
-                return jsonify(error={
-                    'message': 'No record in request'
-                }), 400
-
-            config_data_file.append(body)
-
-            with open(cdfname, 'w') as f:
-                yaml.safe_dump(config_data_file, stream=f)
-
-    except Exception as e:
-        return jsonify(error={
-            'message': 'Error appending to config data file: %s' % str(e)
-        }), 500
-
-    hup = request.args.get('h', None)
-    if hup is not None:
-        MMRpcClient.send_cmd(hup, 'hup', {'source': 'minemeld-web'})
-
-    return jsonify(result='ok')
 
 
 @_redlock

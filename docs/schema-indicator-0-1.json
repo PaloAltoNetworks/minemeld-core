@@ -21,7 +21,8 @@
                 "windows-registry-value",
                 "user-agent.fragment",
                 "file.name",
-                "process.command_line"
+                "process.command_line",
+                "email-addr"
             ]
         },
         "direction": {
