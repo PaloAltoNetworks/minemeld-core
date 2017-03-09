@@ -19,8 +19,8 @@ gevent.monkey.patch_all(thread=False, select=False)
 import logging
 import signal
 import time
-import pprint
 import uuid
+import json
 
 import click
 
@@ -41,6 +41,14 @@ def _send_cmd(ctx, target, command, params=None, source=True):
         target,
         command,
         params
+    )
+
+
+def _print_json(obj):
+    print json.dumps(
+        obj,
+        indent=4,
+        sort_keys=True
     )
 
 
@@ -84,7 +92,7 @@ def length(ctx, target):
     if target is None:
         raise click.UsageError(message='target required')
 
-    print _send_cmd(ctx, target, 'length')
+    _print_json(_send_cmd(ctx, target, 'length'))
 
     ctx.obj['COMM'].stop()
 
@@ -97,7 +105,7 @@ def hup(ctx, target):
         raise click.UsageError(message='target required')
 
     target = 'mbus:directslave:'+target
-    print _send_cmd(ctx, target, 'hup')
+    _print_json(_send_cmd(ctx, target, 'hup'))
 
     ctx.obj['COMM'].stop()
 
@@ -110,7 +118,8 @@ def status(ctx, target):
         target = minemeld.mgmtbus.MGMTBUS_MASTER
     else:
         target = 'mbus:directslave:'+target
-    pprint.pprint(_send_cmd(ctx, target, 'status', source=False))
+
+    _print_json(_send_cmd(ctx, target, 'status', source=False))
 
     ctx.obj['COMM'].stop()
 
@@ -121,7 +130,7 @@ def status(ctx, target):
 @click.pass_context
 def mm_signal(ctx, signal, target):
     target = 'mbus:directslave:'+target
-    pprint.pprint(_send_cmd(ctx, target, 'signal', source=False, params={'signal': signal}))
+    _print_json(_send_cmd(ctx, target, 'signal', source=False, params={'signal': signal}))
 
     ctx.obj['COMM'].stop()
 
@@ -139,14 +148,21 @@ def query(ctx, query, from_counter, from_timestamp, num_lines, query_uuid):
     if query_uuid is None:
         query_uuid = str(uuid.uuid4())
 
-    pprint.pprint(_send_cmd(ctx, minemeld.traced.QUERY_QUEUE,
-                            'query', source=False, params={
-                                'uuid': query_uuid,
-                                'timestamp': from_timestamp,
-                                'counter': from_counter,
-                                'num_lines': num_lines,
-                                'query': query
-                            }))
+    _print_json(
+        _send_cmd(
+            ctx,
+            minemeld.traced.QUERY_QUEUE,
+            'query',
+            source=False,
+            params={
+                'uuid': query_uuid,
+                'timestamp': from_timestamp,
+                'counter': from_counter,
+                'num_lines': num_lines,
+                'query': query
+            }
+        )
+    )
 
     ctx.obj['COMM'].stop()
 
