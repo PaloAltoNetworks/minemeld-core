@@ -103,6 +103,7 @@ class TaxiiClient(basepoller.BasePollerFT):
                 '%s.crt' % self.name
             )
 
+        self.subscription_id = None
         self.subscription_id_required = self.config.get('subscription_id_required', False)
 
         self.ca_file = self.config.get('ca_file', None)

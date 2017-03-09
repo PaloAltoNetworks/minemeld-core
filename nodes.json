@@ -103,5 +103,8 @@
     },
     "minemeld.ft.vt.Notifications": {
         "class": "minemeld.ft.vt:Notifications"
+    },
+    "minemeld.ft.mm.JSONSEQMiner": {
+        "class": "minemeld.ft.mm:JSONSEQMiner"
     }
 }
