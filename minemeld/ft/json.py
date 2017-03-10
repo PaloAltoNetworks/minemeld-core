@@ -70,6 +70,9 @@ class SimpleJSON(basepoller.BasePollerFT):
         self.prefix = self.config.get('prefix', 'json')
         self.fields = self.config.get('fields', None)
 
+        self.username = self.config.get('username', None)
+        self.password = self.config.get('password', None)
+
     def _process_item(self, item):
         if self.indicator not in item:
             LOG.debug('%s not in %s', self.indicator, item)
@@ -103,6 +106,9 @@ class SimpleJSON(basepoller.BasePollerFT):
             verify=self.verify_cert,
             timeout=self.polling_timeout
         )
+
+        if self.username is not None and self.password is not None:
+            rkwargs['auth'] = (self.username, self.password)
 
         r = requests.get(
             self.url,
