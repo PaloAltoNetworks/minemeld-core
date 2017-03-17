@@ -78,7 +78,10 @@ class TaxiiClient(basepoller.BasePollerFT):
             86400
         )
 
+        # options for processing
         self.ip_version_auto_detect = self.config.get('ip_version_auto_detect', True)
+        self.ignore_composition_operator = self.config.get('ignore_composition_operator', False)
+
         self.discovery_service = self.config.get('discovery_service', None)
         self.collection = self.config.get('collection', None)
 
@@ -528,7 +531,7 @@ class TaxiiClient(basepoller.BasePollerFT):
         oc = odict.get('observable_composition', None)
         if oc:
             ocoperator = oc.get('operator', None)
-            if ocoperator != 'OR':
+            if ocoperator != 'OR' and not self.ignore_composition_operator:
                 LOG.error(
                     '%s - Observable composition with %s not supported yet: %s',
                     self.name, ocoperator, odict
@@ -538,7 +541,7 @@ class TaxiiClient(basepoller.BasePollerFT):
             result['type'] = '_cyboxOR'
 
             result['observables'] = []
-            for nestedo in oc['observables']:
+            for nestedo in oc.get('observables', []):
                 if 'idref' not in nestedo:
                     LOG.error(
                         '%s - only Observable references are supported in Observable Composition: %s',
@@ -633,6 +636,23 @@ class TaxiiClient(basepoller.BasePollerFT):
                 return None
 
         elif ot == 'URIObjectType':
+            result['type'] = 'URL'
+
+            ov = op.get('value', None)
+            if ov is None:
+                LOG.error('%s - no value in observable props', self.name)
+                return None
+            if type(ov) != str:
+                ov = ov.get('value', None)
+                if ov is None:
+                    LOG.error('%s - no value in observable value', self.name)
+                    return None
+
+        elif ot == 'LinkObjectType':
+            if op.get('type', 'URL') != 'URL':
+                LOG.error('{} - Unhandled LinkObjectType type: {!r}'.format(self.name, op))
+                return None
+
             result['type'] = 'URL'
 
             ov = op.get('value', None)
