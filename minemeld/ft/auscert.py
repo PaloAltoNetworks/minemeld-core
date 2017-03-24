@@ -25,6 +25,7 @@ LOG = logging.getLogger(__name__)
 
 class MaliciousURLFeed(http.HttpFT):
     _AUTH_URL = 'https://www.auscert.org.au/login.html'
+    _COOKIE_DOMAIN = 'www.auscert.org.au'
 
     def configure(self):
         super(MaliciousURLFeed, self).configure()
@@ -59,9 +60,10 @@ class MaliciousURLFeed(http.HttpFT):
 
     def _build_iterator(self, now):
         if self.username is None or self.password is None:
-            LOG.info('%s - username or password not set, '
-                     'poll not performed', self.name)
-            return []
+            raise RuntimeError(
+                '{} - username or password not set, '
+                'poll not performed'.format(self.name)
+            )
 
         rkwargs = dict(
             stream=False,
@@ -85,8 +87,14 @@ class MaliciousURLFeed(http.HttpFT):
 
         r = session.post(
             self._AUTH_URL,
+            allow_redirects=False,
             **rkwargs
         )
+
+        if not self._COOKIE_DOMAIN in r.cookies.list_domains():
+            raise RuntimeError(
+                '{} - invalid login'.format(self.name)
+            )
 
         try:
             r.raise_for_status()
@@ -96,11 +104,18 @@ class MaliciousURLFeed(http.HttpFT):
             raise
 
         rkwargs.pop('headers', None)
+        rkwargs.pop('data', None)
         rkwargs['stream'] = True
-        r = session.post(
+        r = session.get(
             self.url,
             **rkwargs
         )
+
+        # if successful, response from AusCERT should have Content-Disposition header
+        if not 'content-disposition' in r.headers:
+            raise RuntimeError(
+                '{} - not authorized'.format(self.name)
+            )
 
         try:
             r.raise_for_status()
