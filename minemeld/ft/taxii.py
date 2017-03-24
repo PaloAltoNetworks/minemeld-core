@@ -471,9 +471,12 @@ class TaxiiClient(basepoller.BasePollerFT):
 
                 if stixpackage.indicators:
                     for i in stixpackage.indicators:
-                        ci = {
-                            'timestamp': dt_to_millisec(i.timestamp),
-                        }
+                        ci = {}
+
+                        if i.timestamp is not None:
+                            ci = {
+                                'timestamp': dt_to_millisec(i.timestamp),
+                            }
 
                         if i.description is not None and i.description.structuring_format is None:
                             # copy description only if there is no markup to avoid side-effects
@@ -615,7 +618,7 @@ class TaxiiClient(basepoller.BasePollerFT):
 
                 try:
                     parsed = netaddr.IPNetwork(address)
-                except netaddr.AddrFormatError:
+                except (netaddr.AddrFormatError, ValueError):
                     LOG.error('{} - Unknown IP version: {}'.format(self.name, address))
                     return None
 
