@@ -54,6 +54,15 @@ from .utils import dt_to_millisec, interval_in_sec, utc_millisec
 LOG = logging.getLogger(__name__)
 
 
+_STIX_MINEMELD_HASHES = [
+    'ssdeep',
+    'md5',
+    'sha1',
+    'sha256',
+    'sha512'
+]
+
+
 class TaxiiClient(basepoller.BasePollerFT):
     def __init__(self, name, chassis, config):
         self.poll_service = None
@@ -81,6 +90,7 @@ class TaxiiClient(basepoller.BasePollerFT):
         # options for processing
         self.ip_version_auto_detect = self.config.get('ip_version_auto_detect', True)
         self.ignore_composition_operator = self.config.get('ignore_composition_operator', False)
+        self.hash_priority = self.config.get('hash_priority', _STIX_MINEMELD_HASHES)
 
         self.discovery_service = self.config.get('discovery_service', None)
         self.collection = self.config.get('collection', None)
@@ -231,11 +241,7 @@ class TaxiiClient(basepoller.BasePollerFT):
 
         return result
 
-    def _discover_services(self, tc):
-        msg_id = libtaxii.messages_11.generate_message_id()
-        request = libtaxii.messages_11.DiscoveryRequest(msg_id)
-        request = request.to_xml()
-
+    def _call_taxii_service(self, tc, request):
         up = urlparse.urlparse(self.discovery_service)
         hostname = up.hostname
         path = up.path
@@ -248,6 +254,15 @@ class TaxiiClient(basepoller.BasePollerFT):
             request,
             port=port
         )
+
+        return resp
+
+    def _discover_services(self, tc):
+        msg_id = libtaxii.messages_11.generate_message_id()
+        request = libtaxii.messages_11.DiscoveryRequest(msg_id)
+        request = request.to_xml()
+
+        resp = self._call_taxii_service(tc, request)
 
         tm = libtaxii.get_message_from_http_response(resp, msg_id)
 
@@ -271,18 +286,7 @@ class TaxiiClient(basepoller.BasePollerFT):
         request = libtaxii.messages_11.CollectionInformationRequest(msg_id)
         request = request.to_xml()
 
-        up = urlparse.urlparse(self.collection_mgmt_service)
-        hostname = up.hostname
-        path = up.path
-        port = up.port
-
-        resp = tc.call_taxii_service2(
-            hostname,
-            path,
-            libtaxii.constants.VID_TAXII_XML_11,
-            request,
-            port=port
-        )
+        resp = self._call_taxii_service(tc, request)
 
         tm = libtaxii.get_message_from_http_response(resp, msg_id)
 
@@ -339,18 +343,7 @@ class TaxiiClient(basepoller.BasePollerFT):
         )
         request = request.to_xml()
 
-        up = urlparse.urlparse(self.poll_service)
-        hostname = up.hostname
-        path = up.path
-        port = up.port
-
-        resp = tc.call_taxii_service2(
-            hostname,
-            path,
-            libtaxii.constants.VID_TAXII_XML_11,
-            request,
-            port=port
-        )
+        resp = self._call_taxii_service(tc, request)
 
         return libtaxii.get_message_from_http_response(resp, msg_id)
 
@@ -379,18 +372,7 @@ class TaxiiClient(basepoller.BasePollerFT):
 
         request = request.to_xml()
 
-        up = urlparse.urlparse(self.poll_service)
-        hostname = up.hostname
-        path = up.path
-        port = up.port
-
-        resp = tc.call_taxii_service2(
-            hostname,
-            path,
-            libtaxii.constants.VID_TAXII_XML_11,
-            request,
-            port
-        )
+        resp = self._call_taxii_service(tc, request)
 
         tm = libtaxii.get_message_from_http_response(resp, msg_id)
 
@@ -565,6 +547,11 @@ class TaxiiClient(basepoller.BasePollerFT):
             LOG.error('%s - no properties in observable object', self.name)
             return None
 
+        return self._decode_object_properties(op)
+
+    def _decode_object_properties(self, op):
+        result = {}
+
         ot = op.get('xsi:type', None)
         if ot is None:
             LOG.error('%s - no type in observable props', self.name)
@@ -582,6 +569,72 @@ class TaxiiClient(basepoller.BasePollerFT):
                 if ov is None:
                     LOG.error('%s - no value in observable value', self.name)
                     return None
+
+        elif ot == 'FileObjectType':
+            hashes = op.get('hashes', [])
+            if not isinstance(hashes, list) or len(hashes) == 0:
+                LOG.error('{} - FileObjectType with unhandled structure: {!r}'.format(
+                    self.name, op
+                ))
+                return None
+
+            indicator_type = None
+            cprio = -1
+            indicator_hashes = {}
+
+            for h in hashes:
+                hvalue = h.get('simple_hash_value', None)
+                if hvalue is None:
+                    continue
+
+                if not isinstance(hvalue, str) and not isinstance(hvalue, unicode):
+                    if not isinstance(hvalue, dict):
+                        continue
+
+                    hvalue = hvalue.get('value', None)
+                    if hvalue is None:
+                        continue
+
+                htype = h.get('type', None)
+                if htype is None or not isinstance(htype, dict):
+                    continue
+
+                htype = htype.get('value', None)
+                if htype is None or not (isinstance(htype, str) or isinstance(htype, unicode)):
+                    continue
+
+                htype = htype.lower()
+                if htype not in self.hash_priority:
+                    continue
+
+                prio = self.hash_priority.index(htype)
+
+                if prio > cprio:
+                    indicator_type = htype
+                    cprio = prio
+
+                indicator_hashes[htype] = hvalue
+
+            if indicator_type is None:
+                LOG.error('{} - No valid hash found in FileObjectType: {!r}'.format(
+                    self.name, op
+                ))
+                return None
+
+            result['type'] = indicator_type
+            ov = indicator_hashes[indicator_type]
+
+            for h, v in indicator_hashes.iteritems():
+                if h == indicator_type:
+                    continue
+                result['{}_{}'.format(self.prefix, h)] = v
+
+        elif ot == 'SocketAddressObjectType':
+            ip_address = op.get('ip_address', None)
+            if ip_address is None:
+                return None
+
+            return self._decode_object_properties(ip_address)
 
         elif ot == 'AddressObjectType':
             ov = op.get('address_value', None)
@@ -673,6 +726,8 @@ class TaxiiClient(basepoller.BasePollerFT):
             return None
 
         result['indicator'] = ov
+
+        LOG.debug('{!r}'.format(result))
 
         return result
 
