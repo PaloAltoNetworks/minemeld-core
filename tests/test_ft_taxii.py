@@ -58,7 +58,8 @@ class MineMeldFTTaxiiTests(unittest.TestCase):
     @mock.patch.object(gevent, 'Greenlet')
     def test_taxiiclient_parse(self, glet_mock):
         config = {
-            'side_config': 'dummy.yml'
+            'side_config': 'dummy.yml',
+            'ca_file': 'dummy.crt'
         }
         chassis = mock.Mock()
 
@@ -120,8 +121,10 @@ class MineMeldFTTaxiiTests(unittest.TestCase):
                 result = b._process_item(i)
 
                 self.assertEqual(len(result), num_indicators)
-                for r in result:
-                    self.assertEqual(r[1]['type'], type_)
+
+                if type_ != 'any':
+                    for r in result:
+                        self.assertEqual(r[1]['type'], type_)
 
         b.stop()
 
