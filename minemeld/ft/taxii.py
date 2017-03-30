@@ -241,8 +241,8 @@ class TaxiiClient(basepoller.BasePollerFT):
 
         return result
 
-    def _call_taxii_service(self, tc, request):
-        up = urlparse.urlparse(self.discovery_service)
+    def _call_taxii_service(self, service_url, tc, request):
+        up = urlparse.urlparse(service_url)
         hostname = up.hostname
         path = up.path
         port = up.port
@@ -262,7 +262,7 @@ class TaxiiClient(basepoller.BasePollerFT):
         request = libtaxii.messages_11.DiscoveryRequest(msg_id)
         request = request.to_xml()
 
-        resp = self._call_taxii_service(tc, request)
+        resp = self._call_taxii_service(self.discovery_service, tc, request)
 
         tm = libtaxii.get_message_from_http_response(resp, msg_id)
 
@@ -286,7 +286,7 @@ class TaxiiClient(basepoller.BasePollerFT):
         request = libtaxii.messages_11.CollectionInformationRequest(msg_id)
         request = request.to_xml()
 
-        resp = self._call_taxii_service(tc, request)
+        resp = self._call_taxii_service(self.collection_mgmt_service, tc, request)
 
         tm = libtaxii.get_message_from_http_response(resp, msg_id)
 
@@ -343,7 +343,7 @@ class TaxiiClient(basepoller.BasePollerFT):
         )
         request = request.to_xml()
 
-        resp = self._call_taxii_service(tc, request)
+        resp = self._call_taxii_service(self.poll_service, tc, request)
 
         return libtaxii.get_message_from_http_response(resp, msg_id)
 
@@ -372,7 +372,7 @@ class TaxiiClient(basepoller.BasePollerFT):
 
         request = request.to_xml()
 
-        resp = self._call_taxii_service(tc, request)
+        resp = self._call_taxii_service(self.poll_service, tc, request)
 
         tm = libtaxii.get_message_from_http_response(resp, msg_id)
 
