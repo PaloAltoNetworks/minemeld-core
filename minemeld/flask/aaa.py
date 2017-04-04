@@ -27,6 +27,16 @@ ANONYMOUS = 'mm-anonymous'
 
 
 class MMBlueprint(Blueprint):
+    def __init__(self, *args, **kwargs):
+        super(MMBlueprint, self).__init__(*args, **kwargs)
+
+        self.send_static_file = self._login_required(
+            super(MMBlueprint, self).send_static_file,
+            login_required=True,
+            read_write=False,
+            feeds=False
+        )
+
     def _audit(self, f, audit_required):
         if not audit_required:
             return f

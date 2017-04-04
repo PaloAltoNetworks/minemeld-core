@@ -35,6 +35,13 @@ import minemeld.loader
 __all__ = ['load_config', 'validate_config', 'resolve_prototypes']
 
 
+# disables construction of timestamp objects
+yaml.SafeLoader.add_constructor(
+    u'tag:yaml.org,2002:timestamp',
+    yaml.SafeLoader.construct_yaml_str
+)
+
+
 LOG = logging.getLogger(__name__)
 
 COMMITTED_CONFIG = 'committed-config.yml'

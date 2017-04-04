@@ -81,7 +81,8 @@ def _activated_extensions():
         minemeld.loader.MM_NODES_GCS_ENTRYPOINT,
         minemeld.loader.MM_NODES_VALIDATORS_ENTRYPOINT,
         minemeld.loader.MM_PROTOTYPES_ENTRYPOINT,
-        minemeld.loader.MM_API_ENTRYPOINT
+        minemeld.loader.MM_API_ENTRYPOINT,
+        minemeld.loader.MM_WEBUI_ENTRYPOINT
     )
 
     activated_extensions = {}
