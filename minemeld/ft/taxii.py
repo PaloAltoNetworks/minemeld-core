@@ -34,6 +34,7 @@ import werkzeug.urls
 import libtaxii
 import libtaxii.clients
 import libtaxii.messages_11
+from libtaxii.constants import MSG_STATUS_MESSAGE, ST_SUCCESS
 
 import stix.core.stix_package
 import stix.indicator
@@ -269,6 +270,11 @@ class TaxiiClient(basepoller.BasePollerFT):
         LOG.debug('Discovery_Response {%s} %s',
                   type(tm), tm.to_xml(pretty_print=True))
 
+        if tm.message_type == MSG_STATUS_MESSAGE:
+            raise RuntimeError('{} - Error retrieving collections: {} - {}'.format(
+                self.name, tm.status_type, tm.message
+            ))
+
         self.collection_mgmt_service = None
         for si in tm.service_instances:
             if si.service_type != libtaxii.constants.SVC_COLLECTION_MANAGEMENT:
@@ -292,6 +298,11 @@ class TaxiiClient(basepoller.BasePollerFT):
 
         LOG.debug('Collection_Information_Response {%s} %s',
                   type(tm), tm.to_xml(pretty_print=True))
+
+        if tm.message_type == MSG_STATUS_MESSAGE:
+            raise RuntimeError('{} - Error retrieving collections: {} - {}'.format(
+                self.name, tm.status_type, tm.message
+            ))
 
         tci = None
         for ci in tm.collection_informations:
@@ -379,6 +390,17 @@ class TaxiiClient(basepoller.BasePollerFT):
         LOG.debug('%s - Poll_Response {%s} %s',
                   self.name, type(tm), tm.to_xml(pretty_print=True))
 
+        if tm.message_type == MSG_STATUS_MESSAGE:
+            if tm.status_type == ST_SUCCESS:
+                LOG.info('{} - TAXII Server returned success with no STIX packages'.format(
+                    self.name
+                ))
+                return []
+
+            raise RuntimeError('{} - Error polling: {} - {}'.format(
+                self.name, tm.status_type, tm.message
+            ))
+
         stix_objects = {
             'observables': {},
             'indicators': {},
@@ -396,6 +418,19 @@ class TaxiiClient(basepoller.BasePollerFT):
                 result_id=tm.result_id,
                 result_part_number=tm.result_part_number+1
             )
+
+            LOG.debug('{} - Poll_Response {!r}'.format(
+                self.name, tm.to_xml(pretty_print=True)
+            ))
+
+            if tm.message_type == MSG_STATUS_MESSAGE:
+                if tm.status_type == ST_SUCCESS:
+                    break
+
+                raise RuntimeError('{} - Error polling: {} - {}'.format(
+                    self.name, tm.status_type, tm.message
+                ))
+
             self._handle_content_blocks(
                 tm.content_blocks,
                 stix_objects
@@ -446,7 +481,7 @@ class TaxiiClient(basepoller.BasePollerFT):
                     )
                 except Exception:
                     LOG.exception(
-                        '%s - Exception parsing contnet block',
+                        '%s - Exception parsing content block',
                         self.name
                     )
                     continue
