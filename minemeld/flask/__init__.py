@@ -15,6 +15,7 @@
 import os
 import logging
 
+import yaml
 from flask import Flask
 
 import minemeld.loader
@@ -24,6 +25,11 @@ REDIS_URL = os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0')
 
 
 def create_app():
+    yaml.SafeLoader.add_constructor(
+        u'tag:yaml.org,2002:timestamp',
+        yaml.SafeLoader.construct_yaml_str
+    )
+
     app = Flask(__name__)
 
     app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # max 5MB for uploads
@@ -105,6 +111,23 @@ def create_app():
 
         except (ImportError, RuntimeError):
             LOG.exception('Error loading API entry point {}'.format(apiname))
+
+    # install webui blueprints from extensions
+    for webuiname, webuimmep in minemeld.loader.map(minemeld.loader.MM_WEBUI_ENTRYPOINT).iteritems():
+        LOG.info('Loading blueprint from {}'.format(webuiname))
+        if not webuimmep.loadable:
+            LOG.info('API entrypoint {} not loadable, ignored'.format(webuiname))
+            continue
+
+        try:
+            bprint = webuimmep.ep.load()
+            app.register_blueprint(
+                bprint(),
+                url_prefix='/extensions/webui/{}'.format(webuiname)
+            )
+
+        except (ImportError, RuntimeError):
+            LOG.exception('Error loading WebUI entry point {}'.format(webuiname))
 
     for r in app.url_map.iter_rules():
         LOG.debug('app rule: {!r}'.format(r))
