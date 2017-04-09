@@ -79,6 +79,7 @@ def create_app():
     from . import jobsapi  # noqa
 
     configapi.init_app(app)
+    extensionsapi.init_app(app)
 
     app.register_blueprint(metricsapi.BLUEPRINT)
     app.register_blueprint(statusapi.BLUEPRINT)

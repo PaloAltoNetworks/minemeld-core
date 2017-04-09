@@ -10,7 +10,7 @@ LOG_DATE_FORMAT = '%Y-%m-%d %H:%M:%S %Z'
 
 class MMLogger(object):
     def __init__(self):
-        self.system_logger = logging.getLogger('minemeld.api')
+        self.system_logger = logging.getLogger('minemeld')
         self._init_logger(self.system_logger)
 
         self.system_logger.info('MMLogger started')

@@ -2,7 +2,7 @@ import logging
 
 import pip
 
-from pkg_resources import WorkingSet
+from pkg_resources import WorkingSet, _initialize_master_working_set
 from collections import namedtuple
 
 
@@ -22,7 +22,7 @@ MMEntryPoint = namedtuple(
 
 _ENTRYPOINT_GROUPS = {}
 
-_WS = WorkingSet()
+_WS = None
 
 
 def _installed_versions():
@@ -50,7 +50,13 @@ def _conflicts(requirements, installed):
 
 
 def _initialize_entry_point_group(entrypoint_group):
+    global _WS
+
     installed = _installed_versions()
+
+    if _WS is None:
+        _initialize_master_working_set()
+        _WS = WorkingSet()
 
     cache = {}
     result = {}
@@ -82,7 +88,7 @@ def _initialize_entry_point_group(entrypoint_group):
 def bump_workingset():
     global _WS, _ENTRYPOINT_GROUPS
 
-    _WS = WorkingSet()
+    _WS = None
     _ENTRYPOINT_GROUPS = {}
 
 

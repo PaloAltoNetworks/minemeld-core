@@ -1,3 +1,4 @@
+import sys
 import os
 import os.path
 import json
@@ -19,7 +20,8 @@ __all__ = [
     'activated_extensions',
     'installed_extensions',
     'extensions',
-    'freeze'
+    'freeze',
+    'load_frozen_paths'
 ]
 
 
@@ -315,3 +317,15 @@ def freeze(installation_dir):
             _freeze.append('-e {}'.format(e.path))
 
     return _freeze
+
+
+def load_frozen_paths(freeze_file):
+    for l in freeze_file:
+        l = l.strip()
+        if not l.startswith('-e '):
+            continue
+
+        _, epath = l.split(' ', 1)
+        if epath not in sys.path:
+            LOG.info('Extension path {!r} not in sys.path, adding'.format(epath))
+            sys.path.append(epath)
