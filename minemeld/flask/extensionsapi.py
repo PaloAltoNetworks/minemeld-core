@@ -104,6 +104,20 @@ def _find_running_job(extension, jobs):
     return None
 
 
+def _load_frozen_paths():
+    library_directory = config.get('MINEMELD_LOCAL_LIBRARY_PATH', None)
+    if library_directory is None:
+        LOG.error('freeze not updated - MINEMELD_LOCAL_LIBRARY_PATH not set')
+        return
+
+    freeze_path = os.path.join(library_directory, 'freeze.txt')
+
+    freeze_lock = filelock.FileLock('{}.lock'.format(freeze_path))
+    with freeze_lock.acquire(timeout=30):
+        with open(freeze_path, 'r') as ff:
+            minemeld.extensions.load_frozen_paths(ff)
+
+
 def _update_freeze_file():
     library_directory = config.get('MINEMELD_LOCAL_LIBRARY_PATH', None)
     if library_directory is None:
@@ -502,3 +516,7 @@ def install_from_git():
         raise
 
     return jsonify(result=jobid)
+
+
+def init_app(app):
+    _load_frozen_paths()
