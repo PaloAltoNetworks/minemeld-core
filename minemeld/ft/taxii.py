@@ -510,7 +510,6 @@ class TaxiiClient(basepoller.BasePollerFT):
             return {'idref': o.idref}
 
         odict = o.to_dict()
-
         result = {}
 
         oc = odict.get('observable_composition', None)
@@ -547,9 +546,9 @@ class TaxiiClient(basepoller.BasePollerFT):
             LOG.error('%s - no properties in observable object', self.name)
             return None
 
-        return self._decode_object_properties(op)
+        return self._decode_object_properties(op, odict=odict)
 
-    def _decode_object_properties(self, op):
+    def _decode_object_properties(self, op, odict=None):
         result = {}
 
         ot = op.get('xsi:type', None)
@@ -571,6 +570,15 @@ class TaxiiClient(basepoller.BasePollerFT):
                     return None
 
         elif ot == 'FileObjectType':
+            ov = ''
+
+            if 'file_name' in op.keys():
+                file_name = op.get('file_name')
+                if isinstance(file_name, dict):
+                    ov = op['file_name'].get('value', None)
+                else:
+                    ov = op['file_name']
+
             hashes = op.get('hashes', [])
             if not isinstance(hashes, list) or len(hashes) == 0:
                 LOG.error('{} - FileObjectType with unhandled structure: {!r}'.format(
@@ -596,12 +604,16 @@ class TaxiiClient(basepoller.BasePollerFT):
                         continue
 
                 htype = h.get('type', None)
-                if htype is None or not isinstance(htype, dict):
+                if htype is None:
                     continue
 
-                htype = htype.get('value', None)
-                if htype is None or not (isinstance(htype, str) or isinstance(htype, unicode)):
-                    continue
+                elif isinstance(htype, str):
+                    htype = htype.lower()
+
+                elif isinstance(htype, dict):
+                    htype = htype.get('value', None)
+                    if htype is None or not (isinstance(htype, str) or isinstance(htype, unicode)):
+                        continue
 
                 htype = htype.lower()
                 if htype not in self.hash_priority:
@@ -622,7 +634,8 @@ class TaxiiClient(basepoller.BasePollerFT):
                 return None
 
             result['type'] = indicator_type
-            ov = indicator_hashes[indicator_type]
+            if ov == '':
+                ov = indicator_hashes[indicator_type]
 
             for h, v in indicator_hashes.iteritems():
                 if h == indicator_type:
@@ -720,6 +733,188 @@ class TaxiiClient(basepoller.BasePollerFT):
                 if ov is None:
                     LOG.error('%s - no value in observable value', self.name)
                     return None
+
+        elif ot == 'EmailMessageObjectType':
+            result['type'] = 'email-message'
+
+            ov = ''
+            LOG.debug('EmailMessageObjectType OP: {!r}'.format(op))
+
+            body = op.get('raw_body', None)
+            if body is not None:
+                result['body'] = body
+                LOG.debug('EmailMessage Body: {!r}'.format(body))
+
+            header = op.get('header', None)
+            if header is not None:
+                result['header'] = header
+                try:
+                    ov = header.get('from').get('address_value').get('value')
+                except Exception as ex:
+                    LOG.error('{} - no email address listed'.format(self.name))
+
+            subject = op.get('subject', None)
+            if subject is not None:
+                result['subject'] = subject
+                if ov == '':
+                    ov = subject
+
+        elif ot == 'ArtifactObjectType':
+            ov = ''
+            result['type'] = 'artifact'
+
+            LOG.debug('ArtifactObjectType OV: {!r}'.format(ov))
+
+            title = odict.get('title', None)
+            if title is not None:
+                ov = title
+                result['title'] = title
+
+            description = odict.get('description', None)
+            if description is not None:
+                result['description'] = description
+                if ov == '':
+                    ov = description
+
+            artifact = op['raw_artifact']
+            if artifact is not None:
+                result['artifact'] = artifact
+
+        elif ot == 'PDFFileObjectType':
+            ov = ''
+            result['type'] = 'pdf-file'
+
+            if 'file_name' in op.keys():
+                file_name = op.get('file_name')
+                if file_name.get('value', None) is not None:
+                    ov = op['file_name'].get('value', None)
+                else:
+                    ov = op['file_name']
+
+            LOG.debug('PDFObjectType OV: {!r}'.format(ov))
+
+            if 'file_path' in op.keys():
+                result['file_path'] = op['file_path'].get('value', None)
+
+            if 'file_size' in op.keys():
+                result['file_size'] = op['file_size'].get('value', None)
+
+            if 'metadata' in op.keys():
+                result['metadata'] = op['metadata']
+
+            if 'file_format' in op.keys():
+                result['file_format'] = op['file_format']
+
+            hashes = op.get('hashes', None)
+            if hashes is not None:
+                for i in hashes:
+                    if 'type' in i.keys():
+                        if type(i['type']) == str:
+                            hash_type = i['type']
+                        else:
+                            hash_type = i['type'].get('value', None)
+                    if 'simple_hash_value' in i.keys():
+                        if type(i['simple_hash_value']) == str:
+                            result[hash_type] = i['simple_hash_value']
+                        else:
+                            result[hash_type] = i['simple_hash_value'].get('value', None)
+
+        elif ot == 'WhoisObjectType':
+            ov = ''
+            result['type'] = 'whois'
+            LOG.debug('WhoisObjectType OV: {!r}'.format(ov))
+
+            remarks = op.get('remarks', None)
+            if remarks is not None:
+                result['remarks'] = op['remarks']
+                ov = remarks.split('\n')[0]
+
+        elif ot == 'HTTPSessionObjectType':
+            ov = ''
+            result['type'] = 'http-session'
+
+            if 'http_request_response' in op.keys():
+                tmp = op['http_request_response']
+
+                if len(tmp) == 1:
+                    item = tmp[0]
+                    LOG.debug('HTTPSessionObjectType item: {!r}'.format(item))
+                    http_client_request = item.get('http_client_request', None)
+                    if http_client_request is not None:
+                        http_request_header = http_client_request.get('http_request_header', None)
+                        if http_request_header is not None:
+                            raw_header = http_request_header.get('raw_header', None)
+                            if raw_header is not None:
+                                result['header'] = raw_header
+                                ov = raw_header.split('\n')[0]
+                else:
+                    LOG.error('{} - multiple HTTPSessionObjectTypes not supported'.format(self.name))
+
+        elif ot == 'PortObjectType':
+            result['type'] = 'port'
+            LOG.debug('PortObjectType OP: {!r}'.format(op))
+            protocol = op.get('layer4_protocol', None)
+            port = op.get('port_value', None)
+            ov = '{}:{}'.format(protocol, port)
+
+        elif ot == 'WindowsExecutableFileObjectType':
+            ov = ''
+            result['type'] = 'windows-executable'
+            LOG.debug('WindowsExecutableFileObjectType OP: {!r}'.format(op))
+
+            if 'file_name' in op.keys():
+                if type(op['file_name'] == str):
+                    ov = op['file_name']
+                else:
+                    ov = op['file_name'].get('value', None)
+
+            if 'size_in_bytes' in op.keys():
+                result['file_size'] = op['size_in_bytes']
+
+            if 'file_format' in op.keys():
+                result['file_format'] = op['file_format']
+
+            hashes = op.get('hashes', None)
+            if hashes is not None:
+                for i in hashes:
+                    if 'type' in i.keys():
+                        if type(i['type']) == str:
+                            hash_type = i['type']
+                        else:
+                            hash_type = i['type'].get('value', None)
+                    if 'simple_hash_value' in i.keys():
+                        if type(i['simple_hash_value']) == str:
+                            result[hash_type] = i['simple_hash_value']
+                        else:
+                            result[hash_type] = i['simple_hash_value'].get('value', None)
+
+        elif ot == 'CISCP:IndicatorTypeVocab-0.0':
+            result['type'] = op['xsi:type']
+            LOG.debug('CISCP:IndicatorTypeVocab-0.0 OP: {!r}'.format(op))
+            ov = None
+            LOG.error('{} - CISCP:IndicatorTypeVocab-0.0 Type not currently supported'.format(self.name))
+            return None
+
+        elif ot == 'WindowsRegistryKeyObjectType':
+            result['type'] = op['xsi:type']
+            LOG.debug('WindowsRegistryKeyObjectType OP: {!r}'.format(op))
+            ov = None
+            LOG.error('{} - WindowsRegistryKeyObjectType Type not currently supported'.format(self.name))
+            return None
+
+        elif ot == 'stixVocabs:IndicatorTypeVocab-1.0':
+            result['type'] = op['xsi:type']
+            LOG.debug('stixVocabs:IndicatorTypeVocab-1.0 OP: {!r}'.format(op))
+            ov = None
+            LOG.error('{} - stixVocabs:IndicatorTypeVocab-1.0 Type not currently supported'.format(self.name))
+            return None
+
+        elif ot == 'NetworkConnectionObjectType':
+            result['type'] = 'NetworkConnection'
+            LOG.debug('NetworkConnectionObjectType OP: {!r}'.format(op))
+            ov = None
+            LOG.error('{} - NetworkConnectionObjectType Type not currently supported'.format(self.name))
+            return None
 
         else:
             LOG.error('{} - unknown type {} {!r}'.format(self.name, ot, op))

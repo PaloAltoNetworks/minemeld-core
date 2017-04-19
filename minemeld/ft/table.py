@@ -253,10 +253,10 @@ class Table(object):
         batch.write()
 
     def _indicator_key(self, key):
-        return struct.pack("BB", 1, 1)+key
+        return struct.pack("BB", 1, 1) + key
 
     def _indicator_key_version(self, key):
-        return struct.pack("BB", 1, 0)+key
+        return struct.pack("BB", 1, 0) + key
 
     def _index_key(self, idxid, value, lastidxid=None):
         key = struct.pack("BBB", 2, idxid, 0xF0)
@@ -335,7 +335,7 @@ class Table(object):
             index['last_global_id'] += 1
 
             idxkey = self._index_key(index['id'], v, index['last_global_id'])
-            batch.put(idxkey, struct.pack(">Q", cversion)+key)
+            batch.put(idxkey, struct.pack(">Q", cversion) + str(key))
 
             batch.put(
                 self._last_global_id_key(index['id']),
