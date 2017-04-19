@@ -87,7 +87,10 @@ class JSONSEQMiner(basepoller.BasePollerFT):
     def _json_seq_iterator(self, r):
         for line in r.iter_lines(decode_unicode=True, delimiter='\x1E'):
             if line:
-                yield ujson.loads(line)
+                try:
+                    yield ujson.loads(line)
+                except ValueError:
+                    LOG.error('{} - Error parsing {!r}'.format(self.name, line))
 
     def _build_iterator(self, now):
         if self.url is None:
