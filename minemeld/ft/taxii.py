@@ -91,6 +91,7 @@ class TaxiiClient(basepoller.BasePollerFT):
         # options for processing
         self.ip_version_auto_detect = self.config.get('ip_version_auto_detect', True)
         self.ignore_composition_operator = self.config.get('ignore_composition_operator', False)
+        self.create_fake_indicator = self.config.get('create_fake_indicator', True)
         self.hash_priority = self.config.get('hash_priority', _STIX_MINEMELD_HASHES)
 
         self.discovery_service = self.config.get('discovery_service', None)
@@ -442,6 +443,15 @@ class TaxiiClient(basepoller.BasePollerFT):
             'ttps': stix_objects['ttps'],
             'observables': stix_objects['observables']
         }
+
+        if len(stix_objects['indicators']) == 0 and len(stix_objects['observables']) != 0:
+            LOG.info('{} - TAXII Content contains observables but no indicators'.format(self.name))
+            if self.create_fake_indicator:
+                stix_objects['indicators']['minemeld:00000000-0000-0000-0000-000000000000'] = {
+                    'observables': stix_objects['observables'],
+                    'ttps': []
+                }
+
         return [[iid, iv, params]
                 for iid, iv in stix_objects['indicators'].iteritems()]
 
