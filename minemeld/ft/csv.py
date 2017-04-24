@@ -76,6 +76,9 @@ class CSVFT(basepoller.BasePollerFT):
         self.url = self.config.get('url', None)
         self.verify_cert = self.config.get('verify_cert', True)
 
+        self.username = self.config.get('username', None)
+        self.password = self.config.get('password', None)
+
         self.ignore_regex = self.config.get('ignore_regex', None)
         if self.ignore_regex is not None:
             self.ignore_regex = re.compile(self.ignore_regex)
@@ -117,6 +120,10 @@ class CSVFT(basepoller.BasePollerFT):
         rkwargs['stream'] = True
         rkwargs['verify'] = self.verify_cert
         rkwargs['timeout'] = self.polling_timeout
+
+        if self.username is not None and self.password is not None:
+            rkwargs['auth'] = (self.username, self.password)
+
         r = _session.send(prepreq, **rkwargs)
 
         try:
