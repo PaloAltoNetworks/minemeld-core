@@ -112,6 +112,9 @@ class CSVFT(basepoller.BasePollerFT):
 
         prepreq = self._build_request(now)
 
+        if self.username is not None and self.password is not None:
+            _session.auth = (self.username, self.password)
+
         # this is to honour the proxy environment variables
         rkwargs = _session.merge_environment_settings(
             prepreq.url,
@@ -120,9 +123,6 @@ class CSVFT(basepoller.BasePollerFT):
         rkwargs['stream'] = True
         rkwargs['verify'] = self.verify_cert
         rkwargs['timeout'] = self.polling_timeout
-
-        if self.username is not None and self.password is not None:
-            rkwargs['auth'] = (self.username, self.password)
 
         r = _session.send(prepreq, **rkwargs)
 
