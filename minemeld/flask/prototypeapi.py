@@ -65,7 +65,8 @@ def _prototype_paths():
                     sys.modules.pop(mmep.ep.module_name)
 
             ep = mmep.ep.load()
-            paths.append(ep())
+            # we add prototype paths in front, to let extensions override default protos
+            paths.insert(0, ep())
         except:
             LOG.exception('Exception loading paths from {}'.format(pname))
 
