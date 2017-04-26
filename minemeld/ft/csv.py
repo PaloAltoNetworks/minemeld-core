@@ -100,9 +100,14 @@ class CSVFT(basepoller.BasePollerFT):
         return [[indicator, item]]
 
     def _build_request(self, now):
+        auth = None
+        if self.username is not None and self.password is not None:
+            auth = (self.username, self.password)
+
         r = requests.Request(
             'GET',
-            self.url
+            self.url,
+            auth=auth
         )
 
         return r.prepare()
@@ -111,9 +116,6 @@ class CSVFT(basepoller.BasePollerFT):
         _session = requests.Session()
 
         prepreq = self._build_request(now)
-
-        if self.username is not None and self.password is not None:
-            _session.auth = (self.username, self.password)
 
         # this is to honour the proxy environment variables
         rkwargs = _session.merge_environment_settings(
