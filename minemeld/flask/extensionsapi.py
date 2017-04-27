@@ -112,6 +112,10 @@ def _load_frozen_paths():
 
     freeze_path = os.path.join(library_directory, 'freeze.txt')
 
+    if not os.path.isfile(freeze_path):
+        LOG.info('Extensions frigidaire not found, paths not loaded')
+        return
+
     freeze_lock = filelock.FileLock('{}.lock'.format(freeze_path))
     with freeze_lock.acquire(timeout=30):
         with open(freeze_path, 'r') as ff:
