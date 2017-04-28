@@ -576,8 +576,10 @@ class TaxiiClient(basepoller.BasePollerFT):
                 file_name = op.get('file_name')
                 if isinstance(file_name, dict):
                     ov = op['file_name'].get('value', None)
+                    result['type'] = 'file-name'
                 else:
                     ov = op['file_name']
+                    result['type'] = 'file-name'
 
             hashes = op.get('hashes', [])
             if not isinstance(hashes, list) or len(hashes) == 0:
@@ -633,9 +635,9 @@ class TaxiiClient(basepoller.BasePollerFT):
                 ))
                 return None
 
-            result['type'] = indicator_type
             if ov == '':
                 ov = indicator_hashes[indicator_type]
+                result['type'] = indicator_type
 
             for h, v in indicator_hashes.iteritems():
                 if h == indicator_type:

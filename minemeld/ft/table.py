@@ -335,7 +335,7 @@ class Table(object):
             index['last_global_id'] += 1
 
             idxkey = self._index_key(index['id'], v, index['last_global_id'])
-            batch.put(idxkey, struct.pack(">Q", cversion) + str(key))
+            batch.put(idxkey, struct.pack(">Q", cversion) + key)
 
             batch.put(
                 self._last_global_id_key(index['id']),
