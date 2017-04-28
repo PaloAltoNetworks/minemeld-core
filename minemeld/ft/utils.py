@@ -32,6 +32,8 @@ def utc_millisec():
 
 
 def dt_to_millisec(dt):
+    if dt.tzinfo == None:
+        dt = dt.replace(tzinfo=pytz.UTC)
     delta = dt - EPOCH
     return int(delta.total_seconds()*1000)
 
