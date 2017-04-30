@@ -32,6 +32,7 @@ LOG = logging.getLogger(__name__)
 _API_BASE = 'https://www.threathq.com/apiv1'
 _API_THREAT_SEARCH = '/threat/search'
 _API_THREAT_UPDATE = '/threat/updates'
+_API_USER_AGENT = 'PhishMe Intelligence (minemeld)'
 
 _RESULTS_PER_PAGE = 10
 
@@ -71,6 +72,7 @@ class Intelligence(basepoller.BasePollerFT):
         })
         self.product = self.config.get('product', 'malware')
         self.source_name = self.config.get('source_name', 'phishme.intelligence')
+        self.user_agent = {'user-agent': _API_USER_AGENT}
 
         self.api_key = None
         self.username = None
@@ -255,7 +257,8 @@ class Intelligence(basepoller.BasePollerFT):
                 verify=self.verify_cert,
                 timeout=self.polling_timeout,
                 params=payload,
-                auth=(self.username, self.api_key)
+                auth=(self.username, self.api_key),
+                headers=self.user_agent
             )
 
             r = requests.post(
@@ -308,7 +311,8 @@ class Intelligence(basepoller.BasePollerFT):
                 verify=self.verify_cert,
                 timeout=self.polling_timeout,
                 params=payload,
-                auth=(self.username, self.api_key)
+                auth=(self.username, self.api_key),
+                headers=self.user_agent
             )
 
             r = requests.post(
@@ -396,7 +400,8 @@ class Intelligence(basepoller.BasePollerFT):
                 verify=self.verify_cert,
                 timeout=self.polling_timeout,
                 params=payload,
-                auth=(self.username, self.api_key)
+                auth=(self.username, self.api_key),
+                headers=self.user_agent
             )
 
             r = requests.post(
