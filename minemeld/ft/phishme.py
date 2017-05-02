@@ -72,7 +72,7 @@ class Intelligence(basepoller.BasePollerFT):
         })
         self.product = self.config.get('product', 'malware')
         self.source_name = self.config.get('source_name', 'phishme.intelligence')
-        self.user_agent = {'user-agent': _API_USER_AGENT}
+        self.headers = {'user-agent': _API_USER_AGENT}
 
         self.api_key = None
         self.username = None
@@ -258,7 +258,7 @@ class Intelligence(basepoller.BasePollerFT):
                 timeout=self.polling_timeout,
                 params=payload,
                 auth=(self.username, self.api_key),
-                headers=self.user_agent
+                headers=self.headers
             )
 
             r = requests.post(
@@ -312,7 +312,7 @@ class Intelligence(basepoller.BasePollerFT):
                 timeout=self.polling_timeout,
                 params=payload,
                 auth=(self.username, self.api_key),
-                headers=self.user_agent
+                headers=self.headers
             )
 
             r = requests.post(
@@ -401,7 +401,7 @@ class Intelligence(basepoller.BasePollerFT):
                 timeout=self.polling_timeout,
                 params=payload,
                 auth=(self.username, self.api_key),
-                headers=self.user_agent
+                headers=self.headers
             )
 
             r = requests.post(
