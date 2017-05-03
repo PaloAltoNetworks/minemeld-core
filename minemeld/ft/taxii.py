@@ -833,10 +833,13 @@ class TaxiiClient(basepoller.BasePollerFT):
 
             if 'file_name' in op.keys():
                 file_name = op.get('file_name')
-                if file_name.get('value', None) is not None:
-                    ov = op['file_name'].get('value', None)
+                if type(file_name) == dict:
+                    if file_name.get('value', None) is not None:
+                        ov = op['file_name'].get('value', None)
+                    else:
+                        ov = op['file_name']
                 else:
-                    ov = op['file_name']
+                    ov = file_name
 
             LOG.debug('PDFObjectType OV: {!r}'.format(ov))
 
