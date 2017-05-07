@@ -883,7 +883,11 @@ class BasePollerFT(base.BaseFT):
 
     def mgmtbus_signal(self, source=None, signal=None, **kwargs):
         if signal != 'flush':
-            raise NotImplementedError('Unknown signal {}'.format(signal))
+            super(BasePollerFT, self).mgmtbus_signal(
+                source=source,
+                signal=signal,
+                **kwargs
+            )
             
         self._actor_queue.put(
             (utc_millisec(), 'flush')
