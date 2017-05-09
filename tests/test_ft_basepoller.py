@@ -236,6 +236,57 @@ class PermanentFeedWithTypeAggregated(minemeld.ft.basepoller.BasePollerFT):
         return [[i, {'type': it, 'attribute': v}]]
 
 
+class DeltaFeedWithTypeAggregatedFaulty(minemeld.ft.basepoller.BasePollerFT):
+    def __init__(self, name, chassis):
+        config = {
+            'multiple_indicator_types': True,
+            'aggregate_indicators': True,
+            'aggregate_use_partial': True,
+            'age_out': {
+                'default': 'last_seen+4',
+                'sudden_death': False
+            }
+        }
+        super(DeltaFeedWithTypeAggregatedFaulty, self).__init__(name, chassis, config)
+
+        self.cur_iterator = 0
+
+        self.cur_iterator = 1
+        self.last_time = None
+
+        self.iterators = [
+            ['IPv4@A@1', 'domain@B@1', 'domain@C@1', 'IPv4@A@2'],
+            ['IPv4@B@1', 'domain@C@1', 'IPv4@D@1', 'IPv4@D@2']
+        ]
+
+    def _iterator(self, iterator):
+        for i in iterator:
+            yield i
+        raise RuntimeError('BAM !')
+
+    def _build_iterator(self, now):
+        if self.last_time is None:
+            self.last_time = CUR_LOGICAL_TIME
+
+        if self.last_time == CUR_LOGICAL_TIME:
+            self.cur_iterator -= 1
+
+        self.last_time = CUR_LOGICAL_TIME
+
+        LOG.info('cur_iterator: {} time: {}'.format(self.cur_iterator, CUR_LOGICAL_TIME))
+        r = []
+        if self.cur_iterator < len(self.iterators):
+            r = self._iterator(self.iterators[self.cur_iterator])
+
+        self.cur_iterator += 1
+
+        return r
+
+    def _process_item(self, item):
+        it, i, v = item.split('@', 2)
+        return [[i, {'type': it, 'attribute': v}]]
+
+
 class MineMeldFTBasePollerTests(unittest.TestCase):
     def setUp(self):
         try:
@@ -917,6 +968,95 @@ class MineMeldFTBasePollerTests(unittest.TestCase):
         a._collect_garbage()
         self.assertEqual(a.statistics['added'], 5)
         self.assertEqual(a.statistics.get('garbage_collected', 0), 5)
+        self.assertEqual(a.length(), 0)
+
+        a.stop()
+
+
+        a = None
+        chassis = None
+        rpcmock = None
+        ochannel = None
+
+        gc.collect()
+
+    @mock.patch.object(gevent, 'spawn')
+    @mock.patch.object(gevent, 'spawn_later')
+    @mock.patch.object(gevent, 'sleep')
+    @mock.patch('gevent.event.Event', side_effect=gevent_event_mock_factory)
+    @mock.patch('minemeld.ft.basepoller.utc_millisec', side_effect=logical_millisec)
+    def test_permanentwithtype_feed_agg2(self, um_mock, event_mock,
+                                         sleep_mock, spawnl_mock, spawn_mock):
+        global CUR_LOGICAL_TIME
+
+        chassis = mock.Mock()
+
+        ochannel = mock.Mock()
+        chassis.request_pub_channel.return_value = ochannel
+
+        rpcmock = mock.Mock()
+        rpcmock.get.return_value = {'error': None, 'result': 'OK'}
+        chassis.send_rpc.return_value = rpcmock
+
+        a = DeltaFeedWithTypeAggregatedFaulty(FTNAME, chassis)
+
+        inputs = []
+        output = False
+
+        a.connect(inputs, output)
+        a.mgmtbus_initialize()
+        a.start()
+        self.assertEqual(spawnl_mock.call_count, 2)
+        self.assertEqual(spawn_mock.call_count, 3)
+
+        CUR_LOGICAL_TIME = 1
+        a._age_out()
+        self.assertEqual(a.statistics.get('aged_out', 0), 0)
+        self.assertEqual(um_mock.call_count, 1)
+
+        CUR_LOGICAL_TIME = 2
+        a._poll()
+        a._age_out()
+        a._collect_garbage()
+        self.assertEqual(a.statistics['added'], 3)
+        self.assertEqual(a.statistics.get('removed', 0), 0)
+
+        CUR_LOGICAL_TIME = 3
+        a._age_out()
+        self.assertEqual(a.statistics.get('aged_out', 0), 0)
+
+        CUR_LOGICAL_TIME = 4
+        a._poll()
+        a._age_out()
+        a._collect_garbage()
+        self.assertEqual(a.statistics['added'], 5)
+        self.assertEqual(a.statistics.get('removed', 0), 0)
+        self.assertEqual(a.statistics.get('garbage_collected', 0), 0)
+
+        CUR_LOGICAL_TIME = 5
+        a._age_out()
+        self.assertEqual(a.statistics.get('aged_out', 0), 0)
+
+        CUR_LOGICAL_TIME = 6
+        a._age_out()
+        self.assertEqual(a.statistics.get('aged_out', 0), 0)
+
+        CUR_LOGICAL_TIME = 7
+        a._age_out()
+        self.assertEqual(a.statistics['aged_out'], 3)
+
+        CUR_LOGICAL_TIME = 8
+        a._poll()
+        a._age_out()
+        a._collect_garbage()
+        self.assertEqual(a.statistics['added'], 5)
+        self.assertEqual(a.statistics.get('garbage_collected', 0), 3)
+        self.assertEqual(a.length(), 2)
+
+        CUR_LOGICAL_TIME = 9
+        a._age_out()
+        a._collect_garbage()
+        self.assertEqual(a.statistics['aged_out'], 5)
         self.assertEqual(a.length(), 0)
 
         a.stop()
