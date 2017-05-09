@@ -19,13 +19,14 @@ miners retrieving indicators by periodically polling an external source.
 
 import logging
 import copy
+import random
+import collections
+import sys
+import shutil
+
 import gevent
 import gevent.event
 import gevent.queue
-import random
-import collections
-
-import shutil
 
 from . import base
 from . import ft_states
@@ -327,7 +328,9 @@ class BasePollerFT(base.BaseFT):
         self.multiple_indicator_types = self.config.get('multiple_indicator_types', False)
         self.interval = self.config.get('interval', 3600)
         self.num_retries = self.config.get('num_retries', 2)
+
         self.aggregate_indicators = self.config.get('aggregate_indicators', False)
+        self.aggregate_use_partial = self.config.get('aggregate_use_partial', False)
 
         _age_out = self.config.get('age_out', {})
 
@@ -510,10 +513,6 @@ class BasePollerFT(base.BaseFT):
         return current
 
     def _aggregate_iterator(self, iterator):
-        if self.agg_table is not None:
-            self.agg_table.close()
-            self.agg_table = None
-
         self.agg_table = _bptable_factory(
             '{}.aggregate-temp'.format(self.name),
             truncate=True,
@@ -571,9 +570,22 @@ class BasePollerFT(base.BaseFT):
                 return False
 
         process_item = self._process_item
+        aggregation_exc = None
         if self.aggregate_indicators:
-            if not self._aggregate_iterator(iterator):
-                return False
+            if self.agg_table is not None:
+                self.agg_table.close()
+                self.agg_table = None
+
+            try:
+                if not self._aggregate_iterator(iterator):
+                    return False
+            except:
+                # if aggregate_use_partial is True, we store exception
+                # and handle partial results
+                if not self.aggregate_use_partial:
+                    raise
+                LOG.info('{} - Exception during aggregation, storing'.format(self.name))
+                aggregation_exc = sys.exc_info()
 
             process_item = self._aggregate_process_item
             iterator = self.agg_table.query(include_value=True)
@@ -676,6 +688,10 @@ class BasePollerFT(base.BaseFT):
             self.agg_table.close()
             self.agg_table = None
             shutil.rmtree('{}.aggregate-temp'.format(self.name))
+
+        if aggregation_exc is not None:
+            LOG.info('{} - Reraising exception happened during aggregation'.format(self.name))
+            raise aggregation_exc[0], aggregation_exc[1], aggregation_exc[2]
 
         return True
 
