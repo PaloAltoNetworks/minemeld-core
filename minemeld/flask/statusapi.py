@@ -276,6 +276,9 @@ def generate_local_backup():
     proto_path = config.get('MINEMELD_LOCAL_PROTOTYPE_PATH', None)
     if proto_path is not None:
         args.append(proto_path)
+    certs_path = config.get('MINEMELD_LOCAL_CERTS_PATH', None)
+    if certs_path is not None:
+        args.append(certs_path)
     config_path = os.path.dirname(os.environ.get('MM_CONFIG'))
     args.append(config_path)
 
