@@ -17,6 +17,8 @@ import re
 
 import yaml
 
+from .logger import LOG
+
 
 class DirSnapshot(object):
     def __init__(self, path, regex=None):
@@ -74,3 +76,10 @@ def committed_config():
         ccconfig = yaml.safe_load(f)
 
     return ccconfig
+
+
+def safe_remove(path):
+    try:
+        os.remove(path)
+    except:
+        LOG.exception('Exception removing {}'.format(path))

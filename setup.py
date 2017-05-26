@@ -91,7 +91,8 @@ setup(
             'mm-traced-purge = minemeld.traced.purge:main',
             'mm-supervisord-listener = minemeld.supervisord.listener:main',
             'mm-extensions-freeze = minemeld.run.freeze:main',
-            'mm-cacert-merge = minemeld.run.cacert_merge:main'
+            'mm-cacert-merge = minemeld.run.cacert_merge:main',
+            'mm-restore = minemeld.run.restore:main'
         ],
         'minemeld_nodes': _entry_points['minemeld_nodes'],
         'minemeld_nodes_gcs': _entry_points['minemeld_nodes_gcs'],

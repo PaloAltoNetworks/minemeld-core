@@ -27,6 +27,7 @@ __all__ = ['BLUEPRINT']
 
 BLUEPRINT = MMBlueprint('aaa', __name__, url_prefix='/aaa')
 
+# if you change things here change also backup/import API
 API_USERS_ATTRS_ATTR = 'API_USERS_ATTRS'
 FEEDS_USERS_ATTRS_ATTR = 'FEEDS_USERS_ATTRS'
 FEEDS_ATTRS_ATTR = 'FEEDS_ATTRS'
