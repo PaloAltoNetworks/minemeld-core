@@ -42,6 +42,12 @@ class SimpleJSON(basepoller.BasePollerFT):
             If *null* no additional attributes are extracted. Default: *null*
         :prefix: prefix to add to field names. Default: json
 
+        Header parameters are optional to sepcify a user-agent or an api-token
+        :header_key: the key value for the header, e.g user-agent or Authentication
+        :header_value: the value attribute for the header, e.g api-agent/1.1 or some kind of api-token
+        Example: headers = {'user-agent': 'my-app/0.0.1'} or Authorization: Bearer 
+        (curl -H "Authorization: Bearer " "https://api-url.com/api/v1/iocs?first_seen_since=2016-1-1")
+
     Example:
         Example config in YAML::
 
@@ -72,6 +78,9 @@ class SimpleJSON(basepoller.BasePollerFT):
 
         self.username = self.config.get('username', None)
         self.password = self.config.get('password', None)
+
+        self.header_key = self.config.get('header_key', None)
+        self.header_value = self.config.get('header_value', None)
 
     def _process_item(self, item):
         if self.indicator not in item:
@@ -109,6 +118,9 @@ class SimpleJSON(basepoller.BasePollerFT):
 
         if self.username is not None and self.password is not None:
             rkwargs['auth'] = (self.username, self.password)
+
+        if self.header_key is not None and self.header_value is not None:
+            rkwargs['headers'] = (self.header_key, self.header_value)
 
         r = requests.get(
             self.url,
