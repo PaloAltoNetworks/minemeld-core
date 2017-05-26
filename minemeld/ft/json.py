@@ -117,8 +117,8 @@ class SimpleJSON(basepoller.BasePollerFT):
         if self.username is not None and self.password is not None:
             rkwargs['auth'] = (self.username, self.password)
 
-        if self.header_key is not None and self.header_value is not None:
-            rkwargs['headers'] = (self.headers)
+        if self.headers is not None:
+            rkwargs['headers'] = self.headers
 
         r = requests.get(
             self.url,
