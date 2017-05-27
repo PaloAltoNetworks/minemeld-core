@@ -497,6 +497,9 @@ class BasePollerFT(base.BaseFT):
             for i, v in self.table.query(index='_withdrawn',
                                          to_key=now,
                                          include_value=True):
+                if v.get('_last_run', 0) >= (self.last_successful_run-1):
+                    continue
+
                 LOG.debug('%s - %s collected', self.name, i)
                 self.table.delete(i, itype=v.get('type', None))
                 self.statistics['garbage_collected'] += 1
