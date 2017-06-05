@@ -24,3 +24,4 @@ beautifulsoup4==4.4.1
 cifsdk==2.0.0b7
 lz4==0.8.2
 networkx==1.11
+unicodecsv==0.14.1
