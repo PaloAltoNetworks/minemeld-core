@@ -93,6 +93,7 @@ class TaxiiClient(basepoller.BasePollerFT):
         self.ignore_composition_operator = self.config.get('ignore_composition_operator', False)
         self.create_fake_indicator = self.config.get('create_fake_indicator', False)
         self.hash_priority = self.config.get('hash_priority', _STIX_MINEMELD_HASHES)
+        self.lower_timestamp_precision = self.config.get('lower_timestamp_precision', False)
 
         self.discovery_service = self.config.get('discovery_service', None)
         self.collection = self.config.get('collection', None)
@@ -1105,6 +1106,10 @@ class TaxiiClient(basepoller.BasePollerFT):
 
         end = datetime.fromtimestamp(now/1000)
         end = end.replace(tzinfo=pytz.UTC)
+
+        if self.lower_timestamp_precision:
+            end = end.replace(second=0, microsecond=0)
+            begin = begin.replace(second=0, microsecond=0)
 
         return self._incremental_poll_collection(
             taxii_client=tc,
