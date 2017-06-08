@@ -207,9 +207,22 @@ def generate_csv_feed(feed, start, num, desc, value, **kwargs):
 
     translate_ip_ranges = kwargs.pop('translate_ip_ranges', False)
 
-    # extract name of fields
-    fields = ['indicator']
-    fields.extend(kwargs.pop('f', []))
+    # extract name of fields and column names
+    columns = []
+    fields = []
+    for addf in kwargs.pop('f', []):
+        if '|' in addf:
+            fname, cname = addf.rsplit('|', 1)
+        else:
+            fname = addf
+            cname = addf
+        columns.append(cname)
+        fields.append(fname)
+
+    # if no fields are specified, only indicator is generated
+    if len(fields) == 0:
+        fields = ['indicator']
+        columns = ['indicator']
 
     # check if header should be generated
     header = kwargs.pop('h', None)
@@ -234,7 +247,7 @@ def generate_csv_feed(feed, start, num, desc, value, **kwargs):
     with _buffer() as current_line:
         w = unicodecsv.DictWriter(
             current_line,
-            fieldnames=fields,
+            fieldnames=columns,
             encoding='utf-8'
         )
 
@@ -255,11 +268,15 @@ def generate_csv_feed(feed, start, num, desc, value, **kwargs):
                     xindicators = _translate_ip_ranges(indicator, v)
 
                 for i in xindicators:
-                    fieldvalues = {'indicator': i}
-                    if v is not None and fields:
-                        for f in fields:
-                            if f in v:
-                                fieldvalues[f] = _format_field_value(v[f])
+                    fieldvalues = {}
+
+                    for f, c in zip(fields, columns):
+                        if f == 'indicator':
+                            fieldvalues[c] = i
+                            continue
+
+                        if v is not None and f in v:
+                            fieldvalues[c] = _format_field_value(v[f])
 
                     current_line.truncate(0)
                     w.writerow(fieldvalues)
