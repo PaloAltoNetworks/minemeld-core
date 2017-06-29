@@ -24,14 +24,10 @@ LOG = logging.getLogger(__name__)
 
 
 class MaliciousURLFeed(http.HttpFT):
-    _AUTH_URL = 'https://www.auscert.org.au/login.html'
-    _COOKIE_DOMAIN = 'www.auscert.org.au'
-
     def configure(self):
         super(MaliciousURLFeed, self).configure()
 
-        self.username = None
-        self.password = None
+        self.api_key = None
         self.side_config_path = self.config.get('side_config', None)
         if self.side_config_path is None:
             self.side_config_path = os.path.join(
@@ -50,71 +46,38 @@ class MaliciousURLFeed(http.HttpFT):
             LOG.error('%s - Error loading side config: %s', self.name, str(e))
             return
 
-        self.username = sconfig.get('username', None)
-        if self.username is not None:
-            LOG.info('%s - username set', self.name)
-
-        self.password = sconfig.get('password', None)
-        if self.password is not None:
-            LOG.info('%s - password set', self.name)
+        self.api_key = sconfig.get('api_key', None)
+        if self.api_key is not None:
+            LOG.info('%s - api_key set', self.name)
 
     def _build_iterator(self, now):
-        if self.username is None or self.password is None:
+        if self.api_key is None:
             raise RuntimeError(
-                '{} - username or password not set, '
+                '{} - API Key not set, '
                 'poll not performed'.format(self.name)
             )
 
         rkwargs = dict(
-            stream=False,
+            stream=True,
             verify=self.verify_cert,
             timeout=self.polling_timeout
         )
-
-        form = {
-            'username': self.username,
-            'password': self.password,
-            'it': '',
-            'cid': '',
-            'login': 'Login'
-        }
-        rkwargs['data'] = form
-        rkwargs['headers'] = {
-            'referer': self._AUTH_URL
+        
+        rkwargs["headers"] = { 
+            'API-Key': self.api_key 
         }
 
         session = requests.Session()
 
-        r = session.post(
-            self._AUTH_URL,
-            allow_redirects=False,
-            **rkwargs
-        )
-
-        if not self._COOKIE_DOMAIN in r.cookies.list_domains():
-            raise RuntimeError(
-                '{} - invalid login'.format(self.name)
-            )
-
-        try:
-            r.raise_for_status()
-        except:
-            LOG.debug('%s - exception in request: %s %s',
-                      self.name, r.status_code, r.content)
-            raise
-
-        rkwargs.pop('headers', None)
-        rkwargs.pop('data', None)
-        rkwargs['stream'] = True
         r = session.get(
             self.url,
             **rkwargs
         )
 
-        # if successful, response from AusCERT should have Content-Disposition header
-        if not 'content-disposition' in r.headers:
+        # if api_key is wrong we'll get a 403 response code
+        if r.status_code == 403: 
             raise RuntimeError(
-                '{} - not authorized'.format(self.name)
+                '{} - not authorized (Invalid API Key?)'.format(self.name)
             )
 
         try:
