@@ -24,12 +24,13 @@ import os
 import collections
 import json
 
+import gevent
+
 from . import condition
 from . import ft_states
 from . import utils
 
 
-DISABLE_FULL_TRACE = 'MM_DISABLE_FULL_TRACE' in os.environ
 LOG = logging.getLogger(__name__)
 
 
@@ -211,6 +212,9 @@ class BaseFT(object):
         self._last_status_publish = None
         self._throttled_publish_status = utils.GThrottled(self._internal_publish_status, 3000)
         self._clock = 0
+
+        self._disable_full_trace = 'MM_DISABLE_FULL_TRACE' in os.environ
+        self._disable_full_trace_glet = None
 
     @property
     def state(self):
@@ -467,7 +471,7 @@ class BaseFT(object):
         LOG.debug('%s {%s} - update from %s value %s',
                   self.name, self.state, source, value)
 
-        if not DISABLE_FULL_TRACE:
+        if not self._disable_full_trace:
             self.trace('RECVD_UPDATE', indicator, source_node=source, value=value)
 
         if self.state not in [ft_states.STARTED, ft_states.CHECKPOINT]:
@@ -491,7 +495,7 @@ class BaseFT(object):
         )
 
         if fltindicator is None:
-            if not DISABLE_FULL_TRACE:
+            if not self._disable_full_trace:
                 self.trace('DROP_UPDATE', indicator, source_node=source, value=value)
 
             self.filtered_withdraw(
@@ -517,7 +521,7 @@ class BaseFT(object):
         LOG.debug('%s {%s} - withdraw from %s value %s',
                   self.name, self.state, source, value)
 
-        if not DISABLE_FULL_TRACE:
+        if not self._disable_full_trace:
             self.trace('RECVD_WITHDRAW', indicator, source_node=source, value=value)
 
         if self.state not in [ft_states.STARTED, ft_states.CHECKPOINT]:
@@ -536,7 +540,7 @@ class BaseFT(object):
         )
 
         if fltindicator is None:
-            if not DISABLE_FULL_TRACE:
+            if not self._disable_full_trace:
                 self.trace('DROP_WITHDRAW', indicator, source_node=source, value=value)
             return
 
@@ -583,6 +587,28 @@ class BaseFT(object):
         self.create_checkpoint(value)
         self.last_checkpoint = value
         self.emit_checkpoint(value)
+
+    def _full_trace_timeout(self, timeout):
+        """To be used as greenlet for disabling full trace after a specific time
+        """
+        gevent.sleep(timeout)
+        self._disable_full_trace = True
+        LOG.debug('{} - full trace disabled'.format(self.name))
+
+    def enable_full_trace(self, timeout=600):
+        """Enables full trace
+        """
+
+        # if full trace is already enabled, do nothing
+        if self._disable_full_trace is False:
+            return
+
+        self._disable_full_trace_glet = gevent.spawn(
+            self._full_trace_timeout,
+            timeout
+        )
+        self._disable_full_trace = False
+        LOG.debug('{} - full trace enabled'.format(self.name))
 
     def publish_status(self, force=False):
         if force:
@@ -640,7 +666,8 @@ class BaseFT(object):
             'statistics': self.statistics,
             'length': length,
             'inputs': self.inputs,
-            'output': (self.output is not None)
+            'output': (self.output is not None),
+            'trace': not self._disable_full_trace
         }
         self._clock += 1
         return result
@@ -660,6 +687,10 @@ class BaseFT(object):
         self.hup(source=source)
 
     def mgmtbus_signal(self, source=None, signal=None, **kwargs):
+        if signal == 'trace':
+            self.enable_full_trace()
+            return self._disable_full_trace
+
         raise NotImplementedError('{}: signal - not implemented'.format(self.name))
 
     def initialize(self):
@@ -722,6 +753,11 @@ class BaseFT(object):
 
     def stop(self):
         LOG.debug("%s - stop called", self.name)
+
+        if self._disable_full_trace_glet is not None:
+            self._disable_full_trace_glet.kill()
+            self._disable_full_trace_glet = None
+
         if self.state not in [ft_states.IDLE, ft_states.STARTED]:
             LOG.error("stop on not IDLE or STARTED FT")
             raise AssertionError("stop on not IDLE or STARTED FT")

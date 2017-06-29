@@ -42,6 +42,10 @@ class SimpleJSON(basepoller.BasePollerFT):
             If *null* no additional attributes are extracted. Default: *null*
         :prefix: prefix to add to field names. Default: json
 
+        :headers: Header parameters are optional to sepcify a user-agent or an api-token
+        Example: headers = {'user-agent': 'my-app/0.0.1'} or Authorization: Bearer 
+        (curl -H "Authorization: Bearer " "https://api-url.com/api/v1/iocs?first_seen_since=2016-1-1")
+
     Example:
         Example config in YAML::
 
@@ -49,6 +53,7 @@ class SimpleJSON(basepoller.BasePollerFT):
             extractor: "prefixes[?service=='AMAZON']"
             prefix: aws
             indicator: ip_prefix
+            headers: {'Authorization': '12345668900', 'user-agent': 'my-app/0.0.1'}
             fields:
                 - region
                 - service
@@ -72,6 +77,8 @@ class SimpleJSON(basepoller.BasePollerFT):
 
         self.username = self.config.get('username', None)
         self.password = self.config.get('password', None)
+
+        self.headers = self.config.get('headers', None)
 
     def _process_item(self, item):
         if self.indicator not in item:
@@ -109,6 +116,9 @@ class SimpleJSON(basepoller.BasePollerFT):
 
         if self.username is not None and self.password is not None:
             rkwargs['auth'] = (self.username, self.password)
+
+        if self.headers is not None:
+            rkwargs['headers'] = self.headers
 
         r = requests.get(
             self.url,

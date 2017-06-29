@@ -1,4 +1,4 @@
-#  Copyright 2015-2016 Palo Alto Networks, Inc
+#  Copyright 2015-2017 Palo Alto Networks, Inc
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -90,7 +90,8 @@ setup(
             'mm-traced = minemeld.traced.main:main',
             'mm-traced-purge = minemeld.traced.purge:main',
             'mm-supervisord-listener = minemeld.supervisord.listener:main',
-            'mm-extensions-freeze = minemeld.run.freeze:main'
+            'mm-extensions-freeze = minemeld.run.freeze:main',
+            'mm-cacert-merge = minemeld.run.cacert_merge:main'
         ],
         'minemeld_nodes': _entry_points['minemeld_nodes'],
         'minemeld_nodes_gcs': _entry_points['minemeld_nodes_gcs'],

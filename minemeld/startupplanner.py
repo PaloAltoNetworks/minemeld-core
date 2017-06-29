@@ -4,7 +4,7 @@ from collections import defaultdict
 
 import networkx as nx
 
-from minemeld.run.config import CHANGE_INPUT_DELETED, CHANGE_ADDED
+from minemeld.run.config import CHANGE_INPUT_DELETED, CHANGE_ADDED, CHANGE_INPUT_ADDED
 
 
 LOG = logging.getLogger(__name__)
@@ -116,8 +116,8 @@ def _plan_subgraph(sg, config, state_info):
         LOG.info('Invalid nodes detected ({}): {}'.format(invalid_nodes, plan))
         return plan
 
-    # let's check added nodes, if they have no ancestors we can just
-    # initialize
+    # let's check added nodes and nodes added as inputs, if they have no ancestors
+    # we can just initialize
     init_flag = True
     added_nodes = []
     for nodename, clist in changes.iteritems():
@@ -128,11 +128,21 @@ def _plan_subgraph(sg, config, state_info):
                 break
             added_nodes.append(nodename)
 
+    added_input_nodes = set()
+    for nodename, clist in changes.iteritems():
+        input_added = [c.detail for c in clist if c.change == CHANGE_INPUT_ADDED]
+        for ainode in input_added:
+            if not state_info[ainode].get('is_source', False):
+                init_flag = False
+            added_input_nodes.add(ainode)
+
     if init_flag:
         LOG.info('Only source nodes have been added: initialize')
         for nodename in sg:
             if nodename in added_nodes:
                 plan[nodename] = 'reset'
+            elif nodename in added_input_nodes:
+                plan[nodename] = 'rebuild'
             else:
                 plan[nodename] = 'initialize'
         return plan

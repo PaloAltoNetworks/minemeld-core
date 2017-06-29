@@ -19,6 +19,7 @@ Unit tests for minemeld.ft.base
 
 import unittest
 import mock
+import gevent
 
 import minemeld.ft.base
 import minemeld.ft
@@ -262,3 +263,17 @@ class MineMeldFTBaseTests(unittest.TestCase):
         ochannel.publish.reset_mock()
         b.emit_update('testi', {'type': 'IPv6', 'direction': 'outbound'})
         self.assertEqual(ochannel.publish.call_count, 0)
+
+    def test_full_trace(self):
+        config = {}
+        chassis = mock.Mock()
+
+        bcls = minemeld.ft.base.BaseFT
+
+        b = bcls('test', chassis, config)
+
+        b._disable_full_trace = True
+        b.enable_full_trace(timeout=1)
+        self.assertEqual(b._disable_full_trace, False)
+        gevent.sleep(1.5)
+        self.assertEqual(b._disable_full_trace, True)

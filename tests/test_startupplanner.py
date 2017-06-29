@@ -549,3 +549,194 @@ class MineMeldStartupPlanner(unittest.TestCase):
         self.assertEqual(plan['p1'], 'reset')
         self.assertEqual(plan['p2'], 'reset')
         self.assertEqual(plan['o1'], 'reset')
+
+    def test_existing_source_added(self):
+        nodes_before = {
+            'm1': {
+                'inputs': []
+            },
+            'm2': {
+                'inputs': []
+            },
+            'p1': {
+                'inputs': ['m1']
+            },
+            'o1': {
+                'inputs': ['p1']
+            },
+        }
+        nodes_after = {
+            'm1': {
+                'inputs': []
+            },
+            'm2': {
+                'inputs': []
+            },
+            'p1': {
+                'inputs': ['m1', 'm2']
+            },
+            'o1': {
+                'inputs': ['p1']
+            },
+        }
+        state_info = {
+            'm1': {
+                'checkpoint': 'a',
+                'is_source': True
+            },
+            'm2': {
+                'checkpoint': 'a',
+                'is_source': True
+            },
+            'p1': {
+                'checkpoint': 'a',
+                'is_source': False
+            },
+            'o1': {
+                'checkpoint': 'a',
+                'is_source': False
+            },
+        }
+
+        config_after = MineMeldConfig.from_dict(dict(nodes=nodes_after))
+        config_before = MineMeldConfig.from_dict(dict(nodes=nodes_before))
+        config_after.compute_changes(config_before)
+
+        self.assertEqual(len(config_after.changes), 1)
+
+        plan = minemeld.startupplanner.plan(config_after, state_info)
+
+        self.assertEqual(plan['m1'], 'initialize')
+        self.assertEqual(plan['m2'], 'rebuild')
+        self.assertEqual(plan['p1'], 'initialize')
+        self.assertEqual(plan['o1'], 'initialize')
+
+    def test_non_existing_source_added(self):
+        nodes_before = {
+            'm1': {
+                'inputs': []
+            },
+            'p1': {
+                'inputs': ['m1']
+            },
+            'o1': {
+                'inputs': ['p1']
+            },
+        }
+        nodes_after = {
+            'm1': {
+                'inputs': []
+            },
+            'm2': {
+                'inputs': []
+            },
+            'p1': {
+                'inputs': ['m1', 'm2']
+            },
+            'o1': {
+                'inputs': ['p1']
+            },
+        }
+        state_info = {
+            'm1': {
+                'checkpoint': 'a',
+                'is_source': True
+            },
+            'm2': {
+                'checkpoint': None,
+                'is_source': True
+            },
+            'p1': {
+                'checkpoint': 'a',
+                'is_source': False
+            },
+            'o1': {
+                'checkpoint': 'a',
+                'is_source': False
+            },
+        }
+
+        config_after = MineMeldConfig.from_dict(dict(nodes=nodes_after))
+        config_before = MineMeldConfig.from_dict(dict(nodes=nodes_before))
+        config_after.compute_changes(config_before)
+
+        self.assertEqual(len(config_after.changes), 2)
+
+        plan = minemeld.startupplanner.plan(config_after, state_info)
+
+        self.assertEqual(plan['m1'], 'initialize')
+        self.assertEqual(plan['m2'], 'reset')
+        self.assertEqual(plan['p1'], 'initialize')
+        self.assertEqual(plan['o1'], 'initialize')
+
+    def test_non_source_existing_input_added(self):
+        nodes_before = {
+            'm1': {
+                'inputs': []
+            },
+            'm2': {
+                'inputs': []
+            },
+            'p1': {
+                'inputs': ['m1']
+            },
+            'p2': {
+                'inputs': ['m2']
+            },
+            'o1': {
+                'inputs': ['p1']
+            },
+        }
+        nodes_after = {
+            'm1': {
+                'inputs': []
+            },
+            'm2': {
+                'inputs': []
+            },
+            'p1': {
+                'inputs': ['m1', 'p2']
+            },
+            'p2': {
+                'inputs': ['m2']
+            },
+            'o1': {
+                'inputs': ['p1']
+            },
+        }
+        state_info = {
+            'm1': {
+                'checkpoint': 'a',
+                'is_source': True
+            },
+            'm2': {
+                'checkpoint': 'a',
+                'is_source': True
+            },
+            'p1': {
+                'checkpoint': 'a',
+                'is_source': False
+            },
+            'p2': {
+                'checkpoint': 'a',
+                'is_source': False
+            },
+            'o1': {
+                'checkpoint': 'a',
+                'is_source': False
+            },
+        }
+
+        config_after = MineMeldConfig.from_dict(dict(nodes=nodes_after))
+        config_before = MineMeldConfig.from_dict(dict(nodes=nodes_before))
+        config_after.compute_changes(config_before)
+
+        self.assertEqual(len(config_after.changes), 1)
+
+        plan = minemeld.startupplanner.plan(config_after, state_info)
+
+        self.assertEqual(plan['m1'], 'rebuild')
+        self.assertEqual(plan['m2'], 'rebuild')
+        self.assertEqual(plan['p1'], 'reset')
+        self.assertEqual(plan['p2'], 'reset')
+        self.assertEqual(plan['o1'], 'reset')
