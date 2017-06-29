@@ -51,6 +51,11 @@ class MaliciousURLFeed(http.HttpFT):
             LOG.info('%s - api_key set', self.name)
 
     def _build_iterator(self, now):
+        if self.api_key is None:
+            raise RuntimeError(
+                '{} - API Key not set, '
+                'poll not performed'.format(self.name)
+            )
 
         rkwargs = dict(
             stream=True,
