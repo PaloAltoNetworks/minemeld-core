@@ -80,6 +80,9 @@
     "minemeld.ft.recordedfuture.IPRiskList": {
         "class": "minemeld.ft.recordedfuture:IPRiskList"
     },
+	"minemeld.ft.recordedfuture.DomainRiskList": {
+        "class": "minemeld.ft.recordedfuture:DomainRiskList"
+    },
     "minemeld.ft.redis.RedisSet": {
         "class": "minemeld.ft.redis:RedisSet"
     },
