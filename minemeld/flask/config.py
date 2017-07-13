@@ -30,6 +30,7 @@ API_CONFIG_LOCK = None
 
 CONFIG_FILES_RE = '^(?:(?:[0-9]+.*\.yml)|(?:.*\.htpasswd))$'
 
+# if you change things here change also backup/import API
 _AUTH_DBS = {
     'USERS_DB': 'wsgi.htpasswd',
     'FEEDS_USERS_DB': 'feeds.htpasswd'
@@ -164,20 +165,25 @@ def _config_monitor(config_path):
     api_config_path = os.path.join(config_path, 'api')
     dirsnapshot = utils.DirSnapshot(api_config_path, CONFIG_FILES_RE)
     while True:
-        new_snapshot = utils.DirSnapshot(api_config_path, CONFIG_FILES_RE)
+        try:
+            with API_CONFIG_LOCK.acquire(timeout=600):
+                new_snapshot = utils.DirSnapshot(api_config_path, CONFIG_FILES_RE)
 
-        if new_snapshot != dirsnapshot:
-            try:
-                _load_config(config_path)
-                _load_auth_dbs(config_path)
+                if new_snapshot != dirsnapshot:
+                    try:
+                        _load_config(config_path)
+                        _load_auth_dbs(config_path)
 
-            except gevent.GreenletExit:
-                break
+                    except gevent.GreenletExit:
+                        break
 
-            except:
-                LOG.exception('Error loading config')
+                    except:
+                        LOG.exception('Error loading config')
 
-            dirsnapshot = new_snapshot
+                    dirsnapshot = new_snapshot
+
+        except filelock.Timeout:
+            LOG.error('Timeout locking config in config monitor')
 
         gevent.sleep(1)
 

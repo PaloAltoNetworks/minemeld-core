@@ -19,6 +19,7 @@ import subprocess
 import shutil
 import json
 import time
+import signal
 from collections import namedtuple, defaultdict
 
 import redis
@@ -44,7 +45,7 @@ REDIS_CP = redis.ConnectionPool.from_url(
 REDIS_JOBS_GROUP_PREFIX = 'mm-jobs-{}'
 
 
-_Job = namedtuple('_Job', field_names=['glet'])
+_Job = namedtuple('_Job', field_names=['glet', 'timeout_glet'])
 
 
 class JobsManager(object):
@@ -156,9 +157,34 @@ class JobsManager(object):
             json.dumps(jobdata)
         )
 
-        self.running_jobs[job_group].pop(jobid, None)
+        job = self.running_jobs[job_group].pop(jobid, None)
+        if job is not None and job.timeout_glet is not None:
+            job.timeout_glet.kill()
 
         return jobprocess.returncode
+
+    def _job_timeout_glet(self, job_group, jobid, timeout):
+        gevent.sleep(timeout)
+
+        prefix = REDIS_JOBS_GROUP_PREFIX.format(job_group)
+
+        jobdata = self.SR.hget(prefix, jobid)
+        if jobdata is None:
+            return
+
+        jobdata = json.loads(jobdata)
+        status = jobdata.get('status', None)
+        if status != 'RUNNING':
+            LOG.info('Timeout for job {}-{} triggered but status not running'.format(prefix, jobid))
+            return
+
+        pid = jobdata.get('pid', None)
+        if pid is None:
+            LOG.error('Timeout for job {}-{} triggered but no pid available'.format(prefix, jobid))
+            return
+
+        LOG.error('Timeout for job {}-{} triggered, sending TERM signal'.format(prefix, jobid))
+        os.kill(pid, signal.SIGTERM)
 
     def delete_job(self, job_group, jobid):
         prefix = REDIS_JOBS_GROUP_PREFIX.format(job_group)
@@ -206,7 +232,7 @@ class JobsManager(object):
 
         return result
 
-    def exec_job(self, job_group, description, args, data=None, callback=None):
+    def exec_job(self, job_group, description, args, data=None, callback=None, timeout=None):
         jobid = str(uuid.uuid4())
 
         glet = gevent.spawn(
@@ -216,7 +242,11 @@ class JobsManager(object):
         if callback is not None:
             glet.link(callback)
 
-        self.running_jobs[job_group][jobid] = _Job(glet=glet)
+        timeout_glet = None
+        if timeout is not None:
+            timeout_glet = gevent.spawn(self._job_timeout_glet, job_group, jobid, timeout)
+
+        self.running_jobs[job_group][jobid] = _Job(glet=glet, timeout_glet=timeout_glet)
 
         return jobid
 

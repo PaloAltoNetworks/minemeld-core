@@ -16,6 +16,8 @@ import json
 import base64
 from functools import wraps
 
+import gevent
+import gevent.lock
 import flask.ext.login
 from flask import current_app, Blueprint, request
 
@@ -24,6 +26,33 @@ from .logger import LOG
 
 
 ANONYMOUS = 'mm-anonymous'
+PREVENT_WRITE_GUARD = None
+PREVENT_WRITE = None
+
+
+def disable_prevent_write(locker):
+    global PREVENT_WRITE
+
+    with PREVENT_WRITE_GUARD:
+        if PREVENT_WRITE == locker:
+            LOG.info('Disabled prevent write from locker {}'.format(locker))
+            PREVENT_WRITE = None
+
+
+def enable_prevent_write(locker, timeout=900):
+    global PREVENT_WRITE
+
+    def _cleanup_prevent_write():
+        gevent.sleep(timeout)
+        LOG.info('Checking if prevent write still enabled by locker {}'.format(locker))
+        disable_prevent_write(locker)
+
+    with PREVENT_WRITE_GUARD:
+        if PREVENT_WRITE is None:
+            PREVENT_WRITE = locker
+            gevent.spawn(_cleanup_prevent_write)
+
+    return False
 
 
 class MMBlueprint(Blueprint):
@@ -97,6 +126,16 @@ class MMBlueprint(Blueprint):
 
         return decorated_view
 
+    def _write_prevented(self, f, read_write):
+        @wraps(f)
+        def decorated_view(*args, **kwargs):
+            if read_write and PREVENT_WRITE is not None:
+                return 'Changes disabled by {}'.format(PREVENT_WRITE), 403
+
+            return f(*args, **kwargs)
+
+        return decorated_view
+
     def route(self, rule, **options):
         def decorator(f):
             login_required = options.pop('login_required', True)
@@ -105,12 +144,11 @@ class MMBlueprint(Blueprint):
 
             super_decorator = super(MMBlueprint, self).route(rule, **options)
 
-            return super_decorator(
-                self._audit(
-                    self._login_required(f, login_required, read_write, feeds),
-                    read_write
-                )
-            )
+            _wp_f = self._write_prevented(f, read_write)
+            _lr_f = self._login_required(_wp_f, login_required, read_write, feeds)
+            _audit_f = self._audit(_lr_f, read_write)
+
+            return super_decorator(_audit_f)
 
         return decorator
 
@@ -291,5 +329,12 @@ def unauthorized():
 
 
 def init_app(app):
+    global PREVENT_WRITE
+    global PREVENT_WRITE_GUARD
+
     app.config['REMEMBER_COOKIE_NAME'] = None  # to block remember cookie
     LOGIN_MANAGER.init_app(app)
+
+    # initialize PREVENT_WRITE
+    PREVENT_WRITE_GUARD = gevent.lock.BoundedSemaphore()
+    PREVENT_WRITE = None
