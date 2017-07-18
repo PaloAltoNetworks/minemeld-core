@@ -88,7 +88,7 @@ class IPRiskList(csv.CSVFT):
         if risk != '':
             try:
                 result['recordedfuture_risk'] = int(risk)
-                result['confidence'] = (int(risk)*self.confidence)/100
+                result['confidence'] = (int(risk) * self.confidence) / 100
             except:
                 LOG.debug("%s - invalid risk string: %s",
                           self.name, risk)
@@ -110,7 +110,7 @@ class IPRiskList(csv.CSVFT):
                     [ed['Rule'] for ed in edetails]
 
         result['recordedfuture_entityurl'] = \
-            'https://www.recordedfuture.com/live/sc/entity/ip:'+indicator
+            'https://www.recordedfuture.com/live/sc/entity/ip:' + indicator
 
         return [[indicator, result]]
 
@@ -124,12 +124,12 @@ class IPRiskList(csv.CSVFT):
 
     def _build_request(self, now):
         params = {'output_format': 'csv/splunk'}
-        headers = {'X-RFToken': self.token} 
+        headers = {'X-RFToken': self.token}
         r = requests.Request(
             'GET',
-            'https://api.recordedfuture.com/v2/ip/risklist', 
-			headers=headers, params=params,
-         
+            'https://api.recordedfuture.com/v2/ip/risklist',
+            headers=headers, params=params,
+
         )
 
         return r.prepare()
@@ -156,6 +156,8 @@ class IPRiskList(csv.CSVFT):
             os.remove(side_config_path)
         except:
             pass
+
+
 class DomainRiskList(csv.CSVFT):
 
     def configure(self):
@@ -200,7 +202,7 @@ class DomainRiskList(csv.CSVFT):
         if risk != '':
             try:
                 result['recordedfuture_risk'] = int(risk)
-                result['confidence'] = (int(risk)*self.confidence)/100
+                result['confidence'] = (int(risk) * self.confidence) / 100
             except:
                 LOG.debug("%s - invalid risk string: %s",
                           self.name, risk)
@@ -222,7 +224,7 @@ class DomainRiskList(csv.CSVFT):
                     [ed['Rule'] for ed in edetails]
 
         result['recordedfuture_entityurl'] = \
-            'https://www.recordedfuture.com/live/sc/entity/ip:'+indicator
+            'https://www.recordedfuture.com/live/sc/entity/ip:' + indicator
 
         return [[indicator, result]]
 
@@ -236,12 +238,12 @@ class DomainRiskList(csv.CSVFT):
 
     def _build_request(self, now):
         params = {'output_format': 'csv/splunk'}
-        headers = {'X-RFToken': self.token} 
+        headers = {'X-RFToken': self.token}
         r = requests.Request(
             'GET',
-            'https://api.recordedfuture.com/v2/domain/risklist', 
-			headers=headers, params=params,
-         
+            'https://api.recordedfuture.com/v2/domain/risklist',
+            headers=headers, params=params,
+
         )
 
         return r.prepare()
@@ -268,5 +270,3 @@ class DomainRiskList(csv.CSVFT):
             os.remove(side_config_path)
         except:
             pass
-
-
