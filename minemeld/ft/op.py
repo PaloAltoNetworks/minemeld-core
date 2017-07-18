@@ -37,6 +37,7 @@ class AggregateFT(actorbase.ActorBaseFT):
         super(AggregateFT, self).configure()
 
         self.whitelist_prefixes = self.config.get('whitelist_prefixes', [])
+        self.ignore_cases = self.config.get('ignore_cases', False)
 
     def _initialize_table(self, truncate=False):
         self.table = table.Table(self.name, truncate=truncate)
@@ -108,6 +109,9 @@ class AggregateFT(actorbase.ActorBaseFT):
 
     @base._counting('update.processed')
     def filtered_update(self, source=None, indicator=None, value=None):
+        if self.ignore_cases:
+            indicator = indicator.lower()
+
         ebl = False
         ewl = False
         for i in self.inputs:
@@ -135,6 +139,9 @@ class AggregateFT(actorbase.ActorBaseFT):
 
     @base._counting('withdraw.processed')
     def filtered_withdraw(self, source=None, indicator=None, value=None):
+        if self.ignore_cases:
+            indicator = indicator.lower()
+
         ikey = self._indicator_key(indicator, source)
 
         cvalue = self.table.get(ikey)
