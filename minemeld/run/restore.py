@@ -1,16 +1,21 @@
 #!/usr/bin/env python
 
 import os
+import signal
 import time
 import logging
 import argparse
 import xmlrpclib
 from zipfile import ZipFile
-from collections import deque, namedtuple
+from collections import deque
 from contextlib import contextmanager
 
 import yaml
+import redis
 import supervisor.xmlrpc
+
+
+REDIS_KEY_PREFIX = 'mm:config:'
 
 
 LOG = logging.getLogger(__name__)
@@ -152,6 +157,23 @@ def handle_minemeld_engine(supervisor_url):
 
     # we restart only if no Exception have been raised by other tasks
     sserver.supervisor.startProcess('minemeld-engine', False)
+    started_at = time.time()
+
+    # check minemeld-engine state
+    pstate = sserver.supervisor.getProcessInfo('minemeld-engine')['statename']
+    while pstate != 'RUNNING':
+        LOG.info('minemeld-engine state: {}'.format(pstate))
+
+        if pstate == 'FATAL':
+            raise RuntimeError('minemeld-engine failed to start')
+
+        if (time.time() - started_at) > 40:
+            raise RuntimeError('minemeld-engine didn\'t start in 40 seconds')
+
+        time.sleep(1)
+
+        pstate = sserver.supervisor.getProcessInfo('minemeld-engine')['statename']
+
     LOG.info('Started minemeld-engine')
 
 
@@ -294,6 +316,45 @@ def _list_of_feeds_aaa_files(faaf, bfile, flist):
     return []
 
 
+def _reload_candidate_config(supervisor_url):
+    SR = redis.StrictRedis()
+    ckeys = SR.keys('{}*'.format(REDIS_KEY_PREFIX))
+    if ckeys:
+        for ck in ckeys:
+            LOG.info('Deleting {}'.format(ck))
+            SR.delete(ck)
+
+    LOG.info('Candidate config keys deleted')
+
+    sserver = xmlrpclib.ServerProxy(
+        'http://127.0.0.1',
+        transport=supervisor.xmlrpc.SupervisorTransport(
+            None,
+            None,
+            supervisor_url
+        )
+    )
+
+    # check supervisor state
+    sstate = sserver.supervisor.getState()
+    if sstate['statecode'] == 2:  # FATAL
+        raise RuntimeError('Supervisor state: 2')
+
+    if sstate['statecode'] != 1:
+        raise RuntimeError(
+            "Supervisor transitioning to a new state, restore not performed"
+        )
+
+    # check minemeld-engine state
+    pinfo = sserver.supervisor.getProcessInfo('minemeld-web')
+    if pinfo['statename'] != 'RUNNING':
+        raise RuntimeError('minemeld-web not running, reload not sent')
+
+    os.kill(pinfo['pid'], signal.SIGHUP)
+
+    LOG.info('API process reloaded')
+
+
 def main():
     supervisor_url = 'unix:///var/run/minemeld/minemeld.sock'
 
@@ -373,3 +434,9 @@ def main():
         # move new files
         for f in files:
             cmstack.enter(restore_file(f))
+
+    try:
+        _reload_candidate_config(supervisor_url)
+
+    except:
+        LOG.exception('Error reverting candidate config')
