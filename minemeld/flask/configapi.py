@@ -32,8 +32,11 @@ __all__ = ['BLUEPRINT']
 
 
 FEED_INTERVAL = 100
+
+# these should be in sync with restore.py
 REDIS_KEY_PREFIX = 'mm:config:'
 REDIS_KEY_CONFIG = REDIS_KEY_PREFIX+'candidate'
+
 REDIS_NODES_LIST = 'nodes'
 LOCK_TIMEOUT = 3000
 
