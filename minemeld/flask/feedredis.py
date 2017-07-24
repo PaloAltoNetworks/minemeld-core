@@ -337,6 +337,49 @@ def generate_mwg_feed(feed, start, num, desc, value, **kwargs):
         cstart += 100
 
 
+# This formatter implements BlueCoat custom URL format as described at
+# https://www.bluecoat.com/documents/download/a366dc73-d455-4859-b92a-c96bd034cb4c/f849f1e3-a906-4ee8-924e-a2061dfe3cdf
+# It expects the value 'bc_category' in the indicator. The value can be either a single string or a list of strings.
+# - In case 'bc_category' is a list then the indicator will be placed in all provided categories
+# - If 'bc_category' does not exist then the indicator will be placed in the category 'BC_None'
+def generate_bluecoat_feed(feed, start, num, desc, value, **kwargs):
+    zrange = SR.zrange
+
+    ilist = zrange(feed, 0, (1 << 32)-1)
+
+    # Let's create an empty directory of BlueCoat custom categories
+    bc_dict = {}
+
+    for i in ilist:
+        v = SR.hget(feed+'.value', i)
+        v = None if v is None else json.loads(v)
+        i = i.lower()
+        i = _PROTOCOL_RE.sub('', i)
+        i = _INVALID_TOKEN_RE.sub('*', i)
+
+        if v is None:
+            bc_category = ['BC_None']  # Indicators without values will be attached to the 'BCNone' custom category
+        else:
+            bc_cat_attr = v.get('bc_category', None)
+            if isinstance(bc_cat_attr, list):
+                bc_category = bc_cat_attr
+            elif isinstance(bc_cat_attr, basestring):
+                bc_category = [bc_cat_attr]
+            else:
+                bc_category = ['BC_None']
+
+        for bc_cat in bc_category:
+            if bc_cat not in bc_dict:
+                bc_dict[bc_cat] = []
+            bc_dict[bc_cat].append(i)
+
+    for key, value in bc_dict.iteritems():
+        yield 'define category {}\n'.format(key)
+        for ind in value:
+            yield ind+'\n'
+        yield 'end\n'
+
+
 _FEED_FORMATS = {
     'json': {
         'formatter': generate_json_feed,
@@ -352,6 +395,10 @@ _FEED_FORMATS = {
     },
     'mwg': {
         'formatter': generate_mwg_feed,
+        'mimetype': 'text/plain'
+    },
+    'bluecoat': {
+        'formatter': generate_bluecoat_feed,
         'mimetype': 'text/plain'
     },
     'csv': {
