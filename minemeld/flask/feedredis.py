@@ -342,16 +342,16 @@ def generate_mwg_feed(feed, start, num, desc, value, **kwargs):
 # https://www.bluecoat.com/documents/download/a366dc73-d455-4859-b92a-c96bd034cb4c/f849f1e3-a906-4ee8-924e-a2061dfe3cdf
 # It expects the value 'bc_category' in the indicator. The value can be either a single string or a list of strings.
 # Optional feed arguments:
-#     catattr : Indicator's attribute that hosts the BlueCoat category
-#     catdef  : Default BlueCoat category for indicators that do not have 'catattr'. This argument can appear multiple
-#               times and it will be handled as a list of categories the indicator belongs to. If not present then
-#               indicators without 'catattr' will be discarded.
+#     ca : Indicator's attribute that hosts the BlueCoat category. Defaults to 'bc_category'
+#     cd : Default BlueCoat category for indicators that do not have 'catattr'. This argument can appear multiple
+#          times and it will be handled as a list of categories the indicator belongs to. If not present then
+#          indicators without 'catattr' will be discarded.
 def generate_bluecoat_feed(feed, start, num, desc, value, **kwargs):
     zrange = SR.zrange
     ilist = zrange(feed, 0, (1 << 32)-1)
     bc_dict = defaultdict(list)
-    flag_category_default = kwargs.get('catdef', None)
-    flag_category_attr = kwargs.get('catattr', ['bc_category'])[0]
+    flag_category_default = kwargs.get('cd', None)
+    flag_category_attr = kwargs.get('ca', ['bc_category'])[0]
 
     for i in ilist:
         v = SR.hget(feed+'.value', i)
