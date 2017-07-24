@@ -21,6 +21,7 @@ import unicodecsv
 from netaddr import IPRange, AddrFormatError
 from flask import request, jsonify, Response, stream_with_context
 from flask.ext.login import current_user
+from collections import defaultdict
 
 from .redisclient import SR
 from .mmrpc import MMMaster
@@ -337,6 +338,54 @@ def generate_mwg_feed(feed, start, num, desc, value, **kwargs):
         cstart += 100
 
 
+# This formatter implements BlueCoat custom URL format as described at
+# https://www.bluecoat.com/documents/download/a366dc73-d455-4859-b92a-c96bd034cb4c/f849f1e3-a906-4ee8-924e-a2061dfe3cdf
+# It expects the value 'bc_category' in the indicator. The value can be either a single string or a list of strings.
+# Optional feed arguments:
+#     ca : Indicator's attribute that hosts the BlueCoat category. Defaults to 'bc_category'
+#     cd : Default BlueCoat category for indicators that do not have 'catattr'. This argument can appear multiple
+#          times and it will be handled as a list of categories the indicator belongs to. If not present then
+#          indicators without 'catattr' will be discarded.
+def generate_bluecoat_feed(feed, start, num, desc, value, **kwargs):
+    zrange = SR.zrange
+    ilist = zrange(feed, 0, (1 << 32)-1)
+    bc_dict = defaultdict(list)
+    flag_category_default = kwargs.get('cd', None)
+    flag_category_attr = kwargs.get('ca', ['bc_category'])[0]
+
+    for i in ilist:
+        v = SR.hget(feed+'.value', i)
+        v = None if v is None else json.loads(v)
+        i = i.lower()
+        i = _PROTOCOL_RE.sub('', i)
+        i = _INVALID_TOKEN_RE.sub('*', i)
+
+        if v is None:
+            if flag_category_default is None:
+                continue
+            else:
+                bc_cat_list = flag_category_default
+        else:
+            bc_cat_attr = v.get(flag_category_attr, None)
+            if isinstance(bc_cat_attr, list):
+                bc_cat_list = bc_cat_attr
+            elif isinstance(bc_cat_attr, basestring):
+                bc_cat_list = [bc_cat_attr]
+            elif flag_category_default is not None:
+                bc_cat_list = flag_category_default
+            else:
+                continue
+
+        for bc_cat in bc_cat_list:
+            bc_dict[bc_cat].append(i)
+
+    for key, value in bc_dict.iteritems():
+        yield 'define category {}\n'.format(key)
+        for ind in value:
+            yield ind+'\n'
+        yield 'end\n'
+
+
 _FEED_FORMATS = {
     'json': {
         'formatter': generate_json_feed,
@@ -352,6 +401,10 @@ _FEED_FORMATS = {
     },
     'mwg': {
         'formatter': generate_mwg_feed,
+        'mimetype': 'text/plain'
+    },
+    'bluecoat': {
+        'formatter': generate_bluecoat_feed,
         'mimetype': 'text/plain'
     },
     'csv': {
