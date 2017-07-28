@@ -28,7 +28,6 @@ LOG = logging.getLogger(__name__)
 
 
 class IPRiskList(csv.CSVFT):
-
     def configure(self):
         super(IPRiskList, self).configure()
 
@@ -110,7 +109,7 @@ class IPRiskList(csv.CSVFT):
                     [ed['Rule'] for ed in edetails]
 
         result['recordedfuture_entityurl'] = \
-            'https://www.recordedfuture.com/live/sc/entity/ip:' + indicator
+            'https://app.recordedfuture.com/live/sc/entity/ip:' + indicator
 
         return [[indicator, result]]
 
@@ -159,7 +158,6 @@ class IPRiskList(csv.CSVFT):
 
 
 class DomainRiskList(csv.CSVFT):
-
     def configure(self):
         super(DomainRiskList, self).configure()
 
@@ -224,7 +222,7 @@ class DomainRiskList(csv.CSVFT):
                     [ed['Rule'] for ed in edetails]
 
         result['recordedfuture_entityurl'] = \
-            'https://www.recordedfuture.com/live/sc/entity/ip:' + indicator
+            'https://app.recordedfuture.com/live/sc/entity/idn:' + indicator
 
         return [[indicator, result]]
 
