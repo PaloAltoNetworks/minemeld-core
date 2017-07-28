@@ -79,6 +79,8 @@ class O365XML(basepoller.BasePollerFT):
         self.verify_cert = self.config.get('verify_cert', True)
         self.products = self.config.get('products', [])
 
+        self.url = self.config.get('url', O365_URL)
+
     def _process_item(self, item):
         indicator = item.pop('indicator', None)
         return [[indicator, item]]
@@ -86,7 +88,7 @@ class O365XML(basepoller.BasePollerFT):
     def _build_request(self, now):
         r = requests.Request(
             'GET',
-            O365_URL
+            self.url
         )
 
         return r.prepare()

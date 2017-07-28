@@ -458,7 +458,7 @@ class BasePollerFT(base.BaseFT):
                         value=v
                     )
                     v['_withdrawn'] = now
-                    v['_flushed'] = 1
+                    v['_last_run'] = 0
                     self.table.put(i, v)
 
                     self.statistics['flushed'] += 1
@@ -498,7 +498,7 @@ class BasePollerFT(base.BaseFT):
             for i, v in self.table.query(index='_withdrawn',
                                          to_key=now,
                                          include_value=True):
-                if (v.get('_flushed', 0) == 0) and (v.get('_last_run', 0) >= (self.last_successful_run-1)):
+                if v.get('_last_run', 0) >= (self.last_successful_run-1):
                     continue
 
                 LOG.debug('%s - %s collected', self.name, i)
