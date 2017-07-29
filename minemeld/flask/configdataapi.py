@@ -15,11 +15,13 @@
 import os.path
 import os
 import shutil
-
+import sqlite3
+import time
 from tempfile import NamedTemporaryFile
 
 import yaml
 import filelock
+import ujson as json
 
 from flask import request, jsonify
 
@@ -137,6 +139,170 @@ class _CDataYaml(object):
             }), 500
 
 
+class _CDataLocalDB(object):
+    def __init__(self, cpath, datafilename):
+        self.cpath = cpath
+        self.datafilename = datafilename
+        self.full_path = os.path.join(self.cpath, self.datafilename)
+
+    def read(self):
+        tdir = os.path.dirname(self.full_path)
+        if not os.path.samefile(self.cpath, tdir):
+            return jsonify(error={'msg': 'Wrong config data filename'}), 400
+
+        result = []
+
+        if not os.path.isfile(self.full_path+'.db'):
+            return jsonify(result=[])
+
+        try:
+            conn = sqlite3.connect(self.full_path+'.db')
+
+            for row in conn.execute('select * from indicators'):
+                indicator = json.loads(row[2])
+                indicator['indicator'] = row[0]
+                indicator['type'] = row[1]
+                indicator['_expiration_ts'] = row[3]
+                indicator['_update_ts'] = row[4]
+                result.append(indicator)
+
+        finally:
+            conn.close()
+
+        return jsonify(result=result)
+
+    def create(self):
+        jsonify(error=dict(message='Method not allowed on localdb files')), 400
+
+    def _parse_text_data(self, data):
+        result = []
+        state = 'INIT'
+        indicator = {}
+        attribute = None
+
+        for line in iter(data.splitlines()):
+            if len(line) > 0 and line[0] == '#':
+                continue
+
+            if state == 'INIT':
+                line = line.strip()
+                if len(line) == 0:
+                    continue
+
+                indicator['type'] = line
+                state = 'TYPE'
+                continue
+
+            if state == 'TYPE':
+                line = line.strip()
+                if len(line) == 0:
+                    continue
+
+                indicator['indicator'] = line
+                state = 'INDICATOR'
+                continue
+
+            if state == 'INDICATOR':
+                line = line.strip()
+                if len(line) == 0:
+                    result.append(indicator)
+                    indicator = {}
+                    state = 'INIT'
+                    continue
+
+                attribute = line
+                state = 'ATTRIBUTE'
+                continue
+
+            if state == 'ATTRIBUTE':
+                line = line.strip()
+
+                indicator[attribute] = line
+                if attribute == 'confidence':
+                    if not line.isdigit():
+                        LOG.error('Invalid confidence value: {!r}'.format(line))
+                        return None
+                    indicator[attribute] = int(line)
+
+                elif attribute == 'ttl':
+                    if line.isdigit():
+                        indicator[attribute] = int(line)
+                    else:
+                        indicator[attribute] = 'disabled'
+
+                state = 'INDICATOR'
+                continue
+
+        if state == 'INDICATOR':
+            result.append(indicator)
+            state = 'INIT'
+
+        if state != 'INIT':
+            LOG.error('Error parsing indicators, state: {}'.format(state))
+            return None
+
+        if len(result) == 0:
+            return None
+
+        return result
+
+    def append(self):
+        tdir = os.path.dirname(self.full_path)
+        if not os.path.samefile(self.cpath, tdir):
+            return jsonify(error={'msg': 'Wrong config data filename'}), 400
+
+        record = request.get_json()
+        if record is None:
+            record = self._parse_text_data(request.data)
+
+        if record is None:
+            return jsonify(error={
+                'message': 'No valid record in request'
+            }), 400
+
+        indicators = [record]
+        if isinstance(record, list):
+            indicators = record
+
+        now = int(time.time()*1000)
+        updates = []
+        for en, entry in enumerate(indicators):
+            indicator = entry.pop('indicator', None)
+            if indicator is None:
+                return jsonify(error={
+                    'message': 'entry %d: indicator field is missing'.format(en)
+                })
+            type_ = entry.pop('type', None)
+            if type_ is None:
+                return jsonify(error={
+                    'message': 'entry %d: type field is missing'.format(en)
+                })
+
+            expiration_ts = entry.pop('ttl', None)
+            if expiration_ts is not None:
+                if isinstance(expiration_ts, int):
+                    expiration_ts = (expiration_ts*1000+now)
+                else:
+                    expiration_ts = 'disabled'
+
+            updates.append((
+                indicator, type_, json.dumps(entry), expiration_ts, now
+            ))
+
+        try:
+            conn = sqlite3.connect(self.full_path+'.db')
+
+            with conn:
+                conn.execute('create table if not exists indicators (indicator text, type text, attributes text, expiration_ts integer, update_ts integer, primary key(indicator, type));')
+                conn.executemany('''insert or replace into indicators
+                    (indicator, type, attributes, expiration_ts, update_ts)
+                    values (?, ?, ?, ?, ?);
+                ''', updates)
+
+        finally:
+            conn.close()
+
+
 class _CDataUploadOnly(object):
     def __init__(self, extension, cpath, datafilename):
         self.extension = extension
@@ -211,6 +377,8 @@ def get_config_data(datafilename):
         return _CDataCertificate(cpath, datafilename).read()
     elif datafiletype == 'pkey':
         return _CDataPrivateKey(cpath, datafilename).read()
+    elif datafiletype == 'localdb':
+        return _CDataLocalDB(cpath, datafilename).read()
 
     return jsonify(error=dict(message='Unknown data file type')), 400
 
@@ -227,6 +395,8 @@ def save_config_data(datafilename):
         result = _CDataCertificate(cpath, datafilename).create()
     elif datafiletype == 'pkey':
         result = _CDataPrivateKey(cpath, datafilename).create()
+    elif datafiletype == 'localdb':
+        result = _CDataLocalDB(cpath, datafilename).create()
     else:
         return jsonify(error=dict(message='Unknown data file type')), 400
 
@@ -250,6 +420,8 @@ def append_config_data(datafilename):
 
     if datafiletype == 'yaml':
         result = _CDataYaml(cpath, datafilename).append()
+    elif datafiletype == 'localdb':
+        result = _CDataLocalDB(cpath, datafilename).append()
     else:
         return jsonify(error=dict(message='Unknown data file type')), 400
 

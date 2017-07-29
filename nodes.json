@@ -109,5 +109,8 @@
     },
     "minemeld.ft.mm.JSONSEQMiner": {
         "class": "minemeld.ft.mm:JSONSEQMiner"
+    },
+    "minemeld.ft.localdb.Miner": {
+        "class": "minemeld.ft.localdb:Miner"
     }
 }
