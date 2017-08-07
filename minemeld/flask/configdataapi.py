@@ -22,6 +22,7 @@ from tempfile import NamedTemporaryFile
 import yaml
 import filelock
 import ujson as json
+from gevent import sleep
 
 from flask import request, jsonify
 
@@ -166,6 +167,8 @@ class _CDataLocalDB(object):
                 indicator['_update_ts'] = row[4]
                 result.append(indicator)
 
+                sleep(0)
+
         finally:
             conn.close()
 
@@ -286,17 +289,21 @@ class _CDataLocalDB(object):
                     expiration_ts = 'disabled'
 
             updates.append((
-                indicator, type_, json.dumps(entry), expiration_ts, now
+                indicator, type_, json.dumps(entry), expiration_ts, now, json.dumps([indicator, type_, entry])
             ))
 
         try:
             conn = sqlite3.connect(self.full_path+'.db')
 
             with conn:
-                conn.execute('create table if not exists indicators (indicator text, type text, attributes text, expiration_ts integer, update_ts integer, primary key(indicator, type));')
+                conn.execute('''create table if not exists indicators
+                    (indicator text, type text, attributes text, expiration_ts integer,
+                    update_ts integer, content text, primary key(indicator, type));''')
+                conn.execute('''create index if not exists updateIndex on indicators(update_ts);''')
+
                 conn.executemany('''insert or replace into indicators
-                    (indicator, type, attributes, expiration_ts, update_ts)
-                    values (?, ?, ?, ?, ?);
+                    (indicator, type, attributes, expiration_ts, update_ts, content)
+                    values (?, ?, ?, ?, ?, ?);
                 ''', updates)
 
         finally:
