@@ -33,6 +33,7 @@ import logging
 import uuid
 import collections
 import time
+import hashlib
 
 import gevent
 import gevent.event
@@ -333,6 +334,7 @@ class MgmtbusMaster(object):
             length = a.get('length', None)
 
             _, _, source = source.split(':', 2)
+            source = hashlib.md5(source).hexdigest()[:10]
 
             for m, v in stats.iteritems():
                 gstats[ntype+'.'+m] += v
