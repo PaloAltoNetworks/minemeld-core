@@ -14,6 +14,7 @@
 
 import os
 import os.path
+import hashlib
 
 import rrdtool
 
@@ -200,6 +201,7 @@ def get_node_metrics(node):
 
     type_ = request.args.get('t', None)
 
+    node = hashlib.md5(node).hexdigest()[:10]
     metrics = _list_metrics(prefix=node+'.')
 
     cc = minemeld.collectd.CollectdClient(RRD_SOCKET_PATH)
@@ -240,6 +242,7 @@ def get_metric(node, metric):
 
     type_ = request.args.get('t', 'minemeld_counter')
 
+    node = hashlib.md5(node).hexdigest()[:10]
     metric = node+'.'+metric
 
     if metric not in _list_metrics():
