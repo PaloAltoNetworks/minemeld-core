@@ -22,6 +22,7 @@ import minemeld.loader
 from .logger import LOG
 
 REDIS_URL = os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0')
+SNSOBJ = None
 
 
 def create_app():
@@ -44,6 +45,7 @@ def create_app():
     from . import redisclient
     from . import supervisorclient
     from . import jobs
+    from . import sns
 
     session.init_app(app, REDIS_URL)
     aaa.init_app(app)
@@ -58,6 +60,7 @@ def create_app():
     redisclient.init_app(app)
     supervisorclient.init_app(app)
     jobs.init_app(app)
+    sns.init_app()
 
     # entrypoints
     from . import metricsapi  # noqa

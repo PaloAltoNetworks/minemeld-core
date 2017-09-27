@@ -34,10 +34,9 @@ from .aaa import MMBlueprint, enable_prevent_write, disable_prevent_write
 from .logger import LOG
 from .jobs import JOBS_MANAGER
 from .utils import safe_remove, committed_config_path
-
+from .sns import sns_obj, sns_available
 
 __all__ = ['BLUEPRINT']
-
 
 BLUEPRINT = MMBlueprint('status', __name__, url_prefix='/status')
 
@@ -96,7 +95,7 @@ class _PubSubWrapper(object):
             if message == '<EOQ>':
                 break
 
-            yield 'data: '+message+'\n\n'
+            yield 'data: ' + message + '\n\n'
 
         yield 'data: { "msg": "<EOQ>" }\n\n'
 
@@ -124,7 +123,7 @@ def get_query_events(quuid):
         return jsonify(error={'message': 'Bad query uuid'}), 400
 
     swc_response = stream_with_context(
-        _PubSubWrapper('mm-traced-q.'+quuid)
+        _PubSubWrapper('mm-traced-q.' + quuid)
     )
     r = Response(swc_response, mimetype='text/event-stream')
 
@@ -152,8 +151,9 @@ def get_system_status():
     res['memory'] = psutil.virtual_memory().percent
     res['swap'] = psutil.swap_memory().percent
     res['disk'] = psutil.disk_usage(data_path).percent
+    res['sns'] = sns_available
 
-    return jsonify(result=res, timestamp=int(time.time()*1000))
+    return jsonify(result=res, timestamp=int(time.time() * 1000))
 
 
 @BLUEPRINT.route('/minemeld', methods=['GET'], read_write=False)
@@ -192,7 +192,7 @@ def hup_node(nodename):
     if tr is None:
         return jsonify(error={'message': status.get('error', 'error')})
 
-    nname = 'mbus:slave:'+nodename
+    nname = 'mbus:slave:' + nodename
     if nname not in tr:
         return jsonify(error={'message': 'Unknown node'}), 404
 
@@ -209,7 +209,7 @@ def signal_node(nodename, signalname):
     if tr is None:
         return jsonify(error={'message': status.get('error', 'error')})
 
-    nname = 'mbus:slave:'+nodename
+    nname = 'mbus:slave:' + nodename
     if nname not in tr:
         return jsonify(error={'message': 'Unknown node'}), 404
 
@@ -476,3 +476,13 @@ def restore_local_backup(backup_id):
         raise
 
     return jsonify(result=jobid)
+
+
+@BLUEPRINT.route('/mkwish', methods=['POST'], read_write=False)
+def sns_wish():
+    request.get_data()
+    message = request.data
+    success = sns_obj.make_wish(message)
+    if success:
+        return jsonify(result='ok')
+    return jsonify(error={'messsage': 'Error sending the message'}), 400
