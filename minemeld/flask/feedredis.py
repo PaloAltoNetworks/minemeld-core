@@ -15,6 +15,7 @@
 import re
 import cStringIO
 import json
+from gevent import sleep
 from contextlib import contextmanager
 
 import unicodecsv
@@ -354,6 +355,7 @@ def generate_bluecoat_feed(feed, start, num, desc, value, **kwargs):
     flag_category_attr = kwargs.get('ca', ['bc_category'])[0]
 
     for i in ilist:
+        sleep(0)
         v = SR.hget(feed+'.value', i)
         v = None if v is None else json.loads(v)
         i = i.lower()
