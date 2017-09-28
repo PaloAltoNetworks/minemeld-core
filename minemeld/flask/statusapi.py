@@ -35,6 +35,7 @@ from .logger import LOG
 from .jobs import JOBS_MANAGER
 from .utils import safe_remove, committed_config_path
 from .sns import SNS_OBJ, SNS_AVAILABLE
+from minemeld import __version__
 
 __all__ = ['BLUEPRINT']
 
@@ -154,6 +155,15 @@ def get_system_status():
     res['sns'] = SNS_AVAILABLE
 
     return jsonify(result=res, timestamp=int(time.time() * 1000))
+
+
+@BLUEPRINT.route('/info', methods=['GET'], read_write=False)
+def get_system_info():
+    res = {}
+    res['sns'] = SNS_AVAILABLE
+    res['version'] = __version__
+
+    return jsonify(result=res)
 
 
 @BLUEPRINT.route('/minemeld', methods=['GET'], read_write=False)

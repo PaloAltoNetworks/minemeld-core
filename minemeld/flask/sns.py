@@ -13,7 +13,7 @@ TYPEHELLO = 'hello'
 TYPEMKWISH = 'mkwish'
 TYPESTATS = 'stats'
 
-SNS_OBJ = {}
+SNS_OBJ = None
 SNS_AVAILABLE = False
 
 
