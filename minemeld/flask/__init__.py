@@ -22,7 +22,6 @@ import minemeld.loader
 from .logger import LOG
 
 REDIS_URL = os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0')
-SNSOBJ = None
 
 
 def create_app():

@@ -6,18 +6,18 @@ import minemeld
 from .logger import LOG
 from . import config
 
-SNSAPIURL = config.get('SNS_URL', 'https://o11kiw0vpe.execute-api.us-east-1.amazonaws.com/run')
+SNSAPIURL = config.get('SNS_URL', 'https://minemeld-notifications.panw.io/0.9/')
 SNSENABLED = config.get('SNS_ENABLED', False)
 UUIDFILENAME = config.get('UUID_FILE', 'uu.id4')
 TYPEHELLO = 'hello'
 TYPEMKWISH = 'mkwish'
 TYPESTATS = 'stats'
 
-sns_obj = {}
-sns_available = False
+SNS_OBJ = {}
+SNS_AVAILABLE = False
 
 
-class sns:
+class Sns(object):
     def __init__(self, path):
         self.api_url = SNSAPIURL
         self.filename = os.path.join(path, UUIDFILENAME)
@@ -40,8 +40,7 @@ class sns:
                         LOG.debug('New uuid file created.')
                 except Exception as e:
                     # Let the caller know uuid was not saved meaning sns might not be ready
-                    LOG.debug('Something went wrong creating the uuid file: {}'.format(self.filename))
-                except Exception:
+                    LOG.exception('Something went wrong creating the uuid file: {}'.format(self.filename))
                     return False
                 LOG.debug('Instance uuid = {}'.format(self.uuid))
                 LOG.debug('MineMeld cloud notification service is ready.')
@@ -53,7 +52,7 @@ class sns:
             f = open(self.filename)
         except IOError:
             self.uuid = uuid_error
-            LOG.info('Failure opening the uuid file {}'.format(self.filename))
+            LOG.exception('Failure opening the uuid file {}'.format(self.filename))
             return True
         r_uuid = f.readline().strip()
         f.close()
@@ -77,6 +76,7 @@ class sns:
                               timeout=5,
                               headers={'Content-Type': 'application/json'})
         except Exception as e:
+            LOG.exception('Failure sending the message to the sns cloud provider')
             return False
         if r.status_code == requests.codes.ok:
             response = r.json()
@@ -97,9 +97,9 @@ class sns:
 
 
 def init_app():
-    global sns_obj
-    global sns_available
+    global SNS_OBJ
+    global SNS_AVAILABLE
     if not SNSENABLED:
         return
-    sns_obj = sns(config.API_CONFIG_PATH)
-    sns_available = sns_obj.get_status()
+    SNS_OBJ = Sns(config.API_CONFIG_PATH)
+    SNS_AVAILABLE = SNS_OBJ.get_status()

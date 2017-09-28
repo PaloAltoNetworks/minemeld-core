@@ -34,7 +34,7 @@ from .aaa import MMBlueprint, enable_prevent_write, disable_prevent_write
 from .logger import LOG
 from .jobs import JOBS_MANAGER
 from .utils import safe_remove, committed_config_path
-from .sns import sns_obj, sns_available
+from .sns import SNS_OBJ, SNS_AVAILABLE
 
 __all__ = ['BLUEPRINT']
 
@@ -151,7 +151,7 @@ def get_system_status():
     res['memory'] = psutil.virtual_memory().percent
     res['swap'] = psutil.swap_memory().percent
     res['disk'] = psutil.disk_usage(data_path).percent
-    res['sns'] = sns_available
+    res['sns'] = SNS_AVAILABLE
 
     return jsonify(result=res, timestamp=int(time.time() * 1000))
 
@@ -482,7 +482,7 @@ def restore_local_backup(backup_id):
 def sns_wish():
     request.get_data()
     message = request.data
-    success = sns_obj.make_wish(message)
+    success = SNS_OBJ.make_wish(message)
     if success:
         return jsonify(result='ok')
     return jsonify(error={'messsage': 'Error sending the message'}), 400
