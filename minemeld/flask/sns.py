@@ -6,21 +6,20 @@ import minemeld
 from .logger import LOG
 from . import config
 
-SNSAPIURL = config.get('SNS_URL', 'https://minemeld-notifications.panw.io/0.9/')
-SNSENABLED = config.get('SNS_ENABLED', False)
-UUIDFILENAME = config.get('UUID_FILE', 'uu.id4')
 TYPEHELLO = 'hello'
 TYPEMKWISH = 'mkwish'
 TYPESTATS = 'stats'
-
+SNS_API_URL = None
+SNS_ENABLED = None
+UUID_FILENAME = None
 SNS_OBJ = None
 SNS_AVAILABLE = False
 
 
 class Sns(object):
     def __init__(self, path):
-        self.api_url = SNSAPIURL
-        self.filename = os.path.join(path, UUIDFILENAME)
+        self.api_url = SNS_API_URL
+        self.filename = os.path.join(path, UUID_FILENAME)
         self.mm_version = minemeld.__version__
         self.init_ok = self._init_uuid()
 
@@ -99,7 +98,13 @@ class Sns(object):
 def init_app():
     global SNS_OBJ
     global SNS_AVAILABLE
-    if not SNSENABLED:
+    global UUID_FILENAME
+    global SNS_API_URL
+    global SNS_ENABLED
+    SNS_API_URL = config.get('SNS_URL', 'https://minemeld-notifications.panw.io/0.9/')
+    SNS_ENABLED = config.get('SNS_ENABLED', False)
+    UUID_FILENAME = config.get('UUID_FILE', 'uu.id4')
+    if not SNS_ENABLED:
         return
     SNS_OBJ = Sns(config.API_CONFIG_PATH)
     SNS_AVAILABLE = SNS_OBJ.get_status()
