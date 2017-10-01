@@ -102,6 +102,9 @@ class HttpFT(basepoller.BasePollerFT):
         self.verify_cert = self.config.get('verify_cert', True)
         self.user_agent = self.config.get('user_agent', None)
 
+        self.username = self.config.get('username', None)
+        self.password = self.config.get('password', None)
+
         self.ignore_regex = self.config.get('ignore_regex', None)
         if self.ignore_regex is not None:
             self.ignore_regex = re.compile(self.ignore_regex)
@@ -185,6 +188,9 @@ class HttpFT(basepoller.BasePollerFT):
                 rkwargs['headers'] = {
                     'User-Agent': self.user_agent
                 }
+
+        if self.username is not None and self.password is not None:
+            rkwargs['auth'] = (self.username, self.password)
 
         r = requests.get(
             self.url,
