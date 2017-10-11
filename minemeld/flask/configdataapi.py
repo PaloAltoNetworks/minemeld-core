@@ -175,7 +175,7 @@ class _CDataLocalDB(object):
         return jsonify(result=result)
 
     def create(self):
-        jsonify(error=dict(message='Method not allowed on localdb files')), 400
+        return jsonify(error=dict(message='Method not allowed on localdb files')), 400
 
     def _parse_text_data(self, data):
         result = []
@@ -274,12 +274,12 @@ class _CDataLocalDB(object):
             if indicator is None:
                 return jsonify(error={
                     'message': 'entry %d: indicator field is missing'.format(en)
-                })
+                }), 400
             type_ = entry.pop('type', None)
             if type_ is None:
                 return jsonify(error={
                     'message': 'entry %d: type field is missing'.format(en)
-                })
+                }), 400
 
             expiration_ts = entry.pop('ttl', None)
             if expiration_ts is not None:
