@@ -12,31 +12,32 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import re
 import cStringIO
 import json
-from gevent import sleep
+import re
+from collections import defaultdict
 from contextlib import contextmanager
 
 import unicodecsv
-from netaddr import IPRange, AddrFormatError
 from flask import request, jsonify, Response, stream_with_context
 from flask.ext.login import current_user
-from collections import defaultdict
+from gevent import sleep
+from netaddr import IPRange, IPNetwork, IPSet, AddrFormatError
 
-from .redisclient import SR
-from .mmrpc import MMMaster
 from .aaa import MMBlueprint
+from .cbfeed import CbFeedInfo, CbReport
 from .logger import LOG
-
+from .mmrpc import MMMaster
+from .redisclient import SR
 
 __all__ = ['BLUEPRINT']
-
 
 FEED_INTERVAL = 100
 _PROTOCOL_RE = re.compile('^(?:[a-z]+:)*//')
 _INVALID_TOKEN_RE = re.compile('(?:[^\./+=\?&]+\*[^\./+=\?&]*)|(?:[^\./+=\?&]*\*[^\./+=\?&]+)')
-
+_IPV4_RE = re.compile('^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\\/[0-9]+$')
+_IPV4_RANGE_RE = re.compile(
+    '^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}-[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$')
 
 BLUEPRINT = MMBlueprint('feeds', __name__, url_prefix='/feeds')
 
@@ -70,13 +71,13 @@ def generate_panosurl_feed(feed, start, num, desc, value, **kwargs):
         zrange = SR.zrevrange
 
     if num is None:
-        num = (1 << 32)-1
+        num = (1 << 32) - 1
 
     cstart = start
 
-    while cstart < (start+num):
+    while cstart < (start + num):
         ilist = zrange(feed, cstart,
-                       cstart-1+min(start+num - cstart, FEED_INTERVAL))
+                       cstart - 1 + min(start + num - cstart, FEED_INTERVAL))
 
         for i in ilist:
             i = i.lower()
@@ -84,7 +85,7 @@ def generate_panosurl_feed(feed, start, num, desc, value, **kwargs):
             i = _PROTOCOL_RE.sub('', i)
             i = _INVALID_TOKEN_RE.sub('*', i)
 
-            yield i+'\n'
+            yield i + '\n'
 
         if len(ilist) < 100:
             break
@@ -98,20 +99,20 @@ def generate_plain_feed(feed, start, num, desc, value, **kwargs):
         zrange = SR.zrevrange
 
     if num is None:
-        num = (1 << 32)-1
+        num = (1 << 32) - 1
 
     translate_ip_ranges = kwargs.pop('translate_ip_ranges', False)
 
     cstart = start
 
-    while cstart < (start+num):
+    while cstart < (start + num):
         ilist = zrange(feed, cstart,
-                       cstart-1+min(start+num - cstart, FEED_INTERVAL))
+                       cstart - 1 + min(start + num - cstart, FEED_INTERVAL))
 
         if translate_ip_ranges:
             ilist = [xi for i in ilist for xi in _translate_ip_ranges(i)]
 
-        yield '\n'.join(ilist)+'\n'
+        yield '\n'.join(ilist) + '\n'
 
         if len(ilist) < 100:
             break
@@ -125,7 +126,7 @@ def generate_json_feed(feed, start, num, desc, value, **kwargs):
         zrange = SR.zrevrange
 
     if num is None:
-        num = (1 << 32)-1
+        num = (1 << 32) - 1
 
     translate_ip_ranges = kwargs.pop('translate_ip_ranges', False)
 
@@ -135,14 +136,14 @@ def generate_json_feed(feed, start, num, desc, value, **kwargs):
     cstart = start
     firstelement = True
 
-    while cstart < (start+num):
+    while cstart < (start + num):
         ilist = zrange(feed, cstart,
-                       cstart-1+min(start+num - cstart, FEED_INTERVAL))
+                       cstart - 1 + min(start + num - cstart, FEED_INTERVAL))
 
         result = cStringIO.StringIO()
 
         for indicator in ilist:
-            v = SR.hget(feed+'.value', indicator)
+            v = SR.hget(feed + '.value', indicator)
 
             xindicators = [indicator]
             if translate_ip_ranges and '-' in indicator:
@@ -205,7 +206,7 @@ def generate_csv_feed(feed, start, num, desc, value, **kwargs):
         zrange = SR.zrevrange
 
     if num is None:
-        num = (1 << 32)-1
+        num = (1 << 32) - 1
 
     translate_ip_ranges = kwargs.pop('translate_ip_ranges', False)
 
@@ -257,12 +258,12 @@ def generate_csv_feed(feed, start, num, desc, value, **kwargs):
             w.writeheader()
             yield current_line.getvalue()
 
-        while cstart < (start+num):
+        while cstart < (start + num):
             ilist = zrange(feed, cstart,
-                           cstart-1+min(start+num - cstart, FEED_INTERVAL))
+                           cstart - 1 + min(start + num - cstart, FEED_INTERVAL))
 
             for indicator in ilist:
-                v = SR.hget(feed+'.value', indicator)
+                v = SR.hget(feed + '.value', indicator)
                 v = None if v is None else json.loads(v)
 
                 xindicators = [indicator]
@@ -296,7 +297,7 @@ def generate_mwg_feed(feed, start, num, desc, value, **kwargs):
         zrange = SR.zrevrange
 
     if num is None:
-        num = (1 << 32)-1
+        num = (1 << 32) - 1
 
     translate_ip_ranges = kwargs.pop('translate_ip_ranges', False)
     type_ = kwargs.get('t', None)
@@ -309,12 +310,12 @@ def generate_mwg_feed(feed, start, num, desc, value, **kwargs):
     yield 'type={}\n'.format(type_)
 
     cstart = start
-    while cstart < (start+num):
+    while cstart < (start + num):
         ilist = zrange(feed, cstart,
-                       cstart-1+min(start+num - cstart, FEED_INTERVAL))
+                       cstart - 1 + min(start + num - cstart, FEED_INTERVAL))
 
         for indicator in ilist:
-            v = SR.hget(feed+'.value', indicator)
+            v = SR.hget(feed + '.value', indicator)
             v = None if v is None else json.loads(v)
 
             xindicators = [indicator]
@@ -349,14 +350,14 @@ def generate_mwg_feed(feed, start, num, desc, value, **kwargs):
 #          indicators without 'catattr' will be discarded.
 def generate_bluecoat_feed(feed, start, num, desc, value, **kwargs):
     zrange = SR.zrange
-    ilist = zrange(feed, 0, (1 << 32)-1)
+    ilist = zrange(feed, 0, (1 << 32) - 1)
     bc_dict = defaultdict(list)
     flag_category_default = kwargs.get('cd', None)
     flag_category_attr = kwargs.get('ca', ['bc_category'])[0]
 
     for i in ilist:
         sleep(0)
-        v = SR.hget(feed+'.value', i)
+        v = SR.hget(feed + '.value', i)
         v = None if v is None else json.loads(v)
         i = i.lower()
         i = _PROTOCOL_RE.sub('', i)
@@ -384,8 +385,80 @@ def generate_bluecoat_feed(feed, start, num, desc, value, **kwargs):
     for key, value in bc_dict.iteritems():
         yield 'define category {}\n'.format(key)
         for ind in value:
-            yield ind+'\n'
+            yield ind + '\n'
         yield 'end\n'
+
+
+def generate_carbon_black(feed, start, num, desc, value, **kwargs):
+    zrange = SR.zrange
+    ilist = zrange(feed, 0, (1 << 32) - 1)
+    mm_to_cb = {"IPv4": "ipv4",
+                "domain": "dns",
+                "md5": "md5"}
+    ind_by_type = {"dns": [],
+                   "md5": []}
+
+    # Let's stream the information as soon as we have it
+    yield "{\n\"feedinfo\": {\n"
+    cb_feed_info = CbFeedInfo(name=feed)
+    for cb_info_parts in cb_feed_info.iterate():
+        yield "  " + cb_info_parts
+    yield "\n},\n\"reports\": [{"
+
+    report_args = dict()
+    report_args["id"] = feed + "_report"
+
+    report_title = kwargs.get('rt', ["MieneMeld Generated Report"])
+    if report_title is not None:
+        report_title = report_title[0]
+    report_args["title"] = report_title
+
+    report_score = kwargs.get('rs', None)
+    if report_score is not None:
+        try:
+            report_score = int(report_score[0])
+        except ValueError:
+            report_score = None
+    report_args["score"] = report_score
+
+    cb_report = CbReport(**report_args)
+
+    for cb_report_parts in cb_report.iterate():
+        yield "  " + cb_report_parts
+    yield ",    \"iocs\": {"
+    yield "        \"ipv4\": ["
+
+    # Loop though all indicators
+    # Only indicators of type IPv4, domain and md5 can be exported to Carbon Black
+    ipv4_line = None
+    for i in ilist:
+        sleep(0)
+        v = SR.hget(feed + '.value', i)
+        v = None if v is None else json.loads(v)
+        if v is None:
+            continue
+        v_type = v.get("type", None)
+        if v_type not in mm_to_cb:
+            continue
+        if v_type in ("domain", "md5"):
+            ind_by_type[mm_to_cb[v_type]].append(i.lower())
+            continue
+
+        # Carbon Black do not support IPv4 networks not ranges. We must expand them.
+        ip_range = None
+        if _IPV4_RE.match(i):
+            ip_range = IPSet(IPNetwork(i))
+        elif _IPV4_RANGE_RE.match(i):
+            range_parts = i.split("-")
+            ip_range = IPRange(range_parts[0], range_parts[1])
+        for ip_addr in ip_range:
+            if ipv4_line is not None:
+                yield ipv4_line + ","
+            ipv4_line = "\"{}\"".format(str(ip_addr))
+    yield ipv4_line + "],"
+    yield "\"dns\": {},".format(json.dumps(ind_by_type["dns"]))
+    yield "\"md5\": {}".format(json.dumps(ind_by_type["md5"]))
+    yield "}}]}"
 
 
 _FEED_FORMATS = {
@@ -409,6 +482,10 @@ _FEED_FORMATS = {
         'formatter': generate_bluecoat_feed,
         'mimetype': 'text/plain'
     },
+    'carbonblack': {
+        'formatter': generate_carbon_black,
+        'mimetype': 'application/json'
+    },
     'csv': {
         'formatter': generate_csv_feed,
         'mimetype': 'text/csv'
@@ -427,7 +504,7 @@ def get_feed_content(feed):
     if tr is None:
         return jsonify(error={'message': status.get('error', 'error')})
 
-    nname = 'mbus:slave:'+feed
+    nname = 'mbus:slave:' + feed
     if nname not in tr:
         return jsonify(error={'message': 'Unknown feed'}), 404
     nclass = tr[nname].get('class', None)
