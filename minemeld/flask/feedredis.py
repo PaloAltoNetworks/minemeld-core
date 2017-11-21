@@ -455,7 +455,7 @@ def generate_carbon_black(feed, start, num, desc, value, **kwargs):
             if ipv4_line is not None:
                 yield ipv4_line + ","
             ipv4_line = "\"{}\"".format(str(ip_addr))
-    yield ipv4_line + "],"
+    yield ("" if ipv4_line is None else ipv4_line) + "],"
     yield "\"dns\": {},".format(json.dumps(ind_by_type["dns"]))
     yield "\"md5\": {}".format(json.dumps(ind_by_type["md5"]))
     yield "}}]}"
