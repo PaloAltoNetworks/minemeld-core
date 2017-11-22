@@ -35,7 +35,7 @@ __all__ = ['BLUEPRINT']
 FEED_INTERVAL = 100
 _PROTOCOL_RE = re.compile('^(?:[a-z]+:)*//')
 _INVALID_TOKEN_RE = re.compile('(?:[^\./+=\?&]+\*[^\./+=\?&]*)|(?:[^\./+=\?&]*\*[^\./+=\?&]+)')
-_IPV4_RE = re.compile('^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\\/[0-9]+$')
+_IPV4_MASK_RE = re.compile('^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}(\\/[0-9]+)?$')
 _IPV4_RANGE_RE = re.compile(
     '^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}-[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$')
 
@@ -446,7 +446,7 @@ def generate_carbon_black(feed, start, num, desc, value, **kwargs):
 
         # Carbon Black do not support IPv4 networks not ranges. We must expand them.
         ip_range = None
-        if _IPV4_RE.match(i):
+        if _IPV4_MASK_RE.match(i):
             ip_range = IPSet(IPNetwork(i))
         elif _IPV4_RANGE_RE.match(i):
             range_parts = i.split("-")
@@ -455,7 +455,7 @@ def generate_carbon_black(feed, start, num, desc, value, **kwargs):
             if ipv4_line is not None:
                 yield ipv4_line + ","
             ipv4_line = "\"{}\"".format(str(ip_addr))
-    yield ipv4_line + "],"
+    yield ("" if ipv4_line is None else ipv4_line) + "],"
     yield "\"dns\": {},".format(json.dumps(ind_by_type["dns"]))
     yield "\"md5\": {}".format(json.dumps(ind_by_type["md5"]))
     yield "}}]}"
