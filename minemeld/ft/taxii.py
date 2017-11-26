@@ -37,9 +37,12 @@ import libtaxii.messages_11
 from libtaxii.constants import MSG_STATUS_MESSAGE, ST_SUCCESS
 
 import stix.core.stix_package
+import stix.core.stix_header
 import stix.indicator
 import stix.common.vocabs
 import stix.extensions.marking.ais
+import stix.data_marking
+import stix.extensions.marking.tlp
 
 import cybox.core
 import cybox.objects.address_object
@@ -1342,6 +1345,21 @@ class DataFeed(actorbase.ActorBaseFT):
 
         self.max_entries = self.config.get('max_entries', 1000 * 1000)
 
+        self.attributes_package_title = self.config.get('attributes_package_title', [])
+        if not isinstance(self.attributes_package_title, list):
+            LOG.error('{} - attributes_package_title should be a list - ignored')
+            self.attributes_package_title = []
+
+        self.attributes_package_description = self.config.get('attributes_package_description', [])
+        if not isinstance(self.attributes_package_description, list):
+            LOG.error('{} - attributes_package_description should be a list - ignored')
+            self.attributes_package_description = []
+
+        self.attributes_package_sdescription = self.config.get('attributes_package_short_description', [])
+        if not isinstance(self.attributes_package_sdescription, list):
+            LOG.error('{} - attributes_package_sdescription should be a list - ignored')
+            self.attributes_package_sdescription = []
+
     def connect(self, inputs, output):
         output = False
         super(DataFeed, self).connect(inputs, output)
@@ -1410,11 +1428,60 @@ class DataFeed(actorbase.ActorBaseFT):
         nsdict[self.namespaceuri] = self.namespace
         stix.utils.set_id_namespace(nsdict)
 
+        title = None
+        if len(self.attributes_package_title) != 0:
+            for pt in self.attributes_package_title:
+                if pt not in value:
+                    continue
+
+                title = '{}'.format(value[pt])
+                break
+
+        description = None
+        if len(self.attributes_package_description) != 0:
+            for pd in self.attributes_package_description:
+                if pd not in value:
+                    continue
+
+                description = '{}'.format(value[pd])
+                break
+
+        sdescription = None
+        if len(self.attributes_package_sdescription) != 0:
+            for pd in self.attributes_package_sdescription:
+                if pd not in value:
+                    continue
+
+                sdescription = '{}'.format(value[pd])
+                break
+
+        handling = None
+        share_level = value.get('share_level', None)
+        if share_level in ['white', 'green', 'amber', 'red']:
+            marking_specification = stix.data_marking.MarkingSpecification()
+            marking_specification.controlled_structure = "//node() | //@*"
+
+            tlp = stix.extensions.marking.tlp.TLPMarkingStructure()
+            tlp.color = share_level.upper()
+            marking_specification.marking_structures.append(tlp)
+
+            handling = stix.data_marking.Marking()
+            handling.add_marking(marking_specification)
+
+        header = None
+        if title is not None or description is not None or handling is not None or sdescription is not None:
+            header = stix.core.STIXHeader(
+                title=title,
+                description=description,
+                handling=handling,
+                short_description=sdescription
+            )
+
         spid = '{}:indicator-{}'.format(
             self.namespace,
             uuid.uuid4()
         )
-        sp = stix.core.STIXPackage(id_=spid)
+        sp = stix.core.STIXPackage(id_=spid, stix_header=header)
 
         observables = type_mapper['mapper'](self.namespace, indicator, value)
 
