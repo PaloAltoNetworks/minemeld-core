@@ -1290,11 +1290,11 @@ _TYPE_MAPPING = {
         'mapper': _stix_ip_observable
     },
     'URL': {
-        'indicator_type': stix.common.vocabs.IndicatorType.TERM_DOMAIN_WATCHLIST,
+        'indicator_type': stix.common.vocabs.IndicatorType.TERM_URL_WATCHLIST,
         'mapper': _stix_url_observable
     },
     'domain': {
-        'indicator_type': stix.common.vocabs.IndicatorType.TERM_URL_WATCHLIST,
+        'indicator_type': stix.common.vocabs.IndicatorType.TERM_DOMAIN_WATCHLIST,
         'mapper': _stix_domain_observable
     },
     'sha256': {
