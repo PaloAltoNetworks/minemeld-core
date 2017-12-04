@@ -69,6 +69,7 @@ class TaxiiClient(basepoller.BasePollerFT):
         self.poll_service = None
         self.collection_mgmt_service = None
         self.last_taxii_run = None
+        self.last_stix_package_ts = None
 
         super(TaxiiClient, self).__init__(name, chassis, config)
 
@@ -460,6 +461,8 @@ class TaxiiClient(basepoller.BasePollerFT):
         cbegin = begin
         dt = timedelta(seconds=self.max_poll_dt)
 
+        self.last_stix_package_ts = None
+
         while cbegin < end:
             cend = min(end, cbegin+dt)
 
@@ -473,7 +476,8 @@ class TaxiiClient(basepoller.BasePollerFT):
             for i in result:
                 yield i
 
-            self.last_taxii_run = dt_to_millisec(cend)
+            if self.last_stix_package_ts is not None:
+                self.last_taxii_run = self.last_stix_package_ts
 
             cbegin = cend
 
@@ -543,6 +547,13 @@ class TaxiiClient(basepoller.BasePollerFT):
                     for t in stixpackage.ttps:
                         ct = self._decode_ttp(t)
                         objects['ttps'][t.id_] = ct
+
+                timestamp = stixpackage.timestamp
+                if isinstance(timestamp, datetime):
+                    timestamp = dt_to_millisec(timestamp)
+                    if self.last_stix_package_ts is None or timestamp > self.last_stix_package_ts:
+                        LOG.debug('{} - last STIX package timestamp set to {!r}'.format(self.name, timestamp))
+                        self.last_stix_package_ts = timestamp
 
         except:
             LOG.exception("%s - exception in _handle_content_blocks" %
@@ -798,7 +809,7 @@ class TaxiiClient(basepoller.BasePollerFT):
                 result['header'] = header
                 try:
                     ov = header.get('from').get('address_value').get('value')
-                except Exception as ex:
+                except Exception:
                     LOG.error('{} - no email address listed'.format(self.name))
 
             subject = op.get('subject', None)
@@ -1098,13 +1109,14 @@ class TaxiiClient(basepoller.BasePollerFT):
         self._check_collections(tc)
 
         last_run = self.last_taxii_run
-        if last_run is None:
-            last_run = now-(self.initial_interval*1000)
+        max_back = now-(self.initial_interval*1000)
+        if last_run is None or last_run < max_back:
+            last_run = max_back
 
-        begin = datetime.fromtimestamp(last_run/1000)
+        begin = datetime.utcfromtimestamp(last_run/1000)
         begin = begin.replace(tzinfo=pytz.UTC)
 
-        end = datetime.fromtimestamp(now/1000)
+        end = datetime.utcfromtimestamp(now/1000)
         end = end.replace(tzinfo=pytz.UTC)
 
         if self.lower_timestamp_precision:
