@@ -48,6 +48,9 @@ class HttpFT(basepoller.BasePollerFT):
             character is used as indicator. Default: *null*
         :fields: a dicionary of *extraction dictionaries* to extract
             additional attributes from each line. Default: {}
+        :encoding: encoding of the feed, if not UTF-8. See
+            ``str.decode`` for options. Default: *null*, meaning do
+            nothing, (Assumes UTF-8).
 
     **Extraction dictionary**
         Extraction dictionaries contain the following keys:
@@ -101,6 +104,7 @@ class HttpFT(basepoller.BasePollerFT):
         self.polling_timeout = self.config.get('polling_timeout', 20)
         self.verify_cert = self.config.get('verify_cert', True)
         self.user_agent = self.config.get('user_agent', None)
+        self.encoding = self.config.get('encoding', None)
 
         self.username = self.config.get('username', None)
         self.password = self.config.get('password', None)
@@ -208,6 +212,11 @@ class HttpFT(basepoller.BasePollerFT):
         if self.ignore_regex is not None:
             result = itertools.ifilter(
                 lambda x: self.ignore_regex.match(x) is None,
+                result
+            )
+        if self.encoding is not None:
+            result = itertools.imap(
+                lambda x: x.decode(self.encoding).encode('utf_8'),
                 result
             )
 
