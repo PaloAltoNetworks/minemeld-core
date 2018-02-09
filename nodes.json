@@ -112,5 +112,11 @@
     },
     "minemeld.ft.localdb.Miner": {
         "class": "minemeld.ft.localdb:Miner"
+    },
+    "minemeld.ft.threatconnect.IndicatorsMiner": {
+        "class": "minemeld.ft.threatconnect:IndicatorsMiner"
+    },
+    "minemeld.ft.threatconnect.GroupsMiner": {
+        "class": "minemeld.ft.threatconnect:GroupsMiner"
     }
 }
