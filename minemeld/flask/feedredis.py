@@ -159,9 +159,9 @@ def generate_json_feed(feed, start, num, desc, value, **kwargs):
                 if value == 'json-seq':
                     result.write('\x1E')
 
-                result.write('{"indicator":"')
-                result.write(i)
-                result.write('","value":')
+                result.write('{"indicator":')
+                result.write(json.dumps(i))
+                result.write(',"value":')
                 result.write(v)
                 result.write('}')
 
