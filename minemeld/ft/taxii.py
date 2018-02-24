@@ -40,6 +40,8 @@ import stix.core.stix_package
 import stix.core.stix_header
 import stix.indicator
 import stix.common.vocabs
+import stix.common.information_source
+import stix.common.identity
 import stix.extensions.marking.ais
 import stix.data_marking
 import stix.extensions.marking.tlp
@@ -1372,6 +1374,11 @@ class DataFeed(actorbase.ActorBaseFT):
             LOG.error('{} - attributes_package_sdescription should be a list - ignored')
             self.attributes_package_sdescription = []
 
+        self.attributes_package_information_source = self.config.get('attributes_package_information_source', [])
+        if not isinstance(self.attributes_package_information_source, list):
+            LOG.error('{} - attributes_package_information_source should be a list - ignored')
+            self.attributes_package_information_source = []
+
     def connect(self, inputs, output):
         output = False
         super(DataFeed, self).connect(inputs, output)
@@ -1467,6 +1474,19 @@ class DataFeed(actorbase.ActorBaseFT):
                 sdescription = '{}'.format(value[pd])
                 break
 
+        information_source = None
+        if len(self.attributes_package_information_source) != 0:
+            for isource in self.attributes_package_information_source:
+                if isource not in value:
+                    continue
+
+                information_source = '{}'.format(value[isource])
+                break
+
+            if information_source is not None:
+                identity = stix.common.identity.Identity(name=information_source)
+                information_source = stix.common.information_source.InformationSource(identity=identity)
+
         handling = None
         share_level = value.get('share_level', None)
         if share_level in ['white', 'green', 'amber', 'red']:
@@ -1481,12 +1501,17 @@ class DataFeed(actorbase.ActorBaseFT):
             handling.add_marking(marking_specification)
 
         header = None
-        if title is not None or description is not None or handling is not None or sdescription is not None:
+        if (title is not None or
+            description is not None or
+            handling is not None or
+            sdescription is not None or
+            information_source is not None):
             header = stix.core.STIXHeader(
                 title=title,
                 description=description,
                 handling=handling,
-                short_description=sdescription
+                short_description=sdescription,
+                information_source=information_source
             )
 
         spid = '{}:indicator-{}'.format(
