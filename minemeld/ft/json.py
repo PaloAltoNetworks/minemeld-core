@@ -20,6 +20,8 @@ feeds over HTTP/HTTPS.
 import requests
 import logging
 import jmespath
+import os
+import yaml
 
 from . import basepoller
 
@@ -35,6 +37,12 @@ class SimpleJSON(basepoller.BasePollerFT):
             Default: 20
         :verify_cert: boolean, if *true* feed HTTPS server certificate is
             verified. Default: *true*
+        :username: string, for BasicAuth authentication (*password* required)
+        :password: string, for BasicAuth authentication (*username* required)
+        :client_cert_required: boolean, triggers client certificate authentication
+            (requires *cert_file* and *key_file*)
+        :cert_file: string, path to the client certificate
+        :key_file: string, path to the private key of the client certificate
         :extractor: JMESPath expression for extracting the indicators from
             the JSON document. Default: @
         :indicator: the JSON attribute to use as indicator. Default: indicator
@@ -63,6 +71,7 @@ class SimpleJSON(basepoller.BasePollerFT):
         chassis (object): parent chassis instance
         config (dict): node config.
     """
+
     def configure(self):
         super(SimpleJSON, self).configure()
 
@@ -79,6 +88,101 @@ class SimpleJSON(basepoller.BasePollerFT):
         self.password = self.config.get('password', None)
 
         self.headers = self.config.get('headers', None)
+
+        # option for enabling client cert, default disabled
+        self.client_cert_required = self.config.get('client_cert_required', False)
+        self.key_file = self.config.get('key_file', None)
+        if self.key_file is None and self.client_cert_required:
+            self.key_file = os.path.join(
+                os.environ['MM_CONFIG_DIR'],
+                '%s.pem' % self.name
+            )
+        self.cert_file = self.config.get('cert_file', None)
+        if self.cert_file is None and self.client_cert_required:
+            self.cert_file = os.path.join(
+                os.environ['MM_CONFIG_DIR'],
+                '%s.crt' % self.name
+            )
+
+        self.side_config_path = self.config.get('side_config', None)
+        if self.side_config_path is None:
+            self.side_config_path = os.path.join(
+                os.environ['MM_CONFIG_DIR'],
+                '%s_side_config.yml' % self.name
+            )
+
+        self._load_side_config()
+
+    def _load_side_config(self):
+        try:
+            with open(self.side_config_path, 'r') as f:
+                sconfig = yaml.safe_load(f)
+
+        except Exception as e:
+            LOG.error('%s - Error loading side config: %s', self.name, str(e))
+            return
+
+        username = sconfig.get('username', None)
+        password = sconfig.get('password', None)
+        if username is not None and password is not None:
+            self.username = username
+            self.password = password
+            LOG.info('{} - Loaded credentials from side config'.format(self.name))
+
+    def hup(self, source=None):
+        LOG.info('%s - hup received, reload side config', self.name)
+        self._load_side_config()
+        super(SimpleJSON, self).hup(source)
+
+    @staticmethod
+    def gc(name, config=None):
+        basepoller.BasePollerFT.gc(name, config=config)
+
+        side_config_path = None
+        if config is not None:
+            side_config_path = config.get('side_config', None)
+        if side_config_path is None:
+            side_config_path = os.path.join(
+                os.environ['MM_CONFIG_DIR'],
+                '{}_side_config.yml'.format(name)
+            )
+
+        try:
+            os.remove(side_config_path)
+        except:
+            pass
+
+        client_cert_required = False
+        if config is not None:
+            client_cert_required = config.get('client_cert_required', False)
+
+        if config is not None:
+            cert_path = config.get('cert_file', None)
+            if cert_path is None and client_cert_required:
+                cert_path = os.path.join(
+                    os.environ['MM_CONFIG_DIR'],
+                    '{}.crt'.format(name)
+                )
+
+            if cert_path is not None:
+                try:
+                    os.remove(cert_path)
+                except:
+                    pass
+
+        if config is not None:
+            key_path = config.get('key_file', None)
+            if key_path is None and client_cert_required:
+                key_path = os.path.join(
+                    os.environ['MM_CONFIG_DIR'],
+                    '{}.pem'.format(name)
+                )
+
+            if key_path is not None:
+                try:
+                    os.remove(key_path)
+                except:
+                    pass
 
     def _process_item(self, item):
         if self.indicator not in item:
@@ -119,6 +223,9 @@ class SimpleJSON(basepoller.BasePollerFT):
 
         if self.headers is not None:
             rkwargs['headers'] = self.headers
+
+        if self.client_cert_required and self.key_file is not None and self.cert_file is not None:
+            rkwargs['cert'] = (self.cert_file, self.key_file)
 
         r = requests.get(
             self.url,
