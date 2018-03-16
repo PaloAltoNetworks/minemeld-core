@@ -118,5 +118,8 @@
     },
     "minemeld.ft.threatconnect.GroupsMiner": {
         "class": "minemeld.ft.threatconnect:GroupsMiner"
+    },
+    "minemeld.ft.visa.VTI": {
+        "class": "minemeld.ft.visa:VTI"
     }
 }
