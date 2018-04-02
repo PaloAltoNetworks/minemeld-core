@@ -142,6 +142,7 @@ class DevicePusher(gevent.Greenlet):
             raise
 
         except pan.xapi.PanXapiError as e:
+            LOG.debug('%s', e)
             if 'already exists, ignore' in str(e):
                 pass
             elif 'does not exist, ignore unreg' in str(e):
@@ -341,37 +342,50 @@ class DagPusher(actorbase.ActorBaseFT):
     def reset(self):
         self._initialize_table(truncate=True)
 
-    @base._counting('update.processed')
-    def filtered_update(self, source=None, indicator=None, value=None):
-        if value.get('type', None) not in ['IPv4']:
+    def _validate_ip(self, indicator, value):
+        type_ = value.get('type', None)
+        if type_ not in ['IPv4', 'IPv6']:
+            LOG.error('%s - invalid indicator type, ignored: %s',
+                      self.name, type_)
             self.statistics['ignored'] += 1
             return
 
         if '-' in indicator:
             i1, i2 = indicator.split('-', 1)
             if i1 != i2:
+                LOG.error('%s - indicator range must be equal, ignored: %s',
+                          self.name, indicator)
                 self.statistics['ignored'] += 1
                 return
             indicator = i1
 
-        if '/' in indicator:
-            indicator, nmbits = indicator.split('/', 1)
-            if nmbits != '32':
-                self.statistics['ignored'] += 1
-                return
-
         try:
-            address = netaddr.IPAddress(indicator)
-        except ValueError:
-            LOG.error('%s - invalid IP address received, ignored',
+            address = netaddr.IPNetwork(indicator)
+        except netaddr.core.AddrFormatError as e:
+            LOG.error('%s - invalid IP address received, ignored: %s',
+                      self.name, e)
+            self.statistics['ignored'] += 1
+            return
+
+        if address.size != 1:
+            LOG.error('%s - IP network received, ignored: %s',
+                      self.name, address)
+            self.statistics['ignored'] += 1
+            return
+
+        if type_ == 'IPv4' and address.version != 4 or \
+           type_ == 'IPv6' and address.version != 6:
+            LOG.error('%s - IP version mismatch, ignored',
                       self.name)
             self.statistics['ignored'] += 1
             return
 
-        if address.netmask_bits() != 32:
-            LOG.error('%s - IP network received, ignored',
-                      self.name)
-            self.statistics['ignored'] += 1
+        return address
+
+    @base._counting('update.processed')
+    def filtered_update(self, source=None, indicator=None, value=None):
+        address = self._validate_ip(indicator, value)
+        if address is None:
             return
 
         current_value = self.table.get(str(address))
@@ -403,32 +417,14 @@ class DagPusher(actorbase.ActorBaseFT):
 
     @base._counting('withdraw.processed')
     def filtered_withdraw(self, source=None, indicator=None, value=None):
-        if '-' in indicator:
-            i1, i2 = indicator.split('-', 1)
-            if i1 != i2:
-                return
-            indicator = i1
-
-        if '/' in indicator:
-            indicator, nmbits = indicator.split('/', 1)
-            if nmbits != '32':
-                return
-
-        try:
-            address = netaddr.IPAddress(indicator)
-        except ValueError:
-            LOG.error('%s - invalid IP address received, ignored',
-                      self.name)
-            return
-
-        if address.netmask_bits() != 32:
-            LOG.error('%s - IP network received, ignored',
-                      self.name)
+        address = self._validate_ip(indicator, value)
+        if address is None:
             return
 
         current_value = self.table.get(str(address))
         if current_value is None:
             LOG.debug('%s - unknown indicator received, ignored', self.name)
+            self.statistics['ignored'] += 1
             return
 
         current_value.pop('_age_out', None)
@@ -436,7 +432,7 @@ class DagPusher(actorbase.ActorBaseFT):
         self.statistics['removed'] += 1
         self.table.delete(str(address))
         for p in self.device_pushers:
-            p.put('unregister', str(indicator), current_value)
+            p.put('unregister', str(address), current_value)
 
     def _age_out_run(self):
         while True:
