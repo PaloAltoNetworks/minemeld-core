@@ -17,6 +17,9 @@ from __future__ import absolute_import
 import logging
 import itertools
 import functools
+import uuid
+
+import netaddr
 import requests
 import lxml.etree
 
@@ -31,6 +34,7 @@ XPATH_FUNS_PREFIX = 'o365f'
 XPATH_PRODUCTS = "/products/product/@name"
 BASE_XPATH = "/products/product[" + XPATH_FUNS_PREFIX + ":lower-case(@name)='%s']"
 
+O365_API_BASE_URL = 'https://endpoints.office.com'
 
 def _build_IPv4(source, address):
     item = {
@@ -180,3 +184,207 @@ class O365XML(basepoller.BasePollerFT):
         products = rtree.xpath(XPATH_PRODUCTS)
         LOG.info('%s - found products: %r', self.name, products)
         return products
+
+
+class O365API(basepoller.BasePollerFT):
+    def __init__(self, name, chassis, config):
+        self.client_request_id = str(uuid.uuid4())
+        self.latest_version = '0000000000'
+
+        super(O365API, self).__init__(name, chassis, config)
+
+    def configure(self):
+        super(O365API, self).configure()
+
+        self.polling_timeout = self.config.get('polling_timeout', 20)
+        self.verify_cert = self.config.get('verify_cert', True)
+
+        self.instance = self.config.get('instance', 'O365Worldwide')
+        self.service_areas = self.config.get('service_areas', None)
+        self.tenant_name = self.config.get('tenant_name', None)
+
+    def _saved_state_restore(self, saved_state):
+        super(O365API, self)._saved_state_restore(saved_state)
+
+        self.client_request_id = saved_state.get('client_request_id', None)
+        self.latest_version = saved_state.get('latest_version', None)
+
+        LOG.info('saved state: client_request_id: {} latest_version: {}'.format(
+            self.client_request_id,
+            self.latest_version
+        ))
+
+    def _saved_state_create(self):
+        sstate = super(O365API, self)._saved_state_create()
+
+        sstate['latest_version'] = self.latest_version
+        sstate['client_request_id'] = self.client_request_id
+
+        return sstate
+
+    def _saved_state_reset(self):
+        super(O365API, self)._saved_state_reset()
+
+        self.client_request_id = str(uuid.uuid4())
+        self.latest_version = '0000000000'
+
+    def _check_version(self):
+        rkwargs = dict(
+            stream=False,
+            verify=self.verify_cert,
+            timeout=self.polling_timeout,
+            params={
+                'clientrequestid': self.client_request_id
+            }
+        )
+
+        url = '{}/version/{}'.format(
+            O365_API_BASE_URL,
+            self.instance
+        )
+
+        r = requests.get(
+            url,
+            **rkwargs
+        )
+
+        try:
+            r.raise_for_status()
+        except:
+            LOG.debug('{} - exception in request: {} {!r}'.format(
+                self.name, r.status_code, r.content
+            ))
+            raise
+
+        version = r.json()
+
+        LOG.debug('{} - version: {}'.format(self.name, version))
+
+        if version['latest'] > self.latest_version:
+            return version['latest']
+
+        return
+
+    def _process_item(self, item):
+        item.pop('id', None)
+
+        result = []
+
+        base_value = {}
+        for wka in ['expressRoute', 'optionalImpact', 'serviceArea']:
+            if wka in item:
+                base_value['o365_{}'.format(wka)] = item[wka]
+
+        if 'defaultUrls' in item:
+            tcp_ports = item.get('defaultTcpPorts', None)
+            udp_ports = item.get('defaultUdpPorts', None)
+
+            for url in item['defaultUrls']:
+                value = base_value.copy()
+                value['type'] = 'URL'
+                value['o365_category'] = 'Default'
+                if tcp_ports is not None:
+                    value['o365_tcp_ports'] = tcp_ports
+                if udp_ports is not None:
+                    value['o365_udp_ports'] = udp_ports
+
+                result.append([url, value])
+
+        if 'allowUrls' in item:
+            tcp_ports = item.get('allowTcpPorts', None)
+            udp_ports = item.get('allowUdpPorts', None)
+
+            for url in item['allowUrls']:
+                value = base_value.copy()
+                value['type'] = 'URL'
+                value['o365_category'] = 'Allow'
+                if tcp_ports is not None:
+                    value['o365_tcp_ports'] = tcp_ports
+                if udp_ports is not None:
+                    value['o365_udp_ports'] = udp_ports
+
+                result.append([url, value])
+
+        if 'optimizeUrls' in item:
+            tcp_ports = item.get('optimizeTcpPorts', None)
+            udp_ports = item.get('optimizeUdpPorts', None)
+
+            for url in item['optimizeUrls']:
+                value = base_value.copy()
+                value['type'] = 'URL'
+                value['o365_category'] = 'Optimize'
+                if tcp_ports is not None:
+                    value['o365_tcp_ports'] = tcp_ports
+                if udp_ports is not None:
+                    value['o365_udp_ports'] = udp_ports
+
+                result.append([url, value])
+
+        if 'ips' in item:
+            for ip in item['ips']:
+                value = base_value.copy()
+                for attr in ['optimizeTcpPorts', 'optimizeUdpPorts', 'allowTcpPorts', 'allowUdpPorts', 'defaultTcpPorts', 'defaultUdpPorts']:
+                    if attr in item:
+                        value['o365_{}'.format(attr)] = item[attr]
+
+                try:
+                    parsed = netaddr.IPNetwork(ip)
+                except (netaddr.AddrFormatError, ValueError):
+                    LOG.error('{} - Unknown IP version: {}'.format(self.name, ip))
+                    return None
+
+                if parsed.version == 4:
+                    value['type'] = 'IPv4'
+                elif parsed.version == 6:
+                    value['type'] = 'IPv6'
+
+                result.append([ip, value])
+
+        return result
+
+    def _iterator(self, array, latest_version):
+        for i in array:
+            yield i
+
+        self.latest_version = latest_version
+
+    def _build_iterator(self, now):
+        latest_version = self._check_version()
+        if latest_version is None:
+            LOG.info('{} - Already latest version, polling not performed'.format(
+                self.name
+            ))
+            return None
+
+        rkwargs = dict(
+            stream=False,
+            verify=self.verify_cert,
+            timeout=self.polling_timeout,
+            params={
+                'clientrequestid': self.client_request_id
+            }
+        )
+        if self.tenant_name is not None:
+            rkwargs['params']['tenantname'] = self.tenant_name
+        if self.service_areas is not None:
+            rkwargs['params']['serviceareas'] = ','.join(self.service_areas)
+
+        url = '{}/endpoints/{}'.format(
+            O365_API_BASE_URL,
+            self.instance
+        )
+
+        r = requests.get(
+            url,
+            **rkwargs
+        )
+
+        try:
+            r.raise_for_status()
+        except:
+            LOG.debug('{} - exception in request: {} {!r}'.format(
+                self.name, r.status_code, r.content
+            ))
+            raise
+
+        return self._iterator(r.json(), latest_version)

@@ -62,6 +62,9 @@
     "minemeld.ft.o365.O365XML": {
         "class": "minemeld.ft.o365:O365XML"
     },
+    "minemeld.ft.o365.O365API": {
+        "class": "minemeld.ft.o365:O365API"
+    },
     "minemeld.ft.op.AggregateFT": {
         "class": "minemeld.ft.op:AggregateFT"
     },
