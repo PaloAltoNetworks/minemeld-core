@@ -2,9 +2,16 @@ import logging
 
 import pip
 
-from pkg_resources import WorkingSet, _initialize_master_working_set
+from pkg_resources import WorkingSet, _initialize_master_working_set, parse_version
 from collections import namedtuple
 
+try:
+    if parse_version(pip.__version__) >= parse_version('10.0.0'):
+        from pip._internal import get_installed_distributions  # pylint: disable=E0611,E0401
+    else:
+        from pip import get_installed_distributions  # pylint: disable=E0611,E0401
+except:
+    pass
 
 LOG = logging.getLogger(__name__)
 
@@ -26,7 +33,7 @@ _WS = None
 
 
 def _installed_versions():
-    installed_dists = pip.get_installed_distributions()
+    installed_dists = get_installed_distributions()
     return {d.project_name: d for d in installed_dists}
 
 
