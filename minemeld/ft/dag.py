@@ -136,7 +136,8 @@ class DevicePusher(gevent.Greenlet):
 
     def _user_id(self, cmd=None):
         try:
-            self.xapi.user_id(cmd=cmd)
+            self.xapi.user_id(cmd=cmd,
+                              vsys=self.device.get('vsys', None))
 
         except gevent.GreenletExit:
             raise
