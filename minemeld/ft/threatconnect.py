@@ -162,6 +162,10 @@ class ThreatConnect(object):
         r = do_call(0)
         r_data = r.json()
         pointer = 0
+        if "data" not in r_data:
+            return
+        if "resultCount" not in r_data["data"]:
+            return
         result_count = r_data["data"]["resultCount"]
         while True:
             items = r_data["data"][entity]
@@ -242,7 +246,8 @@ class TCMiner(BasePollerFT):
         self.tc.api_key = sconfig.get('apikey', None)
         self.tc.api_secret = sconfig.get('apisecret', None)
         data_owner = sconfig.get('owner', None)
-        self.tc.owner = None if data_owner is None else quote(data_owner)
+        if data_owner is not None:
+            self.tc.owner = quote(data_owner)
 
     def _saved_state_restore(self, saved_state):
         super(TCMiner, self)._saved_state_restore(saved_state)
