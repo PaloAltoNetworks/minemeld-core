@@ -157,10 +157,12 @@ class ThreatConnect(object):
             self.prepare_get(api_request)
             final_url = self.api_url + api_request
             response = requests.get(final_url, auth=self)
-            return response
+            doc = response.json()
+            if doc["status"] != "Success":
+                raise RuntimeError("ThreatConnectAPI - {}".format(doc.get("message", "unknown error")))
+            return doc
 
-        r = do_call(0)
-        r_data = r.json()
+        r_data = do_call(0)
         pointer = 0
         if "data" not in r_data:
             return
@@ -174,7 +176,7 @@ class ThreatConnect(object):
             pointer += len(items)
             if result_count <= pointer:
                 break
-            r_data = do_call(pointer).json()
+            r_data = do_call(pointer)
 
     def indicator_iterator(self, last_tc_run):
         from_timestamp = last_tc_run
