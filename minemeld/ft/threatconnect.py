@@ -157,10 +157,12 @@ class ThreatConnect(object):
             self.prepare_get(api_request)
             final_url = self.api_url + api_request
             response = requests.get(final_url, auth=self)
-            return response
+            doc = response.json()
+            if doc["status"] != "Success":
+                raise RuntimeError("ThreatConnectAPI - {}".format(doc.get("message", "unknown error")))
+            return doc
 
-        r = do_call(0)
-        r_data = r.json()
+        r_data = do_call(0)
         pointer = 0
         if "data" not in r_data:
             return
@@ -174,7 +176,7 @@ class ThreatConnect(object):
             pointer += len(items)
             if result_count <= pointer:
                 break
-            r_data = do_call(pointer).json()
+            r_data = do_call(pointer)
 
     def indicator_iterator(self, last_tc_run):
         from_timestamp = last_tc_run
@@ -243,11 +245,12 @@ class TCMiner(BasePollerFT):
             LOG.error('%s - Error loading side config: %s', self.name, str(e))
             return
 
-        self.tc.api_key = sconfig.get('apikey', None)
-        self.tc.api_secret = sconfig.get('apisecret', None)
-        data_owner = sconfig.get('owner', None)
-        if data_owner is not None:
-            self.tc.owner = quote(data_owner)
+        self.tc = None
+        data_owner = sconfig.get('owner', self.owner)
+        side_api_key = sconfig.get('apikey', self.api_key)
+        side_api_secret = sconfig.get('apisecret', self.api_secret)
+        if not (None in [side_api_key, side_api_secret]):
+            self.tc = ThreatConnect(side_api_secret, side_api_key, self.api_url, self.api_base_uri, data_owner)
 
     def _saved_state_restore(self, saved_state):
         super(TCMiner, self)._saved_state_restore(saved_state)
