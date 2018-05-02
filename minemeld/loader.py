@@ -33,7 +33,11 @@ _WS = None
 
 
 def _installed_versions():
-    installed_dists = get_installed_distributions()
+    if parse_version(pip.__version__) >= parse_version('10.0.0'):
+        installed_dists = get_installed_distributions(local_only=False)
+    else:
+        installed_dists = get_installed_distributions()
+
     return {d.project_name: d for d in installed_dists}
 
 
