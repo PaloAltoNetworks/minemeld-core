@@ -7,8 +7,16 @@ from email.parser import Parser
 from collections import namedtuple
 from zipfile import ZipFile
 
-from pkg_resources import EntryPoint
-from pip.utils import egg_link_path
+from pkg_resources import EntryPoint, parse_version
+import pip
+
+try:
+    if parse_version(pip.__version__) >= parse_version('10.0.0'):
+        from pip._internal.utils.misc import egg_link_path  # pylint: disable=E0611,E0401
+    else:
+        from pip.utils import egg_link_path  # pylint: disable=E0611,E0401
+except:
+    pass
 
 import minemeld.loader
 
