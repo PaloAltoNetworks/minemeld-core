@@ -625,7 +625,7 @@ class TaxiiClient(basepoller.BasePollerFT):
             if ov is None:
                 LOG.error('%s - no value in observable props', self.name)
                 return None
-            if type(ov) != str:
+            if type(ov) != str and type(ov) != unicode:
                 ov = ov.get('value', None)
                 if ov is None:
                     LOG.error('%s - no value in observable value', self.name)
@@ -718,7 +718,7 @@ class TaxiiClient(basepoller.BasePollerFT):
             if ov is None:
                 LOG.error('%s - no value in observable props', self.name)
                 return None
-            if type(ov) != str:
+            if type(ov) != str and type(ov) != unicode:
                 ov = ov.get('value', None)
                 if ov is None:
                     LOG.error('%s - no value in observable value', self.name)
@@ -775,7 +775,7 @@ class TaxiiClient(basepoller.BasePollerFT):
             if ov is None:
                 LOG.error('%s - no value in observable props', self.name)
                 return None
-            if type(ov) != str:
+            if type(ov) != str and type(ov) != unicode:
                 ov = ov.get('value', None)
                 if ov is None:
                     LOG.error('%s - no value in observable value', self.name)
@@ -792,7 +792,7 @@ class TaxiiClient(basepoller.BasePollerFT):
             if ov is None:
                 LOG.error('%s - no value in observable props', self.name)
                 return None
-            if type(ov) != str:
+            if type(ov) != str and type(ov) != unicode:
                 ov = ov.get('value', None)
                 if ov is None:
                     LOG.error('%s - no value in observable value', self.name)
