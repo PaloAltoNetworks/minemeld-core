@@ -30,6 +30,7 @@ import gevent
 import gevent.event
 import netaddr
 import werkzeug.urls
+from six import string_types
 
 import libtaxii
 import libtaxii.clients
@@ -46,6 +47,8 @@ import stix.extensions.marking.ais
 import stix.data_marking
 import stix.extensions.marking.tlp
 
+import stix_edh
+
 import cybox.core
 import cybox.objects.address_object
 import cybox.objects.domain_name_object
@@ -56,6 +59,9 @@ from . import basepoller
 from . import base
 from . import actorbase
 from .utils import dt_to_millisec, interval_in_sec, utc_millisec
+
+
+del stix_edh  # stix_edh is imported to register the EDH data marking extensions, but it is not directly used
 
 LOG = logging.getLogger(__name__)
 
@@ -625,7 +631,7 @@ class TaxiiClient(basepoller.BasePollerFT):
             if ov is None:
                 LOG.error('%s - no value in observable props', self.name)
                 return None
-            if type(ov) != str:
+            if not isinstance(ov, string_types):
                 ov = ov.get('value', None)
                 if ov is None:
                     LOG.error('%s - no value in observable value', self.name)
@@ -659,7 +665,7 @@ class TaxiiClient(basepoller.BasePollerFT):
                 if hvalue is None:
                     continue
 
-                if not isinstance(hvalue, str) and not isinstance(hvalue, unicode):
+                if not isinstance(hvalue, string_types):
                     if not isinstance(hvalue, dict):
                         continue
 
@@ -671,12 +677,12 @@ class TaxiiClient(basepoller.BasePollerFT):
                 if htype is None:
                     continue
 
-                elif isinstance(htype, str):
+                elif isinstance(htype, string_types):
                     htype = htype.lower()
 
                 elif isinstance(htype, dict):
                     htype = htype.get('value', None)
-                    if htype is None or not (isinstance(htype, str) or isinstance(htype, unicode)):
+                    if htype is None or not isinstance(htype, string_types):
                         continue
 
                 htype = htype.lower()
@@ -718,7 +724,7 @@ class TaxiiClient(basepoller.BasePollerFT):
             if ov is None:
                 LOG.error('%s - no value in observable props', self.name)
                 return None
-            if type(ov) != str:
+            if not isinstance(ov, string_types):
                 ov = ov.get('value', None)
                 if ov is None:
                     LOG.error('%s - no value in observable value', self.name)
@@ -775,7 +781,7 @@ class TaxiiClient(basepoller.BasePollerFT):
             if ov is None:
                 LOG.error('%s - no value in observable props', self.name)
                 return None
-            if type(ov) != str:
+            if not isinstance(ov, string_types):
                 ov = ov.get('value', None)
                 if ov is None:
                     LOG.error('%s - no value in observable value', self.name)
@@ -792,7 +798,7 @@ class TaxiiClient(basepoller.BasePollerFT):
             if ov is None:
                 LOG.error('%s - no value in observable props', self.name)
                 return None
-            if type(ov) != str:
+            if not isinstance(ov, string_types):
                 ov = ov.get('value', None)
                 if ov is None:
                     LOG.error('%s - no value in observable value', self.name)
@@ -876,12 +882,12 @@ class TaxiiClient(basepoller.BasePollerFT):
             if hashes is not None:
                 for i in hashes:
                     if 'type' in i.keys():
-                        if type(i['type']) == str:
+                        if isinstance(i['type'], string_types):
                             hash_type = i['type']
                         else:
                             hash_type = i['type'].get('value', None)
                     if 'simple_hash_value' in i.keys():
-                        if type(i['simple_hash_value']) == str:
+                        if isinstance(i['simple_hash_value'], string_types):
                             result[hash_type] = i['simple_hash_value']
                         else:
                             result[hash_type] = i['simple_hash_value'].get('value', None)
@@ -930,7 +936,7 @@ class TaxiiClient(basepoller.BasePollerFT):
             LOG.debug('WindowsExecutableFileObjectType OP: {!r}'.format(op))
 
             if 'file_name' in op.keys():
-                if type(op['file_name'] == str):
+                if isinstance(op['file_name'], string_types):
                     ov = op['file_name']
                 else:
                     ov = op['file_name'].get('value', None)
@@ -945,12 +951,12 @@ class TaxiiClient(basepoller.BasePollerFT):
             if hashes is not None:
                 for i in hashes:
                     if 'type' in i.keys():
-                        if type(i['type']) == str:
+                        if isinstance(i['type'], string_types):
                             hash_type = i['type']
                         else:
                             hash_type = i['type'].get('value', None)
                     if 'simple_hash_value' in i.keys():
-                        if type(i['simple_hash_value']) == str:
+                        if isinstance(i['simple_hash_value'], string_types):
                             result[hash_type] = i['simple_hash_value']
                         else:
                             result[hash_type] = i['simple_hash_value'].get('value', None)
