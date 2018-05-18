@@ -61,7 +61,10 @@ from . import actorbase
 from .utils import dt_to_millisec, interval_in_sec, utc_millisec
 
 
-del stix_edh  # stix_edh is imported to register the EDH data marking extensions, but it is not directly used
+# stix_edh is imported to register the EDH data marking extensions, but it is not directly used.
+# Delete the symbol to silence the warning about the import being unnecessary and prevent the
+# PyCharm 'Optimize Imports' operation from removing the import.
+del stix_edh
 
 LOG = logging.getLogger(__name__)
 
