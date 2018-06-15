@@ -55,6 +55,9 @@ import cybox.objects.domain_name_object
 import cybox.objects.uri_object
 import cybox.objects.file_object
 
+import mixbox.idgen
+import mixbox.namespaces
+
 from . import basepoller
 from . import base
 from . import actorbase
@@ -76,6 +79,12 @@ _STIX_MINEMELD_HASHES = [
     'sha256',
     'sha512'
 ]
+
+
+def set_id_namespace(uri, name):
+    # maec and cybox
+    NS = mixbox.namespaces.Namespace(uri, name)
+    mixbox.idgen.set_id_namespace(NS)
 
 
 class TaxiiClient(basepoller.BasePollerFT):
@@ -1452,9 +1461,7 @@ class DataFeed(actorbase.ActorBaseFT):
             LOG.error('%s - Unsupported indicator type: %s', self.name, type_)
             return
 
-        nsdict = {}
-        nsdict[self.namespaceuri] = self.namespace
-        stix.utils.set_id_namespace(nsdict)
+        set_id_namespace(self.namespaceuri, self.namespace)
 
         title = None
         if len(self.attributes_package_title) != 0:
