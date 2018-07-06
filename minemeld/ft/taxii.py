@@ -1425,7 +1425,7 @@ class DataFeed(actorbase.ActorBaseFT):
         )
 
     def _read_oldest_indicator(self):
-        olist = self.SR.zrevrange(
+        olist = self.SR.zrange(
             self.redis_skey, 0, 0,
             withscores=True
         )
