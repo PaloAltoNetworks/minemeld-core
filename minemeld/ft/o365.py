@@ -271,74 +271,29 @@ class O365API(basepoller.BasePollerFT):
         result = []
 
         base_value = {}
-        for wka in ['expressRoute', 'optionalImpact', 'serviceArea']:
+        for wka in ['expressRoute', 'optionalImpact', 'serviceArea', 'tcpPorts', 'udpPorts', 'category', 'required']:
             if wka in item:
                 base_value['o365_{}'.format(wka)] = item[wka]
 
-        if 'defaultUrls' in item:
-            tcp_ports = item.get('defaultTcpPorts', None)
-            udp_ports = item.get('defaultUdpPorts', None)
+        for url in item.get('urls', []):
+            value = base_value.copy()
+            value['type'] = 'URL'
 
-            for url in item['defaultUrls']:
-                value = base_value.copy()
-                value['type'] = 'URL'
-                value['o365_category'] = 'Default'
-                if tcp_ports is not None:
-                    value['o365_tcp_ports'] = tcp_ports
-                if udp_ports is not None:
-                    value['o365_udp_ports'] = udp_ports
+            result.append([url, value])
 
-                result.append([url, value])
+        for ip in item.get('ips', []):
+            try:
+                parsed = netaddr.IPNetwork(ip)
+            except (netaddr.AddrFormatError, ValueError):
+                LOG.error('{} - Unknown IP version: {}'.format(self.name, ip))
+                return None
 
-        if 'allowUrls' in item:
-            tcp_ports = item.get('allowTcpPorts', None)
-            udp_ports = item.get('allowUdpPorts', None)
+            if parsed.version == 4:
+                value['type'] = 'IPv4'
+            elif parsed.version == 6:
+                value['type'] = 'IPv6'
 
-            for url in item['allowUrls']:
-                value = base_value.copy()
-                value['type'] = 'URL'
-                value['o365_category'] = 'Allow'
-                if tcp_ports is not None:
-                    value['o365_tcp_ports'] = tcp_ports
-                if udp_ports is not None:
-                    value['o365_udp_ports'] = udp_ports
-
-                result.append([url, value])
-
-        if 'optimizeUrls' in item:
-            tcp_ports = item.get('optimizeTcpPorts', None)
-            udp_ports = item.get('optimizeUdpPorts', None)
-
-            for url in item['optimizeUrls']:
-                value = base_value.copy()
-                value['type'] = 'URL'
-                value['o365_category'] = 'Optimize'
-                if tcp_ports is not None:
-                    value['o365_tcp_ports'] = tcp_ports
-                if udp_ports is not None:
-                    value['o365_udp_ports'] = udp_ports
-
-                result.append([url, value])
-
-        if 'ips' in item:
-            for ip in item['ips']:
-                value = base_value.copy()
-                for attr in ['optimizeTcpPorts', 'optimizeUdpPorts', 'allowTcpPorts', 'allowUdpPorts', 'defaultTcpPorts', 'defaultUdpPorts']:
-                    if attr in item:
-                        value['o365_{}'.format(attr)] = item[attr]
-
-                try:
-                    parsed = netaddr.IPNetwork(ip)
-                except (netaddr.AddrFormatError, ValueError):
-                    LOG.error('{} - Unknown IP version: {}'.format(self.name, ip))
-                    return None
-
-                if parsed.version == 4:
-                    value['type'] = 'IPv4'
-                elif parsed.version == 6:
-                    value['type'] = 'IPv6'
-
-                result.append([ip, value])
+            result.append([ip, value])
 
         return result
 
