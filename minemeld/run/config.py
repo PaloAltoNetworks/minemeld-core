@@ -185,10 +185,10 @@ class MineMeldConfig(_Config):
             )
 
             fabric = {
-                'class': 'AMQP',
+                'class': 'ZMQRedis',
                 'config': {
                     'num_connections': fabric_num_conns,
-                    'priority': gevent.core.MINPRI
+                    'priority': gevent.core.MINPRI  # pylint:disable=E1101
                 }
             }
 
@@ -200,10 +200,10 @@ class MineMeldConfig(_Config):
 
             mgmtbus = {
                 'transport': {
-                    'class': 'AMQP',
+                    'class': 'ZMQRedis',
                     'config': {
                         'num_connections': mgmtbus_num_conns,
-                        'priority': gevent.core.MAXPRI
+                        'priority': gevent.core.MAXPRI  # pylint:disable=E1101
                     }
                 },
                 'master': {},
@@ -494,7 +494,7 @@ def resolve_prototypes(config):
     valid = True
 
     nodes_config = config.nodes
-    for nname, nconfig in nodes_config.iteritems():
+    for _, nconfig in nodes_config.iteritems():
         if 'prototype' in nconfig:
             try:
                 nproto = _load_node_prototype(nconfig['prototype'], paths)
@@ -524,7 +524,7 @@ def validate_config(config):
     nodes = config.nodes
 
     for n in nodes.keys():
-        if re.match('^[a-zA-Z0-9_\-]+$', n) is None:
+        if re.match('^[a-zA-Z0-9_\-]+$', n) is None:  # pylint:disable=W1401
             result.append('%s node name is invalid' % n)
 
     for n, v in nodes.iteritems():

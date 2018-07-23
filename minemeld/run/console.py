@@ -53,7 +53,7 @@ def _print_json(obj):
 
 
 @click.group()
-@click.option('--comm-class', default='AMQP',
+@click.option('--comm-class', default='ZMQRedis',
               metavar='CLASSNAME')
 @click.option('--verbose', count=True)
 @click.pass_context
@@ -168,4 +168,4 @@ def query(ctx, query, from_counter, from_timestamp, num_lines, query_uuid):
 
 
 def main():
-    cli(obj={})
+    cli(obj={})  # pylint:disable=E1123,E1120

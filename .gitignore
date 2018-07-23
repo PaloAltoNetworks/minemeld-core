@@ -58,3 +58,7 @@ target/
 
 # PyCharm
 .idea/
+
+# stuff
+_ares.c
+_ares.h
