@@ -71,7 +71,6 @@ class Chassis(object):
         self.log_glet = None
 
         self.status_channel_queue = gevent.queue.Queue(maxsize=128)
-        self.status_channel = self.mgmtbus.request_status_channel()
         self.status_glet = None
 
     def _dynamic_load(self, classname):
@@ -162,8 +161,7 @@ class Chassis(object):
         while True:
             try:
                 params = self.status_channel_queue.get()
-                self.status_channel.publish(
-                    method='status',
+                self.mgmtbus.send_status(
                     params=params
                 )
 

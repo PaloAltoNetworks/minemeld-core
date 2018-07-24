@@ -21,7 +21,7 @@ from flask import Flask
 import minemeld.loader
 from .logger import LOG
 
-REDIS_URL = os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0')
+REDIS_URL = os.environ.get('REDIS_URL', 'unix:///var/run/redis/redis.sock')
 
 
 def create_app():
@@ -45,6 +45,7 @@ def create_app():
     from . import supervisorclient
     from . import jobs
     from . import sns
+    from . import events
 
     session.init_app(app, REDIS_URL)
     aaa.init_app(app)
@@ -60,6 +61,7 @@ def create_app():
     supervisorclient.init_app(app)
     jobs.init_app(app)
     sns.init_app()
+    events.init_app(app, REDIS_URL)
 
     # entrypoints
     from . import metricsapi  # noqa

@@ -54,7 +54,7 @@ LOG = logging.getLogger(__name__)
 MGMTBUS_PREFIX = "mbus:"
 MGMTBUS_TOPIC = MGMTBUS_PREFIX+'bus'
 MGMTBUS_CHASSIS_TOPIC = MGMTBUS_PREFIX+'chassisbus'
-MGMTBUS_MASTER = MGMTBUS_PREFIX+'master'
+MGMTBUS_MASTER = '@'+MGMTBUS_PREFIX+'master'
 MGMTBUS_LOG_TOPIC = MGMTBUS_PREFIX+'log'
 MGMTBUS_STATUS_TOPIC = MGMTBUS_PREFIX+'status'
 
@@ -88,14 +88,14 @@ class MgmtbusMaster(object):
         self._status = {}
 
         self.SR = redis.StrictRedis.from_url(
-            self.config.get('REDIS_URL', 'redis://127.0.0.1:6379/0')
+            self.config.get('REDIS_URL', 'unix:///var/run/redis/redis.sock')
         )
 
         self.comm = minemeld.comm.factory(self.comm_class, self.comm_config)
         self._out_channel = self.comm.request_pub_channel(MGMTBUS_TOPIC)
         self.comm.request_rpc_server_channel(
-            MGMTBUS_PREFIX+'master',
-            self,
+            name=MGMTBUS_MASTER,
+            obj=self,
             allowed_methods=['rpc_status', 'rpc_chassis_ready'],
             method_prefix='rpc_'
         )
@@ -105,12 +105,10 @@ class MgmtbusMaster(object):
         self._chassis_rpc_client = self.comm.request_rpc_fanout_client_channel(
             MGMTBUS_CHASSIS_TOPIC
         )
-        self.comm.request_sub_channel(
-            MGMTBUS_STATUS_TOPIC,
-            self,
-            allowed_methods=['status'],
-            name=MGMTBUS_STATUS_TOPIC+':master',
-            max_length=100
+        self.comm.request_rpc_server_channel(
+            name=MGMTBUS_STATUS_TOPIC,
+            obj=self,
+            allowed_methods=['status']
         )
 
     def rpc_status(self):
@@ -488,10 +486,12 @@ class MgmtbusSlaveHub(object):
             MGMTBUS_LOG_TOPIC
         )
 
-    def request_status_channel(self):
-        LOG.debug("Adding status channel")
-        return self.comm.request_pub_channel(
-            MGMTBUS_STATUS_TOPIC
+    def send_status(self, params):
+        self.comm.send_rpc(
+            dest=MGMTBUS_STATUS_TOPIC,
+            method='status',
+            params=params,
+            block=True
         )
 
     def request_chassis_rpc_channel(self, chassis):
@@ -561,7 +561,7 @@ def master_factory(config, comm_class, comm_config, nodes, num_chassis):
     Args:
         config (dict): management bus master config
         comm_class (string): communication backend.
-            Unused, AMQP is always used
+            Unused, ZMQRedis is always used
         comm_config (dict): config of the communication backend
         fts (list): list of nodes
 
@@ -573,7 +573,7 @@ def master_factory(config, comm_class, comm_config, nodes, num_chassis):
     return MgmtbusMaster(
         ftlist=nodes,
         config=config,
-        comm_class='AMQP',
+        comm_class='ZMQRedis',
         comm_config=comm_config,
         num_chassis=num_chassis
     )
@@ -585,7 +585,7 @@ def slave_hub_factory(config, comm_class, comm_config):
     Args:
         config (dict): management bus master config
         comm_class (string): communication backend.
-            Unused, AMQP is always used
+            Unused, ZMQRedis is always used
         comm_config (dict): config of the communication backend.
 
     Returns:
@@ -595,6 +595,6 @@ def slave_hub_factory(config, comm_class, comm_config):
 
     return MgmtbusSlaveHub(
         config,
-        'AMQP',
+        'ZMQRedis',
         comm_config
     )
