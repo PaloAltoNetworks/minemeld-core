@@ -1255,6 +1255,28 @@ def _stix_ip_observable(namespace, indicator, value):
     return observables
 
 
+def _stix_email_addr_observable(namespace, indicator, value):
+    category = cybox.objects.address_object.Address.CAT_EMAIL
+
+    id_ = '{}:observable-{}'.format(
+        namespace,
+        uuid.uuid4()
+    )
+
+    ao = cybox.objects.address_object.Address(
+        address_value=indicator,
+        category=category
+    )
+
+    o = cybox.core.Observable(
+        title='{}: {}'.format(value['type'], indicator),
+        id_=id_,
+        item=ao
+    )
+
+    return [o]
+
+
 def _stix_domain_observable(namespace, indicator, value):
     id_ = '{}:observable-{}'.format(
         namespace,
@@ -1340,6 +1362,10 @@ _TYPE_MAPPING = {
     'md5': {
         'indicator_type': stix.common.vocabs.IndicatorType.TERM_FILE_HASH_WATCHLIST,
         'mapper': _stix_hash_observable
+    },
+    'email-addr': {
+        'indicator_type': stix.common.vocabs.IndicatorType.TERM_MALICIOUS_EMAIL,
+        'mapper': _stix_email_addr_observable
     }
 }
 
@@ -1425,7 +1451,7 @@ class DataFeed(actorbase.ActorBaseFT):
         )
 
     def _read_oldest_indicator(self):
-        olist = self.SR.zrevrange(
+        olist = self.SR.zrange(
             self.redis_skey, 0, 0,
             withscores=True
         )
