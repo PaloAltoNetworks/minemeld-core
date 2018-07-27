@@ -286,8 +286,9 @@ class O365API(basepoller.BasePollerFT):
                 parsed = netaddr.IPNetwork(ip)
             except (netaddr.AddrFormatError, ValueError):
                 LOG.error('{} - Unknown IP version: {}'.format(self.name, ip))
-                return None
+                continue
 
+            value = base_value.copy()
             if parsed.version == 4:
                 value['type'] = 'IPv4'
             elif parsed.version == 6:
