@@ -421,8 +421,6 @@ def save_config_data(datafilename):
 def append_config_data(datafilename):
     cpath = os.path.dirname(os.environ.get('MM_CONFIG'))
 
-    cpath = os.path.dirname(os.environ.get('MM_CONFIG'))
-
     datafiletype = request.values.get('t', 'yaml')
 
     if datafiletype == 'yaml':
