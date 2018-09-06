@@ -656,10 +656,10 @@ class TaxiiClient(basepoller.BasePollerFT):
                 file_name = op.get('file_name')
                 if isinstance(file_name, dict):
                     ov = op['file_name'].get('value', None)
-                    result['type'] = 'file-name'
+                    result['type'] = 'file.name'
                 else:
                     ov = op['file_name']
-                    result['type'] = 'file-name'
+                    result['type'] = 'file.name'
 
             hashes = op.get('hashes', [])
             if not isinstance(hashes, list) or len(hashes) == 0:
