@@ -187,6 +187,13 @@ class ST(object):
         self.num_segments -= len(si)
 
     def cover(self, value):
+        """Iterate over segments covering value. Segment format:
+        (uuid, level, start, end).
+        
+        Args:
+            value (int): Address
+        """
+
         lower = 0
         upper = self.max_endpoint*2
 
@@ -213,6 +220,16 @@ class ST(object):
 
     def query_endpoints(self, start=None, stop=None, reverse=False,
                         include_start=True, include_stop=True):
+        """Iterate over endpoints between start and end. endpoints have the
+        format (endpoint, level, type, uuid). Type: 0 - start, 1 - end
+
+            start (int, optional): Defaults to None.
+            stop (int, optional): Defaults to None.
+            reverse (bool, optional): Defaults to False.
+            include_start (bool, optional): Defaults to True.
+            include_stop (bool, optional): Defaults to True.
+        """
+
         if start is None:
             start = self._endpoint_key(0)
         else:
