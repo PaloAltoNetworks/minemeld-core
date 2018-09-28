@@ -142,7 +142,15 @@ class AggregateIPv4FT(actorbase.ActorBaseFT):
         return v, added
 
     def _calc_ipranges(self, start, end):
-        LOG.debug('_calc_ipranges: %s %s', start, end)
+        """Calc IP Ranges overlapping the range between start and end
+        
+        Args:
+            start (int): start of the range
+            end (int): end of the range
+        
+        Returns:
+            set: set of ranges
+        """
 
         result = set()
 
@@ -151,22 +159,26 @@ class AggregateIPv4FT(actorbase.ActorBaseFT):
         for epaddr, _, _, _ in self.st.query_endpoints(start=start, stop=end):
             eps.add(epaddr)
         eps = sorted(eps)
-        LOG.debug('eps: %s', eps)
 
         if len(eps) == 0:
             return result
 
+        # walk thru the endpoints, tracking last endpoint
+        # current level, active segments and segments levels
         oep = None
         oeplevel = -1
         live_ids = set()
+        slevels = {}
+
         for epaddr in eps:
-            LOG.debug('status: epaddr: %s oep: %s oeplevel: %d, '
-                      'live_ids: %s result: %s',
-                      epaddr, oep, oeplevel, live_ids, result)
+            # for each endpoint we track which segments are starting
+            # and which ones are ending with that specific endpoint
             end_ids = set()
             start_ids = set()
             eplevel = 0
             for cuuid, clevel, cstart, cend in self.st.cover(epaddr):
+                slevels[cuuid] = clevel
+
                 if clevel > eplevel:
                     eplevel = clevel
                 if cstart == epaddr:
@@ -176,18 +188,14 @@ class AggregateIPv4FT(actorbase.ActorBaseFT):
 
                 if cend != epaddr and cstart != epaddr:
                     if cuuid not in live_ids:
-                        LOG.debug("adding %r to live_ids", cuuid)
                         assert epaddr == eps[0]
                         live_ids.add(cuuid)
 
-            LOG.debug('middle: %s %s %s', epaddr, start_ids, end_ids)
             assert len(end_ids) + len(start_ids) > 0
 
             if len(start_ids) != 0:
                 if oep is not None and oep != epaddr and len(live_ids) != 0:
                     if oeplevel != WL_LEVEL:
-                        LOG.debug('start: %s %s %s',
-                                  oep, epaddr-1, live_ids)
                         result.add(MWUpdate(oep, epaddr-1,
                                             live_ids))
 
@@ -198,12 +206,14 @@ class AggregateIPv4FT(actorbase.ActorBaseFT):
             if len(end_ids) != 0:
                 if oep is not None and len(live_ids) != 0:
                     if eplevel < WL_LEVEL:
-                        LOG.debug('end: %s %s %s', oep, epaddr, live_ids)
                         result.add(MWUpdate(oep, epaddr, live_ids))
 
                 oep = epaddr+1
-                oeplevel = eplevel
                 live_ids = live_ids - end_ids
+
+                oeplevel = eplevel
+                if len(live_ids) != 0:
+                    oeplevel = max([slevels[id_] for id_ in live_ids])
 
         return result
 
@@ -230,6 +240,16 @@ class AggregateIPv4FT(actorbase.ActorBaseFT):
         return start, end
 
     def _endpoints_from_range(self, start, end):
+        """Return last endpoint before range and first endpoint after range
+        
+        Args:
+            start (int): range start
+            end (int): range stop
+        
+        Returns:
+            tuple: (last endpoint before, first endpoint after)
+        """
+
         rangestart = next(
             self.st.query_endpoints(start=0, stop=max(start-1, 0),
                                     reverse=True),

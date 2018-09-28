@@ -781,6 +781,104 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         a.st.db.close()
         a = None
 
+    def test_2overlaps(self):
+        config = {
+            'whitelist_prefixes': ['s2']
+        }
+        chassis = mock.Mock()
+
+        ochannel = mock.Mock()
+        chassis.request_pub_channel.return_value = ochannel
+
+        rpcmock = mock.Mock()
+        rpcmock.get.return_value = {'error': None, 'result': 'OK'}
+        chassis.send_rpc.return_value = rpcmock
+
+        a = minemeld.ft.ipop.AggregateIPv4FT(FTNAME, chassis, config)
+
+        inputs = ['s1']
+        output = True
+
+        a.connect(inputs, output)
+        a.mgmtbus_initialize()
+        a.start()
+
+        a.filtered_update('s1', indicator='10.1.0.0/24', value={
+            'type': 'IPv4',
+            'sources': ['s1s'],
+            's1$a': 1
+        })
+        self.assertTrue(
+            check_for_rpc(
+                ochannel.publish.call_args_list,
+                [
+                    {
+                        'method': 'update',
+                        'indicator': '10.1.0.0-10.1.0.255'
+                    }
+                ],
+                all_here=True
+            )
+        )
+
+        ochannel.publish.reset_mock()
+        a.filtered_update('s2', indicator='10.1.0.10', value={
+            'type': 'IPv4',
+            'sources': ['s2s']
+        })
+        self.assertTrue(
+            check_for_rpc(
+                ochannel.publish.call_args_list,
+                [
+                    {
+                        'method': 'update',
+                        'indicator': '10.1.0.11-10.1.0.255'
+                    },
+                    {
+                        'method': 'update',
+                        'indicator': '10.1.0.0-10.1.0.9'
+                    },
+                    {
+                        'method': 'withdraw',
+                        'indicator': '10.1.0.0-10.1.0.255'
+                    }
+                ],
+                all_here=True
+            )
+        )
+
+        ochannel.publish.reset_mock()
+        a.filtered_update('s2', indicator='10.1.0.25', value={
+            'type': 'IPv4',
+            'sources': ['s2s']
+        })
+        self.assertTrue(
+            check_for_rpc(
+                ochannel.publish.call_args_list,
+                [
+                    {
+                        'method': 'update',
+                        'indicator': '10.1.0.11-10.1.0.24',
+                        's1$a': 1
+                    },
+                    {
+                        'method': 'update',
+                        'indicator': '10.1.0.26-10.1.0.255'
+                    },
+                    {
+                        'method': 'withdraw',
+                        'indicator': '10.1.0.11-10.1.0.255'
+                    }
+                ],
+                all_here=True
+            )
+        )
+
+        a.stop()
+
+        a.st.db.close()
+        a = None
+
     def test_attr_override(self):
         config = {}
         chassis = mock.Mock()
@@ -1216,7 +1314,7 @@ class MineMeldFTIPOpTests(unittest.TestCase):
         a.start()
 
         t1 = time.time()
-        for j in xrange(num_intervals):
+        for _ in xrange(num_intervals):
             end = random.randint(0, 0xFFFFFFFF)
             start = random.randint(0, end)
             end = netaddr.IPAddress(end)
