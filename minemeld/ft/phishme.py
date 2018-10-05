@@ -18,6 +18,7 @@ PhishMe Intelligence API.
 """
 
 import os
+import time
 import yaml
 import requests
 import itertools
@@ -76,6 +77,8 @@ class Intelligence(basepoller.BasePollerFT):
 
         self.api_key = None
         self.username = None
+        self.expire_days = 90
+
         self.side_config_path = self.config.get('side_config', None)
         if self.side_config_path is None:
             self.side_config_path = os.path.join(
@@ -431,7 +434,8 @@ class Intelligence(basepoller.BasePollerFT):
                 continue
 
             for t in threats:
-                yield t
+                if not Intelligence.is_expired(t, self.expire_days):
+                    yield t
 
     def _filter_changes(self, change):
         if change.get('deleted', None):
@@ -476,3 +480,19 @@ class Intelligence(basepoller.BasePollerFT):
             os.remove(side_config_path)
         except:
             pass
+
+    @staticmethod
+    def  is_expired(threat, days=90):
+        # The ThreatHQ api returns timestamps with milisecond precision
+        # need to convert that to second precision first
+        last_published = int(threat.get('lastPublished'))/1000
+
+        # time.time() gets the current timestamp as a float
+        # We cast to an int to get the time in seconds then 
+        # subtract the number of days, converted to seconds
+        # to get the timestamp from n days ago. 
+        # If the timestamp from n days ago is greater than
+        # the last_published timestamp then it may be considered
+        # expired
+        expire_time = (int(time.time()) - days*60*60*24)
+        return expire_time > last_published
