@@ -218,7 +218,7 @@ class TCMiner(BasePollerFT):
         super(TCMiner, self).configure()
         self.api_key = self.config.get('apikey', None)
         self.api_secret = self.config.get('apisecret', None)
-        self.sndbox_fqdn = self.config.get('fqdn', 'sandbox.threatconnect.com')
+        self.sndbox_fqdn = self.config.get('sndbox_fqdn', 'sandbox.threatconnect.com')
         sandbox = self.config.get('sandbox', False)
         if sandbox:
             self.api_url = 'https://{}'.format(self.sndbox_fqdn)
