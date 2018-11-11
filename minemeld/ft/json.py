@@ -79,7 +79,14 @@ class SimpleJSON(basepoller.BasePollerFT):
         self.polling_timeout = self.config.get('polling_timeout', 20)
         self.verify_cert = self.config.get('verify_cert', True)
 
-        self.extractor = jmespath.compile(self.config.get('extractor', '@'))
+        self.compile_error = None
+        try:
+            self.extractor = jmespath.compile(self.config.get('extractor', '@'))
+        except Exception as e:
+            LOG.debug('%s - exception in jmespath: %s',
+                      self.name, e)
+            self.compile_error = "{}".format(e)
+
         self.indicator = self.config.get('indicator', 'indicator')
         self.prefix = self.config.get('prefix', 'json')
         self.fields = self.config.get('fields', None)
@@ -212,6 +219,9 @@ class SimpleJSON(basepoller.BasePollerFT):
         return [[indicator, attributes]]
 
     def _build_iterator(self, now):
+        if self.compile_error is not None:
+            raise RuntimeError(self.compile_error)
+
         rkwargs = dict(
             stream=True,
             verify=self.verify_cert,

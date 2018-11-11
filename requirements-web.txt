@@ -1,5 +1,5 @@
-Flask==0.11
-gunicorn==19.3.0
+Flask==0.12.4
+gunicorn==19.5.0
 psutil==3.1.1
 Flask-Login==0.2.11
 passlib==1.6.5

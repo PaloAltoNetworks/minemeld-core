@@ -5,7 +5,7 @@ greenlet==0.4.7
 hiredis==0.2.0
 PyYAML==3.11
 redis==2.10.5
-requests[security]==2.7.0
+requests[security]==2.20.0
 plyvel==0.9
 netaddr==0.7.18
 antlr4-python2-runtime==4.5.2
