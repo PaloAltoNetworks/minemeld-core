@@ -18,7 +18,9 @@ import logging
 import itertools
 import functools
 import uuid
+import os
 
+import yaml
 import netaddr
 import requests
 import lxml.etree
@@ -202,6 +204,30 @@ class O365API(basepoller.BasePollerFT):
         self.instance = self.config.get('instance', 'O365Worldwide')
         self.service_areas = self.config.get('service_areas', None)
         self.tenant_name = self.config.get('tenant_name', None)
+        self.disable_integrations = self.config.get('disable_integrations', False)
+
+        self.side_config_path = self.config.get('side_config', None)
+        if self.side_config_path is None:
+            self.side_config_path = os.path.join(
+                os.environ['MM_CONFIG_DIR'],
+                '%s_side_config.yml' % self.name
+            )
+
+        self._load_side_config()
+
+    def _load_side_config(self):
+        try:
+            with open(self.side_config_path, 'r') as f:
+                sconfig = yaml.safe_load(f)
+
+        except Exception as e:
+            LOG.error('%s - Error loading side config: %s', self.name, str(e))
+            return
+
+        disable_integrations = sconfig.get('disable_integrations', None)
+        if disable_integrations is not None:
+            self.disable_integrations = disable_integrations
+            LOG.info('{} - Loaded side config'.format(self.name))
 
     def _saved_state_restore(self, saved_state):
         super(O365API, self)._saved_state_restore(saved_state)
@@ -271,9 +297,13 @@ class O365API(basepoller.BasePollerFT):
         result = []
 
         base_value = {}
-        for wka in ['expressRoute', 'optionalImpact', 'serviceArea', 'tcpPorts', 'udpPorts', 'category', 'required']:
+        for wka in ['expressRoute', 'notes', 'serviceArea', 'tcpPorts', 'udpPorts', 'category', 'required']:
             if wka in item:
                 base_value['o365_{}'.format(wka)] = item[wka]
+
+        if self.disable_integrations and 'o365_notes' in base_value:
+            if 'integration' in base_value['o365_notes'].lower():
+                return result
 
         for url in item.get('urls', []):
             value = base_value.copy()
@@ -344,3 +374,9 @@ class O365API(basepoller.BasePollerFT):
             raise
 
         return self._iterator(r.json(), latest_version)
+
+    def hup(self, source=None):
+        LOG.info('%s - hup received, reload side config', self.name)
+        self._load_side_config()
+        self.latest_version = None
+        super(O365API, self).hup(source=source)
