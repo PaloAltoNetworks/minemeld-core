@@ -85,6 +85,12 @@ def generate_panosurl_feed(feed, start, num, desc, value, **kwargs):
             i = _PROTOCOL_RE.sub('', i)
             i = _INVALID_TOKEN_RE.sub('*', i)
 
+            # for PAN-OS *.domain.com does not match domain.com
+            # we should provide both
+            # this could generate more than num entries in the egress feed
+            if i.startswith('*.'):
+                yield i[2:] + '\n'
+
             yield i + '\n'
 
         if len(ilist) < 100:
