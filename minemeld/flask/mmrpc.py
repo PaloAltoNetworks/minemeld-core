@@ -1,22 +1,20 @@
-# amqp connection
 import json
 
 import gevent
 import gevent.event
 import gevent.queue
-import amqp
 import werkzeug.local
 
 from flask import g
 
 import minemeld.comm
-from minemeld.mgmtbus import MGMTBUS_PREFIX
+from minemeld.mgmtbus import MGMTBUS_PREFIX, MGMTBUS_MASTER
 
 from . import config
 from .logger import LOG
 
 
-__all__ = ['init_app', 'MMMaster', 'MMRpcClient', 'MMStateFanout']
+__all__ = ['init_app', 'MMMaster', 'MMRpcClient']
 
 
 class _MMMasterConnection(object):
@@ -24,7 +22,7 @@ class _MMMasterConnection(object):
         self.comm = None
 
         tconfig = config.get('MGMTBUS', {})
-        self.comm_class = tconfig.get('class', 'AMQP')
+        self.comm_class = tconfig.get('class', 'ZMQRedis')
         self.comm_config = tconfig.get('config', {})
 
     def _open_channel(self):
@@ -41,7 +39,7 @@ class _MMMasterConnection(object):
         self._open_channel()
 
         return self.comm.send_rpc(
-            'mbus:master',
+            MGMTBUS_MASTER,
             method,
             params,
             timeout=10.0
@@ -61,7 +59,7 @@ class _MMRpcClient(object):
         self.comm = None
 
         tconfig = config.get('MGMTBUS', {})
-        self.comm_class = tconfig.get('class', 'AMQP')
+        self.comm_class = tconfig.get('class', 'ZMQRedis')
         self.comm_config = tconfig.get('config', {})
 
     def _open_channel(self):
@@ -90,84 +88,6 @@ class _MMRpcClient(object):
             self.comm = None
 
 
-class _MMStateFanout(object):
-    def __init__(self):
-        self.subscribers = {}
-        self.next_subscriber_id = 0
-
-        self._connection = amqp.connection.Connection(
-            **config.get('FABRIC', {})
-        )
-        self._channel = self._connection.channel()
-        q = self._channel.queue_declare(exclusive=True)
-        self._channel.queue_bind(
-            queue=q.queue,
-            exchange='mw_chassis_state'
-        )
-        self._channel.basic_consume(
-            callback=self._callback,
-            no_ack=True,
-            exclusive=True
-        )
-
-        self.g_ioloop = gevent.spawn(self._ioloop)
-
-    def _ioloop(self):
-        while True:
-            self._connection.drain_events()
-
-    def _callback(self, msg):
-        try:
-            msg = json.loads(msg.body)
-        except ValueError:
-            LOG.error("invalid message received")
-            return
-
-        method = msg.get('method', None)
-        if method is None:
-            LOG.error("Message without method field")
-            return
-
-        if method != 'state':
-            LOG.error("Method not allowed: %s", method)
-            return
-
-        params = msg.get('params', {})
-
-        for s in self.subscribers.values():
-            state = params.get('state', {})
-            data = {
-                'type': 'state',
-                'data': state
-            }
-            s.put("data: %s\n\n" %
-                  json.dumps(data))
-
-    def subscribe(self):
-        csid = self.next_subscriber_id
-        self.next_subscriber_id += 1
-
-        self.subscribers[csid] = gevent.queue.Queue()
-
-        return csid
-
-    def unsubscribe(self, sid):
-        self.subscribers.pop(sid, None)
-
-    def get(self, sid):
-        if sid not in self.subscribers:
-            return None
-
-        return self.subscribers[sid].get()
-
-    def stop(self):
-        self.g_ioloop.kill()
-
-        self._channel.close()
-        self._connection.close()
-        self._connection = None
-
-
 def get_mmmaster():
     r = getattr(g, 'MMMaster', None)
     if r is None:
@@ -176,7 +96,7 @@ def get_mmmaster():
     return r
 
 
-MMMaster = werkzeug.LocalProxy(get_mmmaster)
+MMMaster = werkzeug.LocalProxy(get_mmmaster)  # pylint:disable=E1101
 
 
 def get_mmrpcclient():
@@ -187,18 +107,7 @@ def get_mmrpcclient():
     return r
 
 
-MMRpcClient = werkzeug.LocalProxy(get_mmrpcclient)
-
-
-def get_mmstatefanout():
-    r = getattr(g, '_mmstatefanout', None)
-    if r is None:
-        r = _MMStateFanout()
-        g._mmstatefanout = r
-    return r
-
-
-MMStateFanout = werkzeug.LocalProxy(get_mmstatefanout)
+MMRpcClient = werkzeug.LocalProxy(get_mmrpcclient)  # pylint:disable=E1101
 
 
 def teardown(exception):
@@ -211,11 +120,6 @@ def teardown(exception):
     if r is not None:
         g.MMRpcClient.stop()
         g.MMRpcClient = None
-
-    r = getattr(g, '_mmstatefanout', None)
-    if r is not None:
-        g._mmstatefanout.stop()
-        g._mmstatefanout = None
 
 
 def init_app(app):

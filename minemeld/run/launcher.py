@@ -16,8 +16,6 @@ from __future__ import print_function
 
 import gevent
 import gevent.monkey
-from minemeld.packages import gevent_openssl  # for patching pyopenssl
-gevent_openssl.monkey_patch()
 gevent.monkey.patch_all(thread=False, select=False)
 
 import os.path
