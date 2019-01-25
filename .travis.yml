@@ -6,7 +6,7 @@ dist: xenial
 addons:
   apt:
     packages:
-    - libsnappy1
+    - libsnappy1v5
     - libsnappy-dev
     - libleveldb-dev
     - librrd-dev
