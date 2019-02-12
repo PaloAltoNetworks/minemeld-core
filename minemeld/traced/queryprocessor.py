@@ -21,6 +21,7 @@ import calendar
 import time
 import ujson
 import re
+import os
 
 import gevent
 import greenlet
@@ -49,10 +50,9 @@ class Query(gevent.Greenlet):
         self.starting_counter = counter
         self.num_lines = num_lines
 
-        self.redis_host = redis_config.get('host', '127.0.0.1')
-        self.redis_port = redis_config.get('port', 6379)
-        self.redis_password = redis_config.get('password', None)
-        self.redis_db = redis_config.get('db', 0)
+        self.redis_url = self.config.get('redis_url',
+            os.environ.get('REDIS_URL', 'unix:///var/run/redis/redis.sock')
+        )
 
         super(Query, self).__init__()
 
@@ -114,11 +114,8 @@ class Query(gevent.Greenlet):
     def _core_run(self):
         LOG.debug("Query %s started", self.uuid)
 
-        SR = redis.StrictRedis(
-            host=self.redis_host,
-            port=self.redis_port,
-            password=self.redis_password,
-            db=self.redis_db
+        SR = redis.StrictRedis.from_url(
+            self.redis_url
         )
 
         line_generator = self.store.iterate_backwards(
