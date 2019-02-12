@@ -34,6 +34,7 @@ import uuid
 import collections
 import time
 import hashlib
+import os
 
 import gevent
 import gevent.event
@@ -88,7 +89,7 @@ class MgmtbusMaster(object):
         self._status = {}
 
         self.SR = redis.StrictRedis.from_url(
-            self.config.get('REDIS_URL', 'unix:///var/run/redis/redis.sock')
+            os.environ.get('REDIS_URL', 'unix:///var/run/redis/redis.sock')
         )
 
         self.comm = minemeld.comm.factory(self.comm_class, self.comm_config)
