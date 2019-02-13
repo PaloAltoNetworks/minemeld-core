@@ -50,7 +50,7 @@ class Query(gevent.Greenlet):
         self.starting_counter = counter
         self.num_lines = num_lines
 
-        self.redis_url = self.config.get('redis_url',
+        self.redis_url = redis_config.get('redis_url',
             os.environ.get('REDIS_URL', 'unix:///var/run/redis/redis.sock')
         )
 
@@ -197,6 +197,8 @@ class QueryProcessor(object):
             self.store.release_all(gquery.uuid)
 
     def query(self, uuid, query, timestamp=None, counter=None, num_lines=None):
+        LOG.debug('Query called: {!r}'.format(query))
+
         if self._stop.is_set():
             raise RuntimeError('stopping')
 
@@ -210,6 +212,7 @@ class QueryProcessor(object):
             num_lines = 100
 
         self.queries_lock.acquire()
+        LOG.debug('Locked')
 
         if len(self.queries) >= self.max_concurrency:
             self.queries_lock.release()
