@@ -65,7 +65,6 @@ ExternalExtension = namedtuple(
 def _egg_link_path(dist):
     for path_item in sys.path:
         egg_link = os.path.join(path_item, dist.project_name + '.egg-link')
-        LOG.debug('{}'.format(egg_link))
         if os.path.isfile(egg_link):
             return egg_link
     return None
