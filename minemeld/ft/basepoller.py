@@ -646,7 +646,9 @@ class BasePollerFT(base.BaseFT):
 
                         self.statistics['added'] += 1
                         self.table.put(indicator, v)
-                        self._controlled_emit_update(indicator, v)
+
+                        if v['_age_out'] >= now:
+                            self._controlled_emit_update(indicator, v)
 
                         LOG.debug('%s - added %s %s', self.name, indicator, v)
 
@@ -667,7 +669,8 @@ class BasePollerFT(base.BaseFT):
 
                         self.table.put(indicator, v)
 
-                        if not eq:
+                        # emit updates if different and not aged out
+                        if not eq and v['_age_out'] >= now:
                             self._controlled_emit_update(indicator, v)
 
                     elif istatus.state == IndicatorStatus.XFXANW:
