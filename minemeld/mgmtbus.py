@@ -484,7 +484,8 @@ class MgmtbusSlaveHub(object):
     def request_log_channel(self):
         LOG.debug("Adding log channel")
         return self.comm.request_pub_channel(
-            MGMTBUS_LOG_TOPIC
+            topic=MGMTBUS_LOG_TOPIC,
+            multi_write=True
         )
 
     def send_status(self, params):

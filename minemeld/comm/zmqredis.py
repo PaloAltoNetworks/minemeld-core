@@ -379,6 +379,127 @@ class ZMQRpcServerChannel(object):
             self.socket = None
 
 
+class ZMQPubChannel(object):
+    def __init__(self, topic):
+        self.socket = None
+        self.reply_socket = None
+        self.context = None
+        self.topic = topic
+
+    def publish(self, method, params=None):
+        if self.socket is None:
+            raise RuntimeError('Not connected')
+
+        if params is None:
+            params = {}
+
+        id_ = str(uuid.uuid1())
+
+        body = {
+            'method': method,
+            'id': id_,
+            'params': params
+        }
+
+        try:
+            self.socket.send_json(
+                obj=body,
+                flags=zmq.NOBLOCK
+            )
+        except zmq.ZMQError:
+            LOG.error('Topic {} queue full - dropping message'.format(self.topic))
+
+        gevent.sleep(0)
+
+    def connect(self, context):
+        if self.socket is not None:
+            return
+
+        self.context = context
+
+        self.socket = context.socket(zmq.PUB)
+        self.socket.bind('ipc:///var/run/minemeld/{}'.format(self.topic))
+
+    def disconnect(self):
+        if self.socket is None:
+            return
+
+        self.socket.close(linger=0)
+        self.socket = None
+
+
+class ZMQSubChannel(object):
+    def __init__(self, name, obj, allowed_methods=None,
+                 method_prefix='', topic=None):
+        if allowed_methods is None:
+            allowed_methods = []
+
+        self.name = name
+        self.obj = obj
+
+        self.allowed_methods = allowed_methods
+        self.method_prefix = method_prefix
+        self.topic = topic
+
+        self.context = None
+        self.socket = None
+
+    def run(self):
+        if self.socket is None:
+            LOG.error('Run called with invalid socket in ZMQ Pub channel: {}'.format(self.name))
+
+        while True:
+            LOG.debug('ZMQPub {} receiving'.format(self.name))
+            body = self.socket.recv_json()
+            LOG.debug('ZMQPub {} recvd: {!r}'.format(self.name, body))
+
+            method = body.get('method', None)
+            id_ = body.get('id', None)
+            params = body.get('params', {})
+
+            if method is None:
+                LOG.error('No method in msg body')
+                return
+            if id_ is None:
+                LOG.error('No id in msg body')
+                return
+
+            method = self.method_prefix+method
+
+            if method not in self.allowed_methods:
+                LOG.error('Method not allowed in RPC server channel {}: {}'.format(self.name, method))
+                continue
+
+            m = getattr(self.obj, method, None)
+            if m is None:
+                LOG.error('Method {} not defined in RPC server channel {}'.format(method, self.name))
+                continue
+
+            try:
+                m(**params)
+
+            except gevent.GreenletExit:
+                raise
+
+            except Exception:
+                LOG.exception('Exception in ZMQPub {}'.format(self.name))
+
+    def connect(self, context):
+        if self.socket is not None:
+            return
+
+        self.context = context
+
+        self.socket = self.context.socket(zmq.SUB)
+        self.socket.connect('ipc:///var/run/minemeld/{}'.format(self.topic))
+        self.socket.setsockopt(zmq.SUBSCRIBE, b'')  # set the filter to empty to recv all messages
+
+    def disconnect(self):
+        if self.socket is not None:
+            self.socket.close(linger=0)
+            self.socket = None
+
+
 class RedisSubChannel(object):
     def __init__(self, topic, connection_pool, object_,
                  allowed_methods, name=None):
@@ -437,7 +558,9 @@ class ZMQRedis(object):
         self.context = None
         self.rpc_server_channels = {}
         self.pub_channels = []
+        self.mw_pub_channels = []
         self.sub_channels = []
+        self.mw_sub_channels = []
         self.rpc_fanout_clients_channels = []
 
         self.active_rpcs = {}
@@ -477,28 +600,45 @@ class ZMQRedis(object):
         self.rpc_fanout_clients_channels.append(c)
         return c
 
-    def request_pub_channel(self, topic):
-        redis_pub_channel = RedisPubChannel(
-            topic=topic,
-            connection_pool=self.redis_cp
-        )
-        self.pub_channels.append(redis_pub_channel)
+    def request_pub_channel(self, topic, multi_write=False):
+        if not multi_write:
+            redis_pub_channel = RedisPubChannel(
+                topic=topic,
+                connection_pool=self.redis_cp
+            )
+            self.pub_channels.append(redis_pub_channel)
 
-        return redis_pub_channel
+            return redis_pub_channel
+
+        zmq_pub_channel = ZMQPubChannel(topic=topic)
+        self.mw_pub_channels.append(zmq_pub_channel)
+        
+        return zmq_pub_channel
 
     def request_sub_channel(self, topic, obj=None, allowed_methods=None,
-                            name=None, max_length=None):
+                            name=None, max_length=None, multi_write=False):
         if allowed_methods is None:
             allowed_methods = []
 
-        subchannel = RedisSubChannel(
-            topic=topic,
-            connection_pool=self.redis_cp,
-            object_=obj,
+        if not multi_write:
+            subchannel = RedisSubChannel(
+                topic=topic,
+                connection_pool=self.redis_cp,
+                object_=obj,
+                allowed_methods=allowed_methods,
+                name=name
+            )
+            self.sub_channels.append(subchannel)
+
+            return
+
+        subchannel = ZMQSubChannel(
+            name=name,
+            obj=obj,
             allowed_methods=allowed_methods,
-            name=name
+            topic=topic
         )
-        self.sub_channels.append(subchannel)
+        self.mw_sub_channels.append(subchannel)
 
     def send_rpc(self, dest, method, params,
                  block=True, timeout=None):
@@ -627,8 +767,14 @@ class ZMQRedis(object):
         for sc in self.sub_channels:
             sc.connect()
 
+        for mwsc in self.mw_sub_channels:
+            mwsc.connect(self.context)
+
         for pc in self.pub_channels:
             pc.connect()
+
+        for mwpc in self.mw_pub_channels:
+            mwpc.connect(self.context)
 
         if start_dispatching:
             self.start_dispatching()
@@ -646,6 +792,11 @@ class ZMQRedis(object):
 
         for schannel in self.sub_channels:
             g = gevent.spawn(self._sub_ioloop, schannel)
+            self.ioloops.append(g)
+            g.link_exception(self._ioloop_failure)
+
+        for mwschannel in self.mw_sub_channels:
+            g = gevent.spawn(self._ioloop, mwschannel)
             self.ioloops.append(g)
             g.link_exception(self._ioloop_failure)
 
@@ -670,9 +821,21 @@ class ZMQRedis(object):
             except Exception:
                 LOG.debug("exception in disconnect: ", exc_info=True)
 
+        for mwpc in self.mw_pub_channels:
+            try:
+                mwpc.disconnect()
+            except Exception:
+                LOG.debug("exception in disconnect: ", exc_info=True)
+
         for sc in self.sub_channels:
             try:
                 sc.disconnect()
+            except Exception:
+                LOG.debug("exception in disconnect: ", exc_info=True)
+
+        for mwsc in self.mw_sub_channels:
+            try:
+                mwsc.disconnect()
             except Exception:
                 LOG.debug("exception in disconnect: ", exc_info=True)
 
