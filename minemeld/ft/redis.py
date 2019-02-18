@@ -66,7 +66,7 @@ class RedisSet(actorbase.ActorBaseFT):
         try:
             contents = self.SR.get(self.redis_skey_chkp)
             if contents is None:
-                raise RuntimeError('{} - last checkpoint not found'.format(self.name))
+                raise ValueError('{} - last checkpoint not found'.format(self.name))
 
             if contents[0] == '{':
                 # new format

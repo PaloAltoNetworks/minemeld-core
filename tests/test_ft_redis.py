@@ -52,10 +52,7 @@ class MineMeldFTRedisTests(unittest.TestCase):
         self.assertEqual(b.output, None)
         self.assertEqual(b.redis_skey, FTNAME)
         self.assertNotEqual(b.SR, None)
-        self.assertEqual(b.redis_host, '127.0.0.1')
-        self.assertEqual(b.redis_port, 6379)
-        self.assertEqual(b.redis_password, None)
-        self.assertEqual(b.redis_db, 0)
+        self.assertEqual(b.redis_url, 'unix:///var/run/redis/redis.sock')
 
     def test_connect_io(self):
         config = {}
