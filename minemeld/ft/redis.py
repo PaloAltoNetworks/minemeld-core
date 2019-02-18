@@ -17,7 +17,7 @@ from __future__ import absolute_import
 import logging
 import redis
 import os
-import ujson
+import ujson as json
 
 from . import base
 from . import actorbase
@@ -54,11 +54,71 @@ class RedisSet(actorbase.ActorBaseFT):
 
     def read_checkpoint(self):
         self._connect_redis()
-        self.last_checkpoint = self.SR.get(self.redis_skey_chkp)
+
+        self.last_checkpoint = None
+
+        config = {
+            'class': (self.__class__.__module__+'.'+self.__class__.__name__),
+            'config': self._original_config
+        }
+        config = json.dumps(config, sort_keys=True)
+
+        try:
+            contents = self.SR.get(self.redis_skey_chkp)
+            if contents is None:
+                raise RuntimeError('{} - last checkpoint not found'.format(self.name))
+
+            if contents[0] == '{':
+                # new format
+                contents = json.loads(contents)
+                self.last_checkpoint = contents['checkpoint']
+                saved_config = contents['config']
+                saved_state = contents['state']
+
+            else:
+                self.last_checkpoint = contents
+                saved_config = ''
+                saved_state = None
+
+            LOG.debug('%s - restored checkpoint: %s', self.name, self.last_checkpoint)
+
+            # old_status is missing in old releases
+            # stick to the old behavior
+            if saved_config and saved_config != config:
+                LOG.info(
+                    '%s - saved config does not match new config',
+                    self.name
+                )
+                self.last_checkpoint = None
+                return
+
+            LOG.info(
+                '%s - saved config matches new config',
+                self.name
+            )
+
+            if saved_state is not None:
+                self._saved_state_restore(saved_state)
+
+        except (ValueError, IOError):
+            LOG.exception('{} - Error reading last checkpoint'.format(self.name))
+            self.last_checkpoint = None
 
     def create_checkpoint(self, value):
         self._connect_redis()
-        self.SR.set(self.redis_skey_chkp, value)
+
+        config = {
+            'class': (self.__class__.__module__+'.'+self.__class__.__name__),
+            'config': self._original_config
+        }
+
+        contents = {
+            'checkpoint': value,
+            'config': json.dumps(config, sort_keys=True),
+            'state': self._saved_state_create()
+        }
+
+        self.SR.set(self.redis_skey_chkp, json.dumps(contents))
 
     def remove_checkpoint(self):
         self._connect_redis()
@@ -95,7 +155,7 @@ class RedisSet(actorbase.ActorBaseFT):
 
             p.zadd(self.redis_skey, score, indicator)
             if self.store_value:
-                p.hset(self.redis_skey_value, indicator, ujson.dumps(value))
+                p.hset(self.redis_skey_value, indicator, json.dumps(value))
 
             result = p.execute()[0]
 
