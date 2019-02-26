@@ -55,11 +55,6 @@ class RedisPubChannel(object):
             connection_pool=self.connection_pool
         )
 
-        tkeys = self.SR.keys(pattern='{}:*'.format(self.prefix))
-        if len(tkeys) > 0:
-            LOG.info('Deleting {} old keys for {}'.format(len(tkeys), self.prefix))
-            self.SR.delete(*tkeys)
-
     def disconnect(self):
         if self.SR is None:
             return
@@ -509,8 +504,11 @@ class RedisSubChannel(object):
         self.name = name
         self.object = object_
         self.allowed_methods = allowed_methods
+        self.connection_pool = connection_pool
 
         self.num_callbacks = 0
+
+        self.sub_number = None
 
     def _callback(self, msg):
         try:
@@ -547,7 +545,18 @@ class RedisSubChannel(object):
         self.num_callbacks += 1
 
     def connect(self):
-        pass
+        subscribers_key = '{}:subscribers'.format(self.prefix)
+
+        SR = redis.StrictRedis(
+            connection_pool=self.connection_pool
+        )
+
+        self.sub_number = SR.rpush(
+            subscribers_key,
+            0
+        )
+        self.sub_number -= 1
+        LOG.debug('Sub Number {} on {}'.format(self.sub_number, subscribers_key))
 
     def disconnect(self):
         pass
@@ -699,7 +708,6 @@ class ZMQRedis(object):
         counter = 0
         SR = redis.StrictRedis(connection_pool=self.redis_cp)
         subscribers_key = '{}:subscribers'.format(schannel.prefix)
-        sub_number = None
 
         while True:
             base = counter & 0xfff
@@ -721,20 +729,11 @@ class ZMQRedis(object):
             counter += len(msgs)
 
             if len(msgs) > 0:
-                if sub_number is None:
-                    sub_number = SR.rpush(
-                        subscribers_key,
-                        len(msgs)
-                    )
-                    sub_number -= 1
-                    LOG.debug('Sub Number {} on {}'.format(sub_number, subscribers_key))
-
-                else:
-                    SR.lset(
-                        subscribers_key,
-                        sub_number,
-                        counter
-                    )
+                SR.lset(
+                    subscribers_key,
+                    schannel.sub_number,
+                    counter
+                )
 
             if len(msgs) < (top - base + 1):
                 gevent.sleep(1.0)
@@ -846,3 +845,17 @@ class ZMQRedis(object):
                 LOG.debug("exception in disconnect: ", exc_info=True)
 
         self.context.destroy()
+
+    @staticmethod
+    def cleanup(config):
+        redis_cp = redis.ConnectionPool.from_url(
+            os.environ.get('REDIS_URL', 'unix:///var/run/redis/redis.sock')
+        )
+        SR = redis.StrictRedis(connection_pool=redis_cp)
+        tkeys = SR.keys(pattern='mm:topic:*')
+        if len(tkeys) > 0:
+            LOG.info('Deleting old keys: {}'.format(len(tkeys)))
+            SR.delete(*tkeys)
+
+        SR = None
+        redis_cp = None

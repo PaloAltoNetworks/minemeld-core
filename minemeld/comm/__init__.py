@@ -8,3 +8,7 @@ def factory(commclass, config):
         return ZMQRedis(config)
 
     return ZMQRedis(config)
+
+
+def cleanup(commclass, config):
+    return ZMQRedis.cleanup(config)

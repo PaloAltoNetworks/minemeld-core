@@ -30,6 +30,7 @@ import psutil
 
 import minemeld.chassis
 import minemeld.mgmtbus
+import minemeld.comm
 import minemeld.run.config
 
 from minemeld import __version__
@@ -244,6 +245,11 @@ def main():
         pn = j % len(ftlists)
         ftlists[pn][ft] = config.nodes[ft]
         j += 1
+
+    # cleanup
+    if config.mgmtbus['transport']['class'] != config.fabric['class']:
+        raise ValueError('mgmtbus class and fabric class should match')
+    minemeld.comm.cleanup(config.fabric['class'], config.fabric['config'])
 
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     signal.signal(signal.SIGTERM, signal.SIG_IGN)
