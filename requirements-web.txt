@@ -5,4 +5,4 @@ Flask-Login==0.2.11
 passlib==1.6.5
 rrdtool==0.1.2
 supervisor==3.1.3
-
+blinker==1.4

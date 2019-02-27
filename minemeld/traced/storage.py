@@ -96,6 +96,8 @@ class Table(object):
                 self.name
             )
 
+        LOG.debug('{} #refs: {}'.format(self.name, self.ref_count()))
+
     def ref_count(self):
         return len(self.refs)
 
@@ -120,6 +122,7 @@ class Table(object):
         )
 
     def close(self):
+        LOG.debug('{} - close'.format(self.name))
         self.db.close()
 
     @staticmethod
@@ -243,7 +246,7 @@ class Store(object):
 
         # garbage collect
         candidate = None
-        for tname, table in self.current_tables.iteritems():
+        for _, table in self.current_tables.iteritems():
             if table.ref_count() != 0:
                 continue
 

@@ -105,7 +105,7 @@ def main():
     store = minemeld.traced.storage.Store(config.get('store', None))
 
     transport_config = config.get('transport', {
-        'class': 'AMQP',
+        'class': 'ZMQRedis',
         'config': {
             'num_connections': 1
         }

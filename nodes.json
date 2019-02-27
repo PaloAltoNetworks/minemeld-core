@@ -11,6 +11,9 @@
     "minemeld.ft.azure.AzureXML": {
         "class": "minemeld.ft.azure:AzureXML"
     },
+    "minemeld.ft.azure.AzureJSON": {
+        "class": "minemeld.ft.azure:AzureJSON"
+    },
     "minemeld.ft.cif.Feed": {
         "class": "minemeld.ft.cif:Feed"
     },

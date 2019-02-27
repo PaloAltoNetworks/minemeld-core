@@ -23,7 +23,8 @@
                 "user-agent.fragment",
                 "file.name",
                 "process.command_line",
-                "email-addr"
+                "email-addr",
+                "autonomous-system"
             ]
         },
         "direction": {

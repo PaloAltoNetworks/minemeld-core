@@ -58,3 +58,8 @@ target/
 
 # PyCharm
 .idea/
+
+.vscode/
+
+_ares.c
+_ares.h

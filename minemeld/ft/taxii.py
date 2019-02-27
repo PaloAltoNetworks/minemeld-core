@@ -1384,10 +1384,9 @@ class DataFeed(actorbase.ActorBaseFT):
     def configure(self):
         super(DataFeed, self).configure()
 
-        self.redis_host = self.config.get('redis_host', '127.0.0.1')
-        self.redis_port = self.config.get('redis_port', 6379)
-        self.redis_password = self.config.get('redis_password', None)
-        self.redis_db = self.config.get('redis_db', 0)
+        self.redis_url = self.config.get('redis_url',
+            os.environ.get('REDIS_URL', 'unix:///var/run/redis/redis.sock')
+        )
 
         self.namespace = self.config.get('namespace', 'minemeld')
         self.namespaceuri = self.config.get(
@@ -1443,11 +1442,8 @@ class DataFeed(actorbase.ActorBaseFT):
         if self.SR is not None:
             return
 
-        self.SR = redis.StrictRedis(
-            host=self.redis_host,
-            port=self.redis_port,
-            password=self.redis_password,
-            db=self.redis_db
+        self.SR = redis.StrictRedis.from_url(
+            self.redis_url
         )
 
     def _read_oldest_indicator(self):
@@ -1694,19 +1690,14 @@ class DataFeed(actorbase.ActorBaseFT):
         redis_skey = name
         redis_skey_value = '{}.value'.format(name)
         redis_skey_chkp = '{}.chkp'.format(name)
-        redis_host = config.get('redis_host', '127.0.0.1')
-        redis_port = config.get('redis_port', 6379)
-        redis_password = config.get('redis_password', None)
-        redis_db = config.get('redis_db', 0)
+        redis_url = config.get('redis_url',
+            os.environ.get('REDIS_URL', 'unix:///var/run/redis/redis.sock')
+        )
 
         cp = None
         try:
-            cp = redis.ConnectionPool(
-                host=redis_host,
-                port=redis_port,
-                password=redis_password,
-                db=redis_db,
-                socket_timeout=10
+            cp = redis.ConnectionPool.from_url(
+                redis_url
             )
 
             SR = redis.StrictRedis(connection_pool=cp)

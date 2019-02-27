@@ -1,12 +1,12 @@
 language: c
 
 sudo: required
-dist: trusty
+dist: xenial
 
 addons:
   apt:
     packages:
-    - libsnappy1
+    - libsnappy1v5
     - libsnappy-dev
     - libleveldb-dev
     - librrd-dev
@@ -17,7 +17,7 @@ addons:
     - libc-ares2
 
 before_install:
-  - sudo apt-get -y install python2.7/trusty python2.7-dev/trusty python2.7-minimal/trusty libpython2.7/trusty libpython2.7-dev/trusty libpython2.7-minimal/trusty libpython2.7-stdlib/trusty
+  - sudo apt-get -y install python2.7/xenial python2.7-dev/xenial python2.7-minimal/xenial libpython2.7/xenial libpython2.7-dev/xenial libpython2.7-minimal/xenial libpython2.7-stdlib/xenial
   - export PATH=/usr/bin:$PATH
 
 install:

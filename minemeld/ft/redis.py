@@ -16,7 +16,8 @@ from __future__ import absolute_import
 
 import logging
 import redis
-import ujson
+import os
+import ujson as json
 
 from . import base
 from . import actorbase
@@ -37,10 +38,9 @@ class RedisSet(actorbase.ActorBaseFT):
     def configure(self):
         super(RedisSet, self).configure()
 
-        self.redis_host = self.config.get('redis_host', '127.0.0.1')
-        self.redis_port = self.config.get('redis_port', 6379)
-        self.redis_password = self.config.get('redis_password', None)
-        self.redis_db = self.config.get('redis_db', 0)
+        self.redis_url = self.config.get('redis_url',
+            os.environ.get('REDIS_URL', 'unix:///var/run/redis/redis.sock')
+        )
         self.scoring_attribute = self.config.get(
             'scoring_attribute',
             'last_seen'
@@ -54,11 +54,71 @@ class RedisSet(actorbase.ActorBaseFT):
 
     def read_checkpoint(self):
         self._connect_redis()
-        self.last_checkpoint = self.SR.get(self.redis_skey_chkp)
+
+        self.last_checkpoint = None
+
+        config = {
+            'class': (self.__class__.__module__+'.'+self.__class__.__name__),
+            'config': self._original_config
+        }
+        config = json.dumps(config, sort_keys=True)
+
+        try:
+            contents = self.SR.get(self.redis_skey_chkp)
+            if contents is None:
+                raise ValueError('{} - last checkpoint not found'.format(self.name))
+
+            if contents[0] == '{':
+                # new format
+                contents = json.loads(contents)
+                self.last_checkpoint = contents['checkpoint']
+                saved_config = contents['config']
+                saved_state = contents['state']
+
+            else:
+                self.last_checkpoint = contents
+                saved_config = ''
+                saved_state = None
+
+            LOG.debug('%s - restored checkpoint: %s', self.name, self.last_checkpoint)
+
+            # old_status is missing in old releases
+            # stick to the old behavior
+            if saved_config and saved_config != config:
+                LOG.info(
+                    '%s - saved config does not match new config',
+                    self.name
+                )
+                self.last_checkpoint = None
+                return
+
+            LOG.info(
+                '%s - saved config matches new config',
+                self.name
+            )
+
+            if saved_state is not None:
+                self._saved_state_restore(saved_state)
+
+        except (ValueError, IOError):
+            LOG.exception('{} - Error reading last checkpoint'.format(self.name))
+            self.last_checkpoint = None
 
     def create_checkpoint(self, value):
         self._connect_redis()
-        self.SR.set(self.redis_skey_chkp, value)
+
+        config = {
+            'class': (self.__class__.__module__+'.'+self.__class__.__name__),
+            'config': self._original_config
+        }
+
+        contents = {
+            'checkpoint': value,
+            'config': json.dumps(config, sort_keys=True),
+            'state': self._saved_state_create()
+        }
+
+        self.SR.set(self.redis_skey_chkp, json.dumps(contents))
 
     def remove_checkpoint(self):
         self._connect_redis()
@@ -68,11 +128,8 @@ class RedisSet(actorbase.ActorBaseFT):
         if self.SR is not None:
             return
 
-        self.SR = redis.StrictRedis(
-            host=self.redis_host,
-            port=self.redis_port,
-            password=self.redis_password,
-            db=self.redis_db
+        self.SR = redis.StrictRedis.from_url(
+            self.redis_url
         )
 
     def initialize(self):
@@ -98,7 +155,7 @@ class RedisSet(actorbase.ActorBaseFT):
 
             p.zadd(self.redis_skey, score, indicator)
             if self.store_value:
-                p.hset(self.redis_skey_value, indicator, ujson.dumps(value))
+                p.hset(self.redis_skey_value, indicator, json.dumps(value))
 
             result = p.execute()[0]
 
@@ -145,19 +202,14 @@ class RedisSet(actorbase.ActorBaseFT):
         redis_skey = name
         redis_skey_value = '{}.value'.format(name)
         redis_skey_chkp = '{}.chkp'.format(name)
-        redis_host = config.get('redis_host', '127.0.0.1')
-        redis_port = config.get('redis_port', 6379)
-        redis_password = config.get('redis_password', None)
-        redis_db = config.get('redis_db', 0)
+        redis_url = config.get('redis_url',
+            os.environ.get('REDIS_URL', 'unix:///var/run/redis/redis.sock')
+        )
 
         cp = None
         try:
-            cp = redis.ConnectionPool(
-                host=redis_host,
-                port=redis_port,
-                password=redis_password,
-                db=redis_db,
-                socket_timeout=10
+            cp = redis.ConnectionPool.from_url(
+                url=redis_url
             )
 
             SR = redis.StrictRedis(connection_pool=cp)
