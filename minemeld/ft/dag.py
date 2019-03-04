@@ -74,6 +74,7 @@ class DevicePusher(gevent.Greenlet):
 
         entries = self.xapi.element_root.findall('./result/entry')
         if entries is None or len(entries) == 0:
+            LOG.warning('%s: ip %s has no tags', self.device.get('hostname', None), ip)
             return None
 
         tags = [member.text for member in entries[0].findall('./tag/member')
@@ -192,6 +193,7 @@ class DevicePusher(gevent.Greenlet):
                         result.append(_tag(t, value[t]))
 
             else:
+                # XXX noop for this case?
                 result.append('%s%s_unknown' % (self.prefix, t))
 
         LOG.debug('%s', result)
@@ -229,7 +231,7 @@ class DevicePusher(gevent.Greenlet):
             for t in self._tags_from_value(value):
                 ctags[address].add(t)
 
-        LOG.debug(ctags)
+        LOG.debug('%s', ctags)
 
         register = collections.defaultdict(list)
         unregister = collections.defaultdict(list)
@@ -250,12 +252,14 @@ class DevicePusher(gevent.Greenlet):
 
             ctags.pop(a)
 
+        # ips not in firewall
         for a, atags in ctags.iteritems():
             register[a] = atags
 
-        LOG.debug(register)
-        LOG.debug(unregister)
+        LOG.debug('register %s', register)
+        LOG.debug('unregister %s', unregister)
 
+        # XXX use constant for chunk size
         if len(register) != 0:
             addrs = iter(register)
             for i in xrange(0, len(register), 1000):
@@ -398,6 +402,7 @@ class DagPusher(actorbase.ActorBaseFT):
 
         self.statistics['added'] += 1
         self.table.put(str(address), value)
+        LOG.debug('%s - #indicators: %d', self.name, self.length())
 
         value.pop('_age_out')
 
@@ -410,6 +415,8 @@ class DagPusher(actorbase.ActorBaseFT):
                     uflag |= set(cv) != set(nv)
                 else:
                     uflag |= cv != nv
+
+        LOG.debug('uflag %s current %s new %s', uflag, current_value, value)
 
         for p in self.device_pushers:
             if uflag:
@@ -424,7 +431,8 @@ class DagPusher(actorbase.ActorBaseFT):
 
         current_value = self.table.get(str(address))
         if current_value is None:
-            LOG.debug('%s - unknown indicator received, ignored', self.name)
+            LOG.warning('%s - unknown indicator received, ignored: %s',
+                        self.name, address)
             self.statistics['ignored'] += 1
             return
 
@@ -432,6 +440,8 @@ class DagPusher(actorbase.ActorBaseFT):
 
         self.statistics['removed'] += 1
         self.table.delete(str(address))
+        LOG.debug('%s - #indicators: %d', self.name, self.length())
+
         for p in self.device_pushers:
             p.put('unregister', str(address), current_value)
 
@@ -458,11 +468,12 @@ class DagPusher(actorbase.ActorBaseFT):
                     self.table.delete(i)
 
                 self.last_ageout_run = now
+                LOG.debug('%s - #indicators: %d', self.name, self.length())
 
             except gevent.GreenletExit:
                 break
 
-            except:
+            except Exception:
                 LOG.exception('Exception in _age_out_loop')
 
             try:
@@ -494,7 +505,7 @@ class DagPusher(actorbase.ActorBaseFT):
         except gevent.GreenletExit:
             pass
 
-        except:
+        except Exception:
             LOG.exception('%s - exception in greenlet for %s, '
                           'respawning in 60 seconds',
                           self.name, g.device['hostname'])
@@ -553,7 +564,7 @@ class DagPusher(actorbase.ActorBaseFT):
         while True:
             try:
                 mtime = os.stat(self.device_list_path).st_mtime
-            except:
+            except OSError:
                 LOG.debug('%s - error checking mtime of %s',
                           self.name, self.device_list_path)
                 self._huppable_wait(5)
@@ -565,8 +576,9 @@ class DagPusher(actorbase.ActorBaseFT):
                 try:
                     self._load_device_list()
                     LOG.info('%s - device list loaded', self.name)
-                except:
-                    LOG.exception('%s - exception loading device list')
+                except Exception:
+                    LOG.exception('%s - exception loading device list',
+                                  self.name)
 
             self._huppable_wait(5)
 
@@ -630,5 +642,5 @@ class DagPusher(actorbase.ActorBaseFT):
 
         try:
             os.remove(device_list_path)
-        except:
+        except OSError:
             pass
