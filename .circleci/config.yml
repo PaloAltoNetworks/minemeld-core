@@ -68,7 +68,7 @@ jobs:
             --prebuild-script scripts/prebuild-script.sh
       - run:
           name: Rename files
-          command: for file in dist/*; do mv "$file" "${file%.tar.gz}..$CIRCLE_SHA1.bionic"; done
+          command: for file in dist/*; do mv "$file" "${file%.tar.gz}.$CIRCLE_SHA1.bionic"; done
       - persist_to_workspace:
           root: dist
           paths:
