@@ -1,0 +1,115 @@
+version: 2.1
+orbs:
+  aws-s3: circleci/aws-s3@1.0.4
+jobs:
+  build-bionic:
+    docker:
+      - image: circleci/buildpack-deps:bionic
+    steps:
+      - run:
+          name: Update & Upgrade
+          command: sudo apt update && sudo apt upgrade -y
+      - checkout
+      - run:
+          name: Install deps
+          command: >
+            sudo apt install -y gcc git python-minimal python2.7-dev
+            libffi-dev libssl-dev make g++ libleveldb-dev librrd-dev
+            libxslt1-dev libc-ares-dev libsnappy-dev
+      - run:
+          name: Install PIP
+          command: wget https://bootstrap.pypa.io/get-pip.py && sudo -H python get-pip.py
+      - run:
+          name: Install Python dev requirements
+          command: sudo -H pip install -r requirements-dev.txt
+      - run:
+          name: Show Python Version
+          command: /usr/bin/env python -V
+      - run:
+          name: Build package
+          command: >
+            platter build -r requirements-web.txt
+            --prebuild-script scripts/prebuild-script.sh
+      - run:
+          name: Rename files
+          command: for file in dist/*; do mv "$file" "${file%.tar.gz}.$CIRCLE_SHA1.xenial"; done
+      - persist_to_workspace:
+          root: dist
+          paths:
+            - .
+
+  build-xenial:
+    docker:
+      - image: circleci/buildpack-deps:xenial
+    steps:
+      - run:
+          name: Update & Upgrade
+          command: sudo apt update && sudo apt upgrade -y
+      - checkout
+      - run:
+          name: Install deps
+          command: >
+            sudo apt install -y gcc git python-minimal python2.7-dev
+            libffi-dev libssl-dev make g++ libleveldb-dev librrd-dev
+            libxslt1-dev libc-ares-dev libsnappy-dev
+      - run:
+          name: Install PIP
+          command: wget https://bootstrap.pypa.io/get-pip.py && sudo -H python get-pip.py
+      - run:
+          name: Install Python dev requirements
+          command: sudo -H pip install -r requirements-dev.txt
+      - run:
+          name: Show Python Version
+          command: /usr/bin/env python -V
+      - run:
+          name: Build package
+          command: >
+            platter build -r requirements-web.txt
+            --prebuild-script scripts/prebuild-script.sh
+      - run:
+          name: Rename files
+          command: for file in dist/*; do mv "$file" "${file%.tar.gz}.$CIRCLE_SHA1.bionic"; done
+      - persist_to_workspace:
+          root: dist
+          paths:
+            - .
+
+  deploy:
+    docker:
+      - image: circleci/python:2.7
+    steps:
+      - run:
+          name: Create workspace dir
+          command: mkdir ~/workspace
+      - attach_workspace:
+          at: ~/workspace
+      - run:
+          name: Workspace contents
+          command: find ~/workspace
+      - aws-s3/sync:
+          from: ~/workspace
+          to: 's3://minemeld/'
+          arguments: |
+            --acl public-read
+
+workflows:
+  version: 2
+  xenial:
+    jobs:
+      - build-xenial
+      - deploy:
+          requires:
+            - build-xenial
+          filters:
+            tags:
+              only: '/.*/'
+
+  bionic:
+    jobs:
+      - build-bionic
+      - deploy:
+          requires:
+            - build-bionic
+          filters:
+            tags:
+              only: '/.*/'

@@ -1,10 +1,14 @@
 from __future__ import absolute_import
 
-from .amqp import AMQP
+from .zmqredis import ZMQRedis
 
 
 def factory(commclass, config):
-    if commclass != 'AMQP':
-        raise RuntimeError('Unknown comm class %s', commclass)
+    if commclass == 'ZMQRedis':
+        return ZMQRedis(config)
 
-    return AMQP(config)
+    return ZMQRedis(config)
+
+
+def cleanup(commclass, config):
+    return ZMQRedis.cleanup(config)

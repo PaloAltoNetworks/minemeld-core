@@ -63,7 +63,8 @@ class Writer(object):
             topic,
             self,
             allowed_methods=['log'],
-            name='mbus:log:writer'
+            name='mbus:log:writer',
+            multi_write=True
         )
 
         self._disk_monitor_glet = DiskSpaceMonitor(

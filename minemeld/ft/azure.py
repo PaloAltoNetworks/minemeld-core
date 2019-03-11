@@ -26,8 +26,10 @@ from . import basepoller
 
 LOG = logging.getLogger(__name__)
 
-AZURE_URL = \
+AZUREXML_URL = \
     'https://www.microsoft.com/EN-US/DOWNLOAD/confirmation.aspx?id=41653'
+
+AZUREJSON_URL = 'https://www.microsoft.com/en-us/download/confirmation.aspx?id=56519'
 
 REGIONS_XPATH = '/AzurePublicIpAddresses/Region'
 
@@ -54,6 +56,32 @@ def _build_IPv4(nodename, region, iprange):
     return item
 
 
+def _build_IP(nodename, address_prefix, **keywords):
+    try:
+        ap = netaddr.IPNetwork(address_prefix)
+    except Exception:
+        LOG.exception('%s - Invalid ip range: %s', nodename, address_prefix)
+        return {}
+
+    if ap.version == 4:
+        type_ = 'IPv4'
+    elif ap.version == 6:
+        type_ = 'IPv6'
+    else:
+        LOG.error('{} - Unknown IP version: {}'.format(nodename, ap.version))
+        return {}
+
+    item = {
+        'indicator': address_prefix,
+        'type': type_,
+        'confidence': 100,
+        'sources': [nodename]
+    }
+    item.update(keywords)
+
+    return item
+
+
 class AzureXML(basepoller.BasePollerFT):
     def configure(self):
         super(AzureXML, self).configure()
@@ -68,7 +96,7 @@ class AzureXML(basepoller.BasePollerFT):
     def _build_request(self, now):
         r = requests.Request(
             'GET',
-            AZURE_URL
+            AZUREXML_URL
         )
 
         return r.prepare()
@@ -83,7 +111,7 @@ class AzureXML(basepoller.BasePollerFT):
         )
 
         r = requests.get(
-            AZURE_URL,
+            AZUREXML_URL,
             **rkwargs
         )
 
@@ -98,7 +126,7 @@ class AzureXML(basepoller.BasePollerFT):
         a = html_soup.find('a', class_='failoverLink')
         if a is None:
             LOG.error('%s - failoverLink not found', self.name)
-            raise []
+            raise RuntimeError('{} - failoverLink not found'.format(self.name))
         LOG.debug('%s - download link: %s', self.name, a['href'])
 
         rkwargs = dict(
@@ -133,6 +161,109 @@ class AzureXML(basepoller.BasePollerFT):
             _iterators.append(itertools.imap(
                 functools.partial(_build_IPv4, self.name, r.get('Name')),
                 ipranges
+            ))
+
+        return itertools.chain(*_iterators)
+
+
+class AzureJSON(basepoller.BasePollerFT):
+    def configure(self):
+        super(AzureJSON, self).configure()
+
+        self.polling_timeout = self.config.get('polling_timeout', 20)
+        self.verify_cert = self.config.get('verify_cert', True)
+
+    def _process_item(self, item):
+        indicator = item.pop('indicator', None)
+        return [[indicator, item]]
+
+    def _build_request(self, now):
+        r = requests.Request(
+            'GET',
+            AZUREJSON_URL
+        )
+
+        return r.prepare()
+
+    def _build_iterator(self, now):
+        _iterators = []
+
+        rkwargs = dict(
+            stream=False,
+            verify=self.verify_cert,
+            timeout=self.polling_timeout
+        )
+
+        r = requests.get(
+            AZUREJSON_URL,
+            **rkwargs
+        )
+
+        try:
+            r.raise_for_status()
+        except:
+            LOG.error('%s - exception in request: %s %s',
+                      self.name, r.status_code, r.content)
+            raise
+
+        html_soup = bs4.BeautifulSoup(r.content, "lxml")
+        a = html_soup.find('a', class_='failoverLink')
+        if a is None:
+            LOG.error('%s - failoverLink not found', self.name)
+            raise RuntimeError('{} - failoverLink not found'.format(self.name))
+        LOG.debug('%s - download link: %s', self.name, a['href'])
+
+        rkwargs = dict(
+            stream=True,
+            verify=self.verify_cert,
+            timeout=self.polling_timeout
+        )
+
+        r = requests.get(
+            a['href'],
+            **rkwargs
+        )
+
+        try:
+            r.raise_for_status()
+        except:
+            LOG.error('%s - exception in request: %s %s',
+                      self.name, r.status_code, r.content)
+            raise
+
+        rtree = r.json()
+
+        values = rtree.get('values', None)
+        if values is None:
+            LOG.error('{} - no values in JSON response'.format(self.name))
+            return []
+
+        for v in values:
+            LOG.debug('{} - Extracting value: {!r}'.format(self.name, v.get('id', None)))
+
+            id_ = v.get('id', None)
+            name = v.get('name', None)
+
+            props = v.get('properties', None)
+            if props is None:
+                LOG.error('{} - no properties in value'.format(self.name))
+                continue
+
+            region = props.get('region', None)
+            platform = props.get('platform', None)
+            system_service = props.get('systemService', None)
+            address_prefixes = props.get('addressPrefixes', [])
+            _iterators.append(itertools.imap(
+                functools.partial(
+                    _build_IP,
+                    self.name,
+                    azure_name=name,
+                    azure_id=id_,
+                    azure_region=region,
+                    azure_platform=platform,
+                    azure_system_service=system_service
+                ),
+                address_prefixes
             ))
 
         return itertools.chain(*_iterators)
