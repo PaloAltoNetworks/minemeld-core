@@ -96,7 +96,10 @@ workflows:
   version: 2
   xenial:
     jobs:
-      - build-xenial
+      - build-xenial:
+          filters:
+            tags:
+              only: '/.*/'
       - deploy:
           requires:
             - build-xenial
@@ -108,7 +111,10 @@ workflows:
 
   bionic:
     jobs:
-      - build-bionic
+      - build-bionic:
+          filters:
+            tags:
+              only: '/.*/'
       - deploy:
           requires:
             - build-bionic
