@@ -32,7 +32,7 @@ jobs:
             --prebuild-script scripts/prebuild-script.sh
       - run:
           name: Rename files
-          command: for file in dist/*; do mv "$file" "${file%.tar.gz}.$CIRCLE_SHA1.xenial"; done
+          command: for file in dist/*; do mv "$file" "${file%.tar.gz}.$CIRCLE_SHA1.bionic"; done
       - persist_to_workspace:
           root: dist
           paths:
@@ -68,7 +68,7 @@ jobs:
             --prebuild-script scripts/prebuild-script.sh
       - run:
           name: Rename files
-          command: for file in dist/*; do mv "$file" "${file%.tar.gz}.$CIRCLE_SHA1.bionic"; done
+          command: for file in dist/*; do mv "$file" "${file%.tar.gz}.$CIRCLE_SHA1.xenial"; done
       - persist_to_workspace:
           root: dist
           paths:
@@ -101,6 +101,8 @@ workflows:
           requires:
             - build-xenial
           filters:
+            branches:
+              ignore: '/.*/'
             tags:
               only: '/.*/'
 
@@ -111,5 +113,7 @@ workflows:
           requires:
             - build-bionic
           filters:
+            branches:
+              ignore: '/.*/'
             tags:
               only: '/.*/'
