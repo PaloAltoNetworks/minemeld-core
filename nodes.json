@@ -26,6 +26,9 @@
     "minemeld.ft.dag.DagPusher": {
         "class": "minemeld.ft.dag:DagPusher"
     },
+    "minemeld.ft.dag_ng.DagPusher": {
+        "class": "minemeld.ft.dag_ng:DagPusher"
+    },
     "minemeld.ft.google.GoogleNetBlocks": {
         "class": "minemeld.ft.google:GoogleNetBlocks"
     },
