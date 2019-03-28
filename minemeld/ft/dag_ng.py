@@ -115,43 +115,68 @@ class DevicePusher(gevent.Greenlet):
         LOG.debug('adding %s:%s to device queue', op, address)
         self.q.put([op, address, value])
 
-    def _get_registered_ip_tags(self, ip):
-        self.xapi.op(
-            cmd='<show><object><registered-ip><ip>%s</ip></registered-ip></object></show>' % ip,
-            vsys=self.device.get('vsys', None),
-            cmd_xml=False
-        )
-
-        entries = self.xapi.element_root.findall('./result/entry')
-        if entries is None or len(entries) == 0:
-            LOG.warning('%s: ip %s has no tags', self.device.get('hostname', None), ip)
-            return None
-
-        tags = [member.text for member in entries[0].findall('./tag/member')
-                if member.text and member.text.startswith(self.prefix)]
-
-        return tags
-
     @_api_wrapper
     def _get_all_registered_ips(self):
-        cmd = (
-            '<show><object><registered-ip><tag><entry name="%s%s"/></tag></registered-ip></object></show>' %
-            (self.prefix, self.watermark)
-        )
-        self.xapi.op(
-            cmd=cmd,
-            vsys=self.device.get('vsys', None),
-            cmd_xml=False
-        )
+        cmd = '''\
+<show>
+  <object>
+  <registered-ip>
+  <start-point>%d</start-point>
+  <limit>%d</limit>
+  <all/>
+  </registered-ip>
+  </object>
+</show>'''
 
-        entries = self.xapi.element_root.findall('./result/entry')
-        if not entries:
-            return
+        start = 1
+        LIMIT = 500
 
-        for entry in entries:
-            ip = entry.get("ip")
+        while True:
+            self.xapi.op(cmd=cmd % (start, LIMIT),
+                         vsys=self.device.get('vsys', None))
 
-            yield ip, self._get_registered_ip_tags(ip)
+            if self.xapi.element_root is None:
+                return
+
+            x = self.xapi.element_root.find('./result/count')
+            if x is None:
+                LOG.error('%s: no count element in registered-ip response',
+                          self.device.get('hostname', None))
+                return
+
+            try:
+                count = int(x.text)
+            except ValueError as e:
+                LOG.error('%s: count invalid: %s: %s',
+                          self.device.get('hostname', None), x.text, e)
+                return
+            LOG.info('%s: count %d',
+                     self.device.get('hostname', None), count)
+
+            entries = self.xapi.element_root.findall('./result/entry')
+            for entry in entries:
+                ip = entry.get('ip')
+                members = entry.findall('./tag/member')
+                tags = []
+                for member in members:
+                    tags.append(member.text)
+
+                if '%s%s' % (self.prefix, self.watermark) in tags:
+                    _tags = [x for x in tags if x.startswith(self.prefix)]
+                    try:
+                        _ip = netaddr.IPNetwork(ip)
+                    except netaddr.core.AddrFormatError as e:
+                        LOG.error('%s: invalid IP address from firewall: %s',
+                                  self.device.get('hostname', None), e)
+                        yield ip, _tags
+
+                    # canonize host length address with prefix
+                    yield str(_ip), _tags
+
+            if count < LIMIT:
+                break
+
+            start += LIMIT
 
     def _dag_message(self, type_, addresses):
         message = [
