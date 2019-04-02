@@ -22,6 +22,7 @@ import re
 import collections
 import itertools
 import shutil
+import time
 
 import gevent
 import gevent.queue
@@ -37,6 +38,9 @@ from .utils import utc_millisec
 LOG = logging.getLogger(__name__)
 
 SUBRE = re.compile("[^A-Za-z0-9_]")
+CANARY_INDICATOR = '::/128'  # RFC 4291: The Unspecified Address
+CANARY_TAG = 'canary_for_resync'
+CANARY_CHECK_SECONDS = 60*5
 
 
 def _api_wrapper(x):
@@ -48,8 +52,8 @@ def _api_wrapper(x):
             valid, version = self._valid_device_version()
             if not valid:
                 self.valid_device_version = False
-                LOG.error('%s: PAN-OS %s: must be 8.0 or greater' %
-                          (self.device.get('hostname', None), version))
+                LOG.error('%s: PAN-OS %s: must be 8.0 or greater',
+                          self.device.get('hostname', None), version)
             else:
                 self.valid_device_version = True
                 LOG.info('%s: PAN-OS %s',
@@ -110,6 +114,56 @@ class DevicePusher(gevent.Greenlet):
             pass
 
         return valid, version
+
+    @_api_wrapper
+    def _set_canary(self):
+        addresses = {
+            CANARY_INDICATOR: ['%s%s' % (self.prefix, CANARY_TAG)]
+        }
+
+        cmd = self._dag_message('register',
+                                addresses,
+                                persistent=False,
+                                timeout=CANARY_CHECK_SECONDS+60*2)
+        self._user_id(cmd)
+
+    def _test_canary(self):
+        cmd = '''\
+<show>
+  <object>
+  <registered-ip>
+  <tag>
+  <entry name='%s%s'/>
+  </tag>
+  </registered-ip>
+  </object>
+</show>'''
+
+        self.xapi.op(cmd=cmd % (self.prefix, CANARY_TAG),
+                     vsys=self.device.get('vsys', None))
+
+        if self.xapi.element_root is None:
+            return False
+
+        x = self.xapi.element_root.find('./result/count')
+        if x is None:
+            LOG.error('%s: no count element in registered-ip response',
+                      self.device.get('hostname', None))
+            return False
+
+        try:
+            count = int(x.text)
+        except ValueError as e:
+            LOG.error('%s: count invalid: %s: %s',
+                      self.device.get('hostname', None), x.text, e)
+            return False
+
+        # XXX sufficient check?
+        if count != 1:
+            return False
+
+        self._set_canary()  # reset timeout
+        return True
 
     def put(self, op, address, value):
         LOG.debug('adding %s:%s to device queue', op, address)
@@ -178,30 +232,42 @@ class DevicePusher(gevent.Greenlet):
 
             start += LIMIT
 
-    def _dag_message(self, type_, addresses):
+    def _dag_message(self, type_, addresses,
+                     persistent=None, timeout=None):
         message = [
             "<uid-message>",
-            "<version>1.0</version>",
+            # version element ignored "<version>1.0</version>",
             "<type>update</type>",
             "<payload>"
         ]
-        persistent = ''
+
+        _persistent = ''
         if type_ == 'register':
-            persistent = ' persistent="%d"' % (1 if self.persistent else 0)
+            if persistent is not None:
+                _persistent = \
+                    ' persistent="%d"' % (1 if persistent else 0)
+            else:
+                _persistent = \
+                    ' persistent="%d"' % (1 if self.persistent else 0)
         message.append('<%s>' % type_)
 
         if addresses is not None and len(addresses) != 0:
             akeys = sorted(addresses.keys())
             for a in akeys:
                 message.append(
-                    '<entry ip="%s"%s>' % (a, persistent)
+                    '<entry ip="%s"%s>' % (a, _persistent)
                 )
 
                 tags = sorted(addresses[a])
                 if tags is not None:
                     message.append('<tag>')
                     for t in tags:
-                        message.append('<member>%s</member>' % t)
+                        if timeout is not None:
+                            # PAN-OS 9.0 and greater
+                            message.append('<member timeout="%d">%s</member>' %
+                                           (timeout, t))
+                        else:
+                            message.append('<member>%s</member>' % t)
                     message.append('</tag>')
 
                 message.append('</entry>')
@@ -355,12 +421,35 @@ class DevicePusher(gevent.Greenlet):
                 )
                 self._user_id(cmd=urmsg)
 
+        self._set_canary()
+
     def _run(self):
         self._init_resync()
 
+        last_check = int(time.time())
         while True:
+            now = int(time.time())
+            elapsed = now - last_check
+            LOG.debug('%s: elapsed %d', self.device.get('hostname', None),
+                      elapsed)
+            if elapsed >= CANARY_CHECK_SECONDS:
+                if self.valid_device_version and not self._test_canary():
+                    raise RuntimeError('%s: out of sync detected' %
+                                       self.device.get('hostname', None))
+                last_check = int(time.time())
+
             try:
-                op, address, value = self.q.peek()
+                try:
+                    LOG.debug('%s: peek %d', self.device.get('hostname', None),
+                              CANARY_CHECK_SECONDS-elapsed)
+                    op, address, value = self.q.peek(
+                        timeout=CANARY_CHECK_SECONDS-elapsed)
+                except gevent.queue.Empty:
+                    if self.valid_device_version and not self._test_canary():
+                        raise RuntimeError('%s: out of sync detected' %
+                                           self.device.get('hostname', None))
+                    last_check = time.time()
+                    continue
                 self._push(op, address, value)
                 self.q.get()  # discard processed message
 
@@ -576,17 +665,7 @@ class DagPusher(actorbase.ActorBaseFT):
         return dp
 
     def _device_pusher_died(self, g):
-        try:
-            g.get()
-
-        except gevent.GreenletExit:
-            pass
-
-        except Exception:
-            LOG.exception('%s - exception in greenlet for %s, '
-                          'respawning in 60 seconds',
-                          self.name, g.device['hostname'])
-
+        def _restart(g):
             for idx in range(len(self.device_pushers)):
                 if self.device_pushers[idx].device == g.device:
                     break
@@ -600,6 +679,23 @@ class DagPusher(actorbase.ActorBaseFT):
             dp = self._spawn_device_pusher(g.device)
             self.device_pushers[idx] = dp
             dp.start_later(60)
+
+        try:
+            g.get()
+
+        except gevent.GreenletExit:
+            pass
+
+        except RuntimeError as e:
+            LOG.error('%s: %s, respawning in 60 seconds',
+                      self.name, e)
+            _restart(g)
+
+        except Exception:
+            LOG.exception('%s - exception in greenlet for %s, '
+                          'respawning in 60 seconds',
+                          self.name, g.device['hostname'])
+            _restart(g)
 
     def _load_device_list(self):
         with open(self.device_list_path, 'r') as dlf:
