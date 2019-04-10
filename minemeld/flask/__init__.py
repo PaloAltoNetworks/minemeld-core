@@ -81,6 +81,7 @@ def create_app():
     from . import logsapi  # noqa
     from . import extensionsapi  # noqa
     from . import jobsapi  # noqa
+    from . import taxii2 # noqa
 
     configapi.init_app(app)
     extensionsapi.init_app(app)
@@ -102,6 +103,9 @@ def create_app():
     app.register_blueprint(logsapi.BLUEPRINT)
     app.register_blueprint(extensionsapi.BLUEPRINT)
     app.register_blueprint(jobsapi.BLUEPRINT)
+
+    if config.get('ENABLE_TAXII2', False):
+        app.register_blueprint(taxii2.BLUEPRINT)
 
     # install blueprints from extensions
     for apiname, apimmep in minemeld.loader.map(minemeld.loader.MM_API_ENTRYPOINT).iteritems():

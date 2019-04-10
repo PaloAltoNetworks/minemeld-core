@@ -18,7 +18,7 @@ from functools import wraps
 
 import gevent
 import gevent.lock
-import flask.ext.login
+import flask_login
 from flask import current_app, Blueprint, request
 
 from . import config
@@ -72,7 +72,7 @@ class MMBlueprint(Blueprint):
 
         @wraps(f)
         def audited_view(*args, **kwargs):
-            if request and flask.ext.login.current_user:
+            if request and flask_login.current_user:
                 params = []
 
                 for key, values in request.values.iterlists():
@@ -89,7 +89,7 @@ class MMBlueprint(Blueprint):
                     params.append(['jsonbody', json.dumps(body)[:1024]])
 
                 LOG.audit(
-                    user_id=flask.ext.login.current_user.get_id(),
+                    user_id=flask_login.current_user.get_id(),
                     action_name='{} {}'.format(request.method, request.path),
                     params=params
                 )
@@ -114,12 +114,12 @@ class MMBlueprint(Blueprint):
                 return f(*args, **kwargs)
 
             if not feeds:
-                if not flask.ext.login.current_user.is_authenticated():
+                if not flask_login.current_user.is_authenticated():
                     return current_app.login_manager.unauthorized()
-                if flask.ext.login.current_user.get_id().startswith('feeds/'):
+                if flask_login.current_user.get_id().startswith('feeds/'):
                     return current_app.login_manager.unauthorized()
 
-            if read_write and not flask.ext.login.current_user.is_read_write():
+            if read_write and not flask_login.current_user.is_read_write():
                 return 'Forbidden', 403
 
             return f(*args, **kwargs)
@@ -172,6 +172,9 @@ class MMAnonynmousUser(object):
     def is_read_write(self):
         return False
 
+    def can_access(self, subject_tags):
+        return False
+
     def check_feed(self, feedname):
         if not config.get('FEEDS_AUTH_ENABLED', False):
             return True
@@ -184,7 +187,8 @@ class MMAnonynmousUser(object):
         if 'anonymous' in ftags:
             return True
 
-        return False
+        return self.can_access(ftags)
+
 
 class MMAuthenticatedUser(object):
     def __init__(self, _id=None):
@@ -223,6 +227,9 @@ class MMAuthenticatedAdminUser(MMAuthenticatedUser):
 
         return False
 
+    def can_access(self, subject_tags):
+        return True
+
     def check_feed(self, feedname):
         return True
 
@@ -234,6 +241,14 @@ class MMAuthenticatedFeedUser(MMAuthenticatedUser):
     def is_read_write(self):
         # this should never be called
         return False
+
+    def can_access(self, subject_tags):
+        uattributes = config.get('FEEDS_USERS_ATTRS', None)
+        if uattributes is None or self._id[6:] not in uattributes:
+            return False
+        tags = set(uattributes[self._id[6:]].get('tags', []))
+
+        return len(tags.intersection(subject_tags)) != 0
 
     def check_feed(self, feedname):
         if not config.get('FEEDS_AUTH_ENABLED', False):
@@ -249,12 +264,7 @@ class MMAuthenticatedFeedUser(MMAuthenticatedUser):
         if 'any' in ftags:
             return True
 
-        uattributes = config.get('FEEDS_USERS_ATTRS', None)
-        if uattributes is None or self._id[6:] not in uattributes:
-            return False
-        tags = set(uattributes[self._id[6:]].get('tags', []))
-
-        return len(tags.intersection(ftags)) != 0
+        return self.can_access(ftags)
 
 
 def authenticated_user_factory(_id):
@@ -270,7 +280,7 @@ def authenticated_user_factory(_id):
     raise RuntimeError('Unknown user_id prefix: {}'.format(_id))
 
 
-LOGIN_MANAGER = flask.ext.login.LoginManager()
+LOGIN_MANAGER = flask_login.LoginManager()
 LOGIN_MANAGER.session_protection = None
 LOGIN_MANAGER.anonymous_user = MMAnonynmousUser
 

@@ -414,7 +414,7 @@ def generate_carbon_black(feed, start, num, desc, value, **kwargs):
     report_args = dict()
     report_args["id"] = feed + "_report"
 
-    report_title = kwargs.get('rt', ["MieneMeld Generated Report"])
+    report_title = kwargs.get('rt', ["MineMeld Generated Report"])
     if report_title is not None:
         report_title = report_title[0]
     report_args["title"] = report_title

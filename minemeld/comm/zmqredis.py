@@ -182,7 +182,7 @@ class ZMQRpcFanoutClientChannel(object):
                 })
                 self.active_rpcs.pop(id_)
 
-            gevent.sleep(0)
+            gevent.sleep(0.001)
 
     def send_rpc(self, method, params=None, num_results=0, and_discard=False):
         if self.socket is None:
@@ -225,7 +225,7 @@ class ZMQRpcFanoutClientChannel(object):
         ])
         LOG.debug('RPC Fanout Client: send multipart to {}: {!r} - done'.format(self.fanout, json.dumps(body)))
 
-        gevent.sleep(0)
+        gevent.sleep(0.001)
 
         return event
 
@@ -404,7 +404,7 @@ class ZMQPubChannel(object):
         except zmq.ZMQError:
             LOG.error('Topic {} queue full - dropping message'.format(self.topic))
 
-        gevent.sleep(0)
+        gevent.sleep(0.001)
 
     def connect(self, context):
         if self.socket is not None:
