@@ -41,6 +41,7 @@ SUBRE = re.compile("[^A-Za-z0-9_]")
 CANARY_INDICATOR = '::/128'  # RFC 4291: The Unspecified Address
 CANARY_TAG = 'canary_for_resync'
 CANARY_CHECK_SECONDS = 60*5
+MAX_CHUNK_SIZE = 512  # max IPs in register/unregister message
 
 
 def _api_wrapper(x):
@@ -343,17 +344,17 @@ class DevicePusher(gevent.Greenlet):
 
         return set(result)  # XXX eliminate duplicates
 
-    def _push(self, op, address, value):
-        tags = []
+    def _push(self, op, addresses):
+        x = {}
+        for address in addresses:
+            x[address] = []
+            x[address].append('%s%s' % (self.prefix, self.watermark))
+            x[address] += self._tags_from_value(addresses[address])
+            if len(x[address]) == 0:
+                x[address] = None
 
-        tags.append('%s%s' % (self.prefix, self.watermark))
-
-        tags += self._tags_from_value(value)
-
-        if len(tags) == 0:
-            tags = None
-
-        msg = self._dag_message(op, {address: tags})
+        LOG.debug('%s', x)
+        msg = self._dag_message(op, x)
 
         self._user_id(cmd=msg)
 
@@ -402,28 +403,51 @@ class DevicePusher(gevent.Greenlet):
         LOG.debug('register %s', register)
         LOG.debug('unregister %s', unregister)
 
-        # XXX use constant for chunk size
         if len(register) != 0:
             addrs = iter(register)
-            for i in xrange(0, len(register), 1000):
+            for i in xrange(0, len(register), MAX_CHUNK_SIZE):
                 rmsg = self._dag_message(
                     'register',
-                    {k: register[k] for k in itertools.islice(addrs, 1000)}
+                    {k: register[k] for k in itertools.islice(
+                        addrs, MAX_CHUNK_SIZE)}
                 )
                 self._user_id(cmd=rmsg)
 
         if len(unregister) != 0:
             addrs = iter(unregister)
-            for i in xrange(0, len(unregister), 1000):
+            for i in xrange(0, len(unregister), MAX_CHUNK_SIZE):
                 urmsg = self._dag_message(
                     'unregister',
-                    {k: unregister[k] for k in itertools.islice(addrs, 1000)}
+                    {k: unregister[k] for k in itertools.islice(
+                        addrs, MAX_CHUNK_SIZE)}
                 )
                 self._user_id(cmd=urmsg)
 
         self._set_canary()
 
     def _run(self):
+        def _chunk(op, addresses):
+            MAX_TIME = 1
+
+            self.q.get()  # discard processed message
+            end = time.time() + MAX_TIME
+
+            while True:
+                try:
+                    _op, address, value = self.q.peek_nowait()
+                except gevent.queue.Empty:
+                    break
+
+                if _op != op:
+                    break
+                addresses.update({address: value})
+                self.q.get()
+
+                if time.time() > end or len(addresses) == MAX_CHUNK_SIZE:
+                    break
+
+            LOG.debug('%s chunks %d', op, len(addresses))
+
         self._init_resync()
 
         last_check = int(time.time())
@@ -448,10 +472,12 @@ class DevicePusher(gevent.Greenlet):
                     if self.valid_device_version and not self._test_canary():
                         raise RuntimeError('%s: out of sync detected' %
                                            self.device.get('hostname', None))
-                    last_check = time.time()
+                    last_check = int(time.time())
                     continue
-                self._push(op, address, value)
-                self.q.get()  # discard processed message
+
+                addresses = {address: value}
+                _chunk(op, addresses)
+                self._push(op, addresses)
 
             except gevent.GreenletExit:
                 break
