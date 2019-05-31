@@ -61,7 +61,7 @@ def _prototype_paths():
             cmodule_path = getattr(cmodule, '__path__', None)
             if cmodule is not None and cmodule_path is not None:
                 if not cmodule_path[0].startswith(mmep.ep.dist.location):
-                    LOG.info('Invalidting cache for {}'.format(mmep.ep.module_name))
+                    LOG.info('Invalidating cache for {}'.format(mmep.ep.module_name))
                     sys.modules.pop(mmep.ep.module_name)
 
             ep = mmep.ep.load()
