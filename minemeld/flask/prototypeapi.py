@@ -305,7 +305,7 @@ def delete_local_prototype(prototypename):
         if 'prototype' not in nodevalue:
             continue
         if nodevalue['prototype'] == prototypename:
-            return jsonify(error={'message': 'prototype in use in running config'}), 400
+            return jsonify(error={'message': 'prototype in use in committed config'}), 400
 
     lock = filelock.FileLock('{}.lock'.format(library_path))
     with lock.acquire(timeout=10):
