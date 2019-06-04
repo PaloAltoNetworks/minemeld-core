@@ -556,7 +556,7 @@ def delete_node(nodenum):
 
     version = request.args.get('version', None)
     if version is None:
-        return jsonify(error={'message': 'version required'})
+        return jsonify(error={'message': 'version required'}), 400
 
     try:
         result = _delete_node(nodenum, version, lock=True)

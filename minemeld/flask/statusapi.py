@@ -147,7 +147,7 @@ def get_minemeld_status():
 
     tr = status.get('result', None)
     if tr is None:
-        return jsonify(error={'message': status.get('error', 'error')})
+        return jsonify(error={'message': status.get('error', 'error')}), 400
 
     result = []
     for f, v in tr.iteritems():
@@ -175,7 +175,7 @@ def hup_node(nodename):
     status = MMMaster.status()
     tr = status.get('result', None)
     if tr is None:
-        return jsonify(error={'message': status.get('error', 'error')})
+        return jsonify(error={'message': status.get('error', 'error')}), 400
 
     nname = 'mbus:slave:' + nodename
     if nname not in tr:
@@ -192,7 +192,7 @@ def signal_node(nodename, signalname):
     status = MMMaster.status()
     tr = status.get('result', None)
     if tr is None:
-        return jsonify(error={'message': status.get('error', 'error')})
+        return jsonify(error={'message': status.get('error', 'error')}), 400
 
     nname = 'mbus:slave:' + nodename
     if nname not in tr:
