@@ -112,7 +112,7 @@ def get_node_type_metrics(nodetype):
     try:
         resolution = int(request.args.get('r', '1800'))
     except ValueError:
-        return jsonify(error={'message': 'Invalid resolution'})
+        return jsonify(error={'message': 'Invalid resolution'}), 400
     if resolution < 0:
         return jsonify(error={'message': 'Invalid resolution'}), 400
 
@@ -152,7 +152,7 @@ def get_global_metrics():
     try:
         resolution = int(request.args.get('r', '1800'))
     except ValueError:
-        return jsonify(error={'message': 'Invalid resolution'})
+        return jsonify(error={'message': 'Invalid resolution'}), 400
     if resolution < 0:
         return jsonify(error={'message': 'Invalid resolution'}), 400
 
@@ -195,7 +195,7 @@ def get_node_metrics(node):
     try:
         resolution = int(request.args.get('r', '1800'))
     except ValueError:
-        return jsonify(error={'message': 'Invalid resolution'})
+        return jsonify(error={'message': 'Invalid resolution'}), 400
     if resolution < 0:
         return jsonify(error={'message': 'Invalid resolution'}), 400
 
@@ -236,7 +236,7 @@ def get_metric(node, metric):
     try:
         resolution = int(request.args.get('r', '1800'))
     except ValueError:
-        return jsonify(error={'message': 'Invalid resolution'})
+        return jsonify(error={'message': 'Invalid resolution'}), 400
     if resolution < 0:
         return jsonify(error={'message': 'Invalid resolution'}), 400
 

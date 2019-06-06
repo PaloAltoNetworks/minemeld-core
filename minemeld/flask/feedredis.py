@@ -508,7 +508,7 @@ def get_feed_content(feed):
     status = MMMaster.status()
     tr = status.get('result', None)
     if tr is None:
-        return jsonify(error={'message': status.get('error', 'error')})
+        return jsonify(error={'message': status.get('error', 'error')}), 400
 
     nname = 'mbus:slave:' + feed
     if nname not in tr:
