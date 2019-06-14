@@ -37,7 +37,13 @@ from .utils import utc_millisec
 
 LOG = logging.getLogger(__name__)
 
-SUBRE = re.compile("[^A-Za-z0-9_]")
+# The tag name cannot contain the following:
+#    - single quote
+#    - double quote
+#    - greater than one consecutive space
+# And cannot be the case insensitive words:
+#    - and, or, not
+SUBRE = re.compile("['\"]|  +")
 CANARY_INDICATOR = '::/128'  # RFC 4291: The Unspecified Address
 CANARY_TAG = 'canary_for_resync'
 CANARY_CHECK_SECONDS = 60*5
@@ -309,7 +315,11 @@ class DevicePusher(gevent.Greenlet):
             else:
                 v = str(v)
 
-            v = SUBRE.sub('_', v)
+            m = re.match('^(and|or|not)$', v, flags=re.IGNORECASE)
+            if m:
+                v = '_%s_' % m.group(0)
+            else:
+                v = SUBRE.sub('_', v)
             tag = '%s%s_%s' % (self.prefix, t, v)
 
             return tag
