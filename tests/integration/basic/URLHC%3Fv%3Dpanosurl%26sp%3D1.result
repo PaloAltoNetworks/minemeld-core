@@ -1,5 +1,6 @@
-define category test
+example.com/foobar?a=:80
 *.example.com/foobar?a=:80
+feyda.net/hoedr4.php
 *.feyda.net/hoedr4.php
 7-eleven-handbags.com/x1rzyp.php
 8vs.com/6jezbr.php
@@ -200,7 +201,7 @@ www.001edizioni.com/nzwt_a.php
 www.bishopbell.co.uk/enrmcc.php
 www.chemes.eu/wp-content/themes/decoy2/redux-framework/reduxcore/inc/fields/info/2.php
 www.decorandoimoveis.com/qeo5yh.php
-www.example.com:1000
+www.example.com
 www.feddoctor.com/oe1lmr.php
 www.gjscomputerservices.com.au/s1_rvm.php
 www.granmarquise.com.br/6f_8ei.php
@@ -212,5 +213,3 @@ www.rippedknees.co.uk/txmjcq.php
 www.taoblu.com/wp-content/plugins/wp_module/sbml0j.php
 www.vishvagujarat.com/5of9dt.php
 www.weddingsonthefrenchriviera.com/wp-content/uploads/bcswkg.php
-*.*.com
-end

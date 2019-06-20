@@ -15,4 +15,6 @@ curl -# -k -o URLHC%3Fv%3Dcsv%26f%3Dconfidence%26f%3Dsources%7Cfeeds%26f%3Dindic
 curl -# -k -o URLHC%3Fv%3Dbluecoat.result "https://127.0.0.1/feeds/URLHC?v=bluecoat"
 curl -# -k -o URLHC%3Fv%3Dbluecoat%26cd%3Dtest.result "https://127.0.0.1/feeds/URLHC?v=bluecoat&cd=test"
 curl -# -k -o URLHC%3Fv%3Dpanosurl.result "https://127.0.0.1/feeds/URLHC?v=panosurl"
+curl -# -k -o URLHC%3Fv%3Dpanosurl%26sp%3D1.result "https://127.0.0.1/feeds/URLHC?v=panosurl&sp=1"
+curl -# -k -o URLHC%3Fv%3Dpanosurl%26di%3D1.result "https://127.0.0.1/feeds/URLHC?v=panosurl&di=1"
 curl -# -k -o DomainHC%3Fv%3Dcarbonblack.result "https://127.0.0.1/feeds/DomainHC?v=carbonblack"

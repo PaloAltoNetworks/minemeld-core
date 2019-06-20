@@ -480,44 +480,24 @@ def install_from_git():
         library_directory,
         str(uuid.uuid4())
     )
-    git_args = [
+    job_args = [
+        "mm-extension-from-git",
         git_path,
-        'clone',
-        '-b', git_ref,
-        '--depth', '1',
+        git_ref,
         git_endpoint,
         install_directory
     ]
 
-    tf = NamedTemporaryFile(prefix='mm-extension-upload', delete=False)
-
-    try:
-        tf.write('#!/bin/bash\n')
-        tf.write('set -e\n')
-        tf.write('{}\n'.format(' '.join(git_args)))
-        tf.write('if [ ! -f {}/minemeld.json ]; then\n'.format(install_directory))
-        tf.write('  >&2 echo "Invalid MineMeld extension - minemeld.json not found"\n')
-        tf.write('  /bin/rm -rf {}\n'.format(install_directory))
-        tf.write('  exit 1\n')
-        tf.write('fi\n')
-        tf.close()
-        os.chmod(tf.name, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
-
-        jobid = JOBS_MANAGER.exec_job(
-            job_group='extensions-git',
-            description='install from git {} branch {}'.format(git_endpoint, git_ref),
-            args=[tf.name],
-            data={
-                'endpoint': git_endpoint,
-                'ref': git_ref,
-                'path': install_directory
-            },
-            callback=functools.partial(_safe_remove, tf.name)
-        )
-
-    except:
-        _safe_remove(tf.name)
-        raise
+    jobid = JOBS_MANAGER.exec_job(
+        job_group='extensions-git',
+        description='install from git {} branch {}'.format(git_endpoint, git_ref),
+        args=job_args,
+        data={
+            'endpoint': git_endpoint,
+            'ref': git_ref,
+            'path': install_directory
+        }
+    )
 
     return jsonify(result=jobid)
 
