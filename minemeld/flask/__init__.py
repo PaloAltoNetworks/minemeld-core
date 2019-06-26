@@ -112,7 +112,7 @@ def create_app():
 
         try:
             bprint = apimmep.ep.load()
-            app.register_blueprint(bprint)
+            app.register_blueprint(bprint())
 
         except (ImportError, RuntimeError):
             LOG.exception('Error loading API entry point {}'.format(apiname))

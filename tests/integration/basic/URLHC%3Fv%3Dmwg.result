@@ -1,4 +1,5 @@
 type=string
+"*abc.example.com/foobar?a=:80" "localdb"
 "http://*.feyda.net/hOeDr4.php" "localdb"
 "http://7-eleven-handbags.com/X1rZYp.php" "localdb"
 "http://8vs.com/6jezbr.php" "localdb"
@@ -199,6 +200,7 @@ type=string
 "http://www.bishopbell.co.uk/enRmcC.php" "localdb"
 "http://www.chemes.eu/wp-content/themes/decoy2/redux-framework/ReduxCore/inc/fields/info/2.php" "localdb"
 "http://www.decorandoimoveis.com/QEO5yh.php" "localdb"
+"http://www.example.com:1000" "localdb"
 "http://www.feddoctor.com/Oe1LMr.php" "localdb"
 "http://www.gjscomputerservices.com.au/S1_rvm.php" "localdb"
 "http://www.granmarquise.com.br/6f_8ei.php" "localdb"
@@ -210,3 +212,4 @@ type=string
 "http://www.taoblu.com/wp-content/plugins/wp_module/sbML0j.php" "localdb"
 "http://www.vishvagujarat.com/5of9dt.php" "localdb"
 "http://www.weddingsonthefrenchriviera.com/wp-content/uploads/bcswkG.php" "localdb"
+"https://*abc.*test.com" "localdb"
