@@ -1,3 +1,4 @@
+*abc.example.com/foobar?a=:80
 http://*.feyda.net/hOeDr4.php
 http://7-eleven-handbags.com/X1rZYp.php
 http://8vs.com/6jezbr.php
@@ -198,6 +199,7 @@ http://www.001edizioni.com/NZwt_a.php
 http://www.bishopbell.co.uk/enRmcC.php
 http://www.chemes.eu/wp-content/themes/decoy2/redux-framework/ReduxCore/inc/fields/info/2.php
 http://www.decorandoimoveis.com/QEO5yh.php
+http://www.example.com:1000
 http://www.feddoctor.com/Oe1LMr.php
 http://www.gjscomputerservices.com.au/S1_rvm.php
 http://www.granmarquise.com.br/6f_8ei.php
@@ -209,3 +211,4 @@ http://www.rippedknees.co.uk/TXmJcq.php
 http://www.taoblu.com/wp-content/plugins/wp_module/sbML0j.php
 http://www.vishvagujarat.com/5of9dt.php
 http://www.weddingsonthefrenchriviera.com/wp-content/uploads/bcswkG.php
+https://*abc.*test.com

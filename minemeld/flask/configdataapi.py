@@ -273,12 +273,12 @@ class _CDataLocalDB(object):
             indicator = entry.pop('indicator', None)
             if indicator is None:
                 return jsonify(error={
-                    'message': 'entry %d: indicator field is missing'.format(en)
+                    'message': 'entry {}: indicator field is missing'.format(en)
                 }), 400
             type_ = entry.pop('type', None)
             if type_ is None:
                 return jsonify(error={
-                    'message': 'entry %d: type field is missing'.format(en)
+                    'message': 'entry {}: type field is missing'.format(en)
                 }), 400
 
             expiration_ts = entry.pop('ttl', None)
@@ -419,8 +419,6 @@ def save_config_data(datafilename):
 
 @BLUEPRINT.route('/<datafilename>/append', methods=['POST'], read_write=True)
 def append_config_data(datafilename):
-    cpath = os.path.dirname(os.environ.get('MM_CONFIG'))
-
     cpath = os.path.dirname(os.environ.get('MM_CONFIG'))
 
     datafiletype = request.values.get('t', 'yaml')

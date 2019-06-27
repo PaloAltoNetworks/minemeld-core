@@ -424,7 +424,7 @@ def commit():
         return jsonify(error={'message': str(e)}), 400
 
     version = body.get('version', None)
-    if body is None:
+    if version is None:
         return jsonify(error={'message': 'version required'}), 400
 
     try:
@@ -556,7 +556,7 @@ def delete_node(nodenum):
 
     version = request.args.get('version', None)
     if version is None:
-        return jsonify(error={'message': 'version required'})
+        return jsonify(error={'message': 'version required'}), 400
 
     try:
         result = _delete_node(nodenum, version, lock=True)

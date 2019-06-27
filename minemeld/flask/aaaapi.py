@@ -97,7 +97,7 @@ def set_user_password(subsystem, username):
     with config.lock():
         users_db = config.get(subsystem.authdb)
         if not users_db.path:
-            return jsonify(error='Users database not available')
+            return jsonify(error='Users database not available'), 500
 
         try:
             password = request.get_json()['password']
@@ -119,7 +119,7 @@ def set_user_attributes(subsystem, username):
     with config.lock():
         users_db = config.get(subsystem.authdb)
         if not users_db.path:
-            return jsonify(error='Users database not available')
+            return jsonify(error='Users database not available'), 500
 
         if username not in users_db.users():
             return jsonify(error='Unknown user'), 400
@@ -146,7 +146,7 @@ def delete_user(subsystem, username):
     with config.lock():
         users_db = config.get(subsystem.authdb)
         if not users_db.path:
-            return jsonify(error='Users database not available')
+            return jsonify(error='Users database not available'), 500
 
         # delete user from database and tags
         if users_db.delete(username):

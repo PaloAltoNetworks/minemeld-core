@@ -34,7 +34,9 @@ __all__ = ['BLUEPRINT']
 
 FEED_INTERVAL = 100
 _PROTOCOL_RE = re.compile('^(?:[a-z]+:)*//')
+_PORT_RE = re.compile('^([a-z0-9\-\.]+)(?:\:[0-9]+)*')
 _INVALID_TOKEN_RE = re.compile('(?:[^\./+=\?&]+\*[^\./+=\?&]*)|(?:[^\./+=\?&]*\*[^\./+=\?&]+)')
+_BROAD_PATTERN = re.compile('^(?:\*\.)+[a-zA-Z]+(?::[0-9]+)?$')
 _IPV4_MASK_RE = re.compile('^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}(\\/[0-9]+)?$')
 _IPV4_RANGE_RE = re.compile(
     '^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}-[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$')
@@ -83,7 +85,29 @@ def generate_panosurl_feed(feed, start, num, desc, value, **kwargs):
             i = i.lower()
 
             i = _PROTOCOL_RE.sub('', i)
+
+            withport = i
+            i = _PORT_RE.sub('\g<1>', i)
+            LOG.debug('{} => {}'.format(withport, i))
+            if withport != i and 'sp' not in kwargs:
+                # port removed, but strip port not enabled
+                # ignore entry
+                continue
+
+            old = i
             i = _INVALID_TOKEN_RE.sub('*', i)
+            if old != i:
+                # url changed, invalid tokens detected
+                if 'di' in kwargs:
+                    # drop invalid in params, drop entry
+                    continue
+                
+                # check if the pattern is now too broad
+                hostname = i
+                if '/' in hostname:
+                    hostname, _ = hostname.split('/', 1)
+                if _BROAD_PATTERN.match(hostname) is not None:
+                    continue
 
             # for PAN-OS *.domain.com does not match domain.com
             # we should provide both
@@ -508,7 +532,7 @@ def get_feed_content(feed):
     status = MMMaster.status()
     tr = status.get('result', None)
     if tr is None:
-        return jsonify(error={'message': status.get('error', 'error')})
+        return jsonify(error={'message': status.get('error', 'error')}), 400
 
     nname = 'mbus:slave:' + feed
     if nname not in tr:
