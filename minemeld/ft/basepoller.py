@@ -506,15 +506,20 @@ class BasePollerFT(base.BaseFT):
                 self.statistics['garbage_collected'] += 1
 
     def _compare_attributes(self, oa, na):
+        for k in oa:
+            if k not in na:
+                return False
         for k in na:
             if oa.get(k, None) != na[k]:
                 return False
         return True
 
     def _update_attributes(self, current, _new, current_run, new_run):
-        current.update(_new)
+        x = {k:v for k,v in current.iteritems() if k in _new or k[0]
+             in ('_', '$')}
+        x.update(_new)
 
-        return current
+        return x
 
     def _aggregate_iterator(self, iterator):
         self.agg_table = _bptable_factory(
