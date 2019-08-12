@@ -19,6 +19,8 @@ import itertools
 import functools
 import uuid
 import os
+import json
+from collections import defaultdict
 
 import yaml
 import netaddr
@@ -188,6 +190,18 @@ class O365XML(basepoller.BasePollerFT):
         return products
 
 
+O365_API_FIELDS = [
+    'id',
+    'expressRoute',
+    'notes',
+    'serviceArea',
+    'tcpPorts',
+    'udpPorts',
+    'category',
+    'required'
+]
+
+
 class O365API(basepoller.BasePollerFT):
     def __init__(self, name, chassis, config):
         self.client_request_id = str(uuid.uuid4())
@@ -292,12 +306,13 @@ class O365API(basepoller.BasePollerFT):
         return
 
     def _process_item(self, item):
-        item.pop('id', None)
+        return [item]
 
+    def _analyze_item(self, item):
         result = []
 
         base_value = {}
-        for wka in ['expressRoute', 'notes', 'serviceArea', 'tcpPorts', 'udpPorts', 'category', 'required']:
+        for wka in O365_API_FIELDS:
             if wka in item:
                 base_value['o365_{}'.format(wka)] = item[wka]
 
@@ -329,8 +344,28 @@ class O365API(basepoller.BasePollerFT):
         return result
 
     def _iterator(self, array, latest_version):
+        indicators = defaultdict(lambda: {'o365_{}_list'.format(f): set() for f in O365_API_FIELDS})
+
         for i in array:
-            yield i
+            for ci, cv in self._analyze_item(i):
+                oldv = indicators[ci]
+                oldv.update(cv)
+                for fn in O365_API_FIELDS:
+                    label = 'o365_{}'.format(fn)
+                    if label in cv:
+                        val = str(cv[label]).lower()
+                        if label in ['o365_tcpPorts', 'o365_udpPorts']:
+                            ports = val.split(',')
+                            for p in ports:
+                                oldv['{}_list'.format(label)].add(str(p))
+                        else:
+                            oldv['{}_list'.format(label)].add(str(val))
+
+        for i, v in indicators.iteritems():
+            for fn in O365_API_FIELDS:
+                label = 'o365_{}_list'.format(fn)
+                v[label] = list(v[label])
+            yield [i, v]
 
         self.latest_version = latest_version
 
