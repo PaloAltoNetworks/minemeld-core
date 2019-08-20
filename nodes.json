@@ -130,5 +130,8 @@
     },
     "minemeld.ft.visa.VTI": {
         "class": "minemeld.ft.visa:VTI"
+    },
+    "minemeld.ft.taxii2.Taxii2Client": {
+        "class": "minemeld.ft.taxii2:Taxii2Client"
     }
 }

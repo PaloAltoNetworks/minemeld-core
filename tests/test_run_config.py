@@ -34,7 +34,7 @@ class MineMeldRunConfigTests(unittest.TestCase):
     def test_defaults_from_file(self):
         emptypath = os.path.join(MYDIR, 'empty.yml')
 
-        config = minemeld.run.config.load_config(emptypath)
+        config = minemeld.run.config.load_config({}, emptypath)
 
         self.assertEqual(config.fabric['class'], 'AMQP')
         self.assertEqual(config.fabric['config'], {'num_connections': 5})
@@ -46,7 +46,7 @@ class MineMeldRunConfigTests(unittest.TestCase):
     def test_prototype_1(self):
         protopath = os.path.join(MYDIR, 'test-prototype-1.yml')
 
-        config = minemeld.run.config.load_config(protopath)
+        config = minemeld.run.config.load_config({}, protopath)
 
         self.assertEqual(config.nodes['testprototype']['class'], 'minemeld.ft.http.HttpFT')
         self.assertEqual(
