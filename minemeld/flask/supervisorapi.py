@@ -23,7 +23,6 @@ import supervisor.xmlrpc
 
 from flask import jsonify
 
-from minemeld.utils import get_config_value
 from . import config
 from .supervisorclient import MMSupervisor
 from .aaa import MMBlueprint
@@ -82,18 +81,8 @@ def service_status():
         supervisorstate = MMSupervisor.supervisor.getState()
 
     except:
-        if get_config_value(config, 'exceptions.supervisor', 'allow') != 'suppress':
-            LOG.exception("Exception connecting to supervisor")
-        import datetime
-        begin = datetime.datetime.now() - datetime.datetime.utcfromtimestamp(0) - datetime.timedelta(days=1)
-        start = begin.total_seconds()
-        return jsonify(result={
-            'statename': 'STOPPED',
-            'processes': {
-                'minemeld-engine': {'statename': 'RUNNING', 'start': start, 'children': 1},
-                'minemeld-web': {'statename': 'RUNNING', 'start': start, 'children': 1}
-            }
-        })
+        LOG.exception("Exception connecting to supervisor")
+        return jsonify(result={'statename': 'STOPPED'})
 
     supervisorstate['processes'] = {}
     pinfo = MMSupervisor.supervisor.getAllProcessInfo()

@@ -7,8 +7,6 @@ import redis
 import ujson
 from supervisor import childutils
 
-from minemeld.utils import get_config_value
-
 LOG = logging.getLogger(__name__)
 
 
@@ -47,7 +45,9 @@ def main():
 
     engine_process_name = os.environ.get('MM_ENGINE_PROCESSNAME', 'minemeld-engine')
 
-    SR = redis.StrictRedis.from_url(get_config_value({}, 'redis_url', 'unix:///var/run/redis/redis.sock'))
+    SR = redis.StrictRedis.from_url(
+        os.environ.get('REDIS_URL', 'unix:///var/run/redis/redis.sock')
+    )
 
     while True:
         hdrs, payload = childutils.listener.wait(sys.stdin, sys.stdout)

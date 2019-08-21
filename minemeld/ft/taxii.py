@@ -58,7 +58,6 @@ import cybox.objects.file_object
 import mixbox.idgen
 import mixbox.namespaces
 
-from minemeld.utils import get_config_value
 from . import basepoller
 from . import base
 from . import actorbase
@@ -1385,7 +1384,9 @@ class DataFeed(actorbase.ActorBaseFT):
     def configure(self):
         super(DataFeed, self).configure()
 
-        self.redis_url = get_config_value(self.config, 'redis_url', 'unix:///var/run/redis/redis.sock')
+        self.redis_url = self.config.get('redis_url',
+            os.environ.get('REDIS_URL', 'unix:///var/run/redis/redis.sock')
+        )
 
         self.namespace = self.config.get('namespace', 'minemeld')
         self.namespaceuri = self.config.get(
@@ -1689,7 +1690,9 @@ class DataFeed(actorbase.ActorBaseFT):
         redis_skey = name
         redis_skey_value = '{}.value'.format(name)
         redis_skey_chkp = '{}.chkp'.format(name)
-        redis_url = get_config_value(config, 'redis_url', 'unix:///var/run/redis/redis.sock')
+        redis_url = config.get('redis_url',
+            os.environ.get('REDIS_URL', 'unix:///var/run/redis/redis.sock')
+        )
 
         cp = None
         try:

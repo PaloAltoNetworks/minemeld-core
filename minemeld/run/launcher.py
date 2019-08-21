@@ -33,7 +33,6 @@ import minemeld.mgmtbus
 import minemeld.comm
 import minemeld.run.config
 
-from minemeld.utils import initialize_default_nodes_distribution
 from minemeld import __version__
 
 LOG = logging.getLogger(__name__)
@@ -144,10 +143,8 @@ def _setup_environment(config):
         cdir = os.path.dirname(config)
     os.environ['MM_CONFIG_DIR'] = cdir
 
-    if 'REQUESTS_CA_BUNDLE' not in os.environ and 'MM_CA_BUNDLE' in os.environ:
+    if not 'REQUESTS_CA_BUNDLE' in os.environ and 'MM_CA_BUNDLE' in os.environ:
         os.environ['REQUESTS_CA_BUNDLE'] = os.environ['MM_CA_BUNDLE']
-
-    initialize_default_nodes_distribution({})
 
 
 def main():
@@ -217,7 +214,7 @@ def main():
     _setup_environment(args.config)
 
     # load and validate config
-    config = minemeld.run.config.load_config({}, args.config)
+    config = minemeld.run.config.load_config(args.config)
 
     LOG.info("mm-run.py config: %s", config)
 

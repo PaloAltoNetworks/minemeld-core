@@ -201,8 +201,6 @@ def init():
     if not os.path.isdir(config_path):
         config_path = os.path.dirname(config_path)
 
-    os.environ['MM_CONFIG_DIR'] = config_path
-
     # init global vars
     API_CONFIG_PATH = os.path.join(config_path, 'api')
     API_CONFIG_LOCK = filelock.FileLock(

@@ -159,8 +159,10 @@ def get_minemeld_status():
 
 @BLUEPRINT.route('/config', methods=['GET'], read_write=False)
 def get_minemeld_running_config():
-    rcpath = os.path.join(os.environ.get('MM_CONFIG_DIR'), 'running-config.yml')
-
+    rcpath = os.path.join(
+        os.path.dirname(os.environ.get('MM_CONFIG')),
+        'running-config.yml'
+    )
     with open(rcpath, 'r') as f:
         rcconfig = yaml.safe_load(f)
 
@@ -260,7 +262,7 @@ def generate_local_backup():
     certs_path = config.get('MINEMELD_LOCAL_CERTS_PATH', None)
     if certs_path is not None:
         args.append(certs_path)
-    config_path = os.environ.get('MM_CONFIG_DIR')
+    config_path = os.path.dirname(os.environ.get('MM_CONFIG'))
     args.append(config_path)
 
     jobs = JOBS_MANAGER.get_jobs(job_group='status-backup')

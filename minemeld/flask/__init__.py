@@ -12,15 +12,16 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import os
 import logging
 
 import yaml
 from flask import Flask
 
 import minemeld.loader
-from minemeld.flask import config
-from minemeld.utils import get_config_value, initialize_default_nodes_distribution
 from .logger import LOG
+
+REDIS_URL = os.environ.get('REDIS_URL', 'unix:///var/run/redis/redis.sock')
 
 
 def create_app():
@@ -35,11 +36,8 @@ def create_app():
 
     LOG.init_app(app)
 
-    from . import config
-    config.init()
-    initialize_default_nodes_distribution(config)
-
     # extension code
+    from . import config
     from . import aaa
     from . import session
     from . import mmrpc
@@ -49,11 +47,10 @@ def create_app():
     from . import sns
     from . import events
 
-    redis_url = get_config_value(config, 'MGMTBUS.config.redis_url', 'unix:///var/run/redis/redis.sock')
-
-    session.init_app(app, redis_url)
+    session.init_app(app, REDIS_URL)
     aaa.init_app(app)
 
+    config.init()
     if config.get('DEBUG', False):
         logging.getLogger().setLevel(logging.DEBUG)
     else:
@@ -64,7 +61,7 @@ def create_app():
     supervisorclient.init_app(app)
     jobs.init_app(app)
     sns.init_app()
-    events.init_app(app, redis_url)
+    events.init_app(app, REDIS_URL)
 
     # entrypoints
     from . import metricsapi  # noqa

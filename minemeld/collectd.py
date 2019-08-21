@@ -38,13 +38,8 @@ class CollectdClient(object):
         if self.socket is not None:
             return
 
-        if self.path.startswith('tcp://'):
-            hostinfo = self.path[6:].split(':')
-            _socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            _socket.connect((hostinfo[0], int(hostinfo[1])))
-        else:
-            _socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            _socket.connect(self.path)
+        _socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        _socket.connect(self.path)
 
         self.socket = _socket
 

@@ -47,13 +47,19 @@ class DirSnapshot(object):
 
 
 def running_config_path():
-    rcpath = os.path.join(os.environ.get('MM_CONFIG_DIR'), 'running-config.yml')
+    rcpath = os.path.join(
+        os.path.dirname(os.environ.get('MM_CONFIG')),
+        'running-config.yml'
+    )
 
     return rcpath
 
 
 def committed_config_path():
-    ccpath = os.path.join(os.environ.get('MM_CONFIG_DIR'), 'committed-config.yml')
+    ccpath = os.path.join(
+        os.path.dirname(os.environ.get('MM_CONFIG')),
+        'committed-config.yml'
+    )
 
     return ccpath
 

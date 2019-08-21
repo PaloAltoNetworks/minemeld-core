@@ -31,6 +31,7 @@ import gevent.core
 
 import minemeld.loader
 
+
 __all__ = ['load_config', 'validate_config', 'resolve_prototypes']
 
 
@@ -260,7 +261,7 @@ def _load_config_from_file(f):
     return valid, MineMeldConfig.from_dict(config)
 
 
-def _load_and_validate_config_from_file(sys_config, path):
+def _load_and_validate_config_from_file(path):
     valid = False
     config = None
 
@@ -277,7 +278,7 @@ def _load_and_validate_config_from_file(sys_config, path):
             valid, config = False, None
 
     if valid and config is not None:
-        valid = resolve_prototypes(sys_config, config)
+        valid = resolve_prototypes(config)
 
     if valid and config is not None:
         vresults = validate_config(config)
@@ -368,7 +369,7 @@ def _destroy_old_nodes(config):
     dpool = None
 
 
-def _load_config_from_dir(sys_config, path):
+def _load_config_from_dir(path):
     ccpath = os.path.join(
         path,
         COMMITTED_CONFIG
@@ -378,8 +379,8 @@ def _load_config_from_dir(sys_config, path):
         RUNNING_CONFIG
     )
 
-    ccvalid, cconfig = _load_and_validate_config_from_file(sys_config, ccpath)
-    rcvalid, rcconfig = _load_and_validate_config_from_file(sys_config, rcpath)
+    ccvalid, cconfig = _load_and_validate_config_from_file(ccpath)
+    rcvalid, rcconfig = _load_and_validate_config_from_file(rcpath)
 
     if not rcvalid and not ccvalid:
         # both running and canidate are not valid
@@ -462,10 +463,10 @@ def _detect_cycles(nodes):
     return nedges == 0
 
 
-def resolve_prototypes(sys_config, config):
+def resolve_prototypes(config):
     # retrieve prototype dir from environment
     # used for main library and local library
-    paths = sys_config.get(PROTOTYPE_ENV, os.environ.get(PROTOTYPE_ENV, None))
+    paths = os.getenv(PROTOTYPE_ENV, None)
     if paths is None:
         raise RuntimeError('Unable to load prototypes: %s '
                            'environment variable not set' %
@@ -561,13 +562,13 @@ def validate_config(config):
     return result
 
 
-def load_config(sys_config, config_path):
+def load_config(config_path):
     if os.path.isdir(config_path):
-        return _load_config_from_dir(sys_config, config_path)
+        return _load_config_from_dir(config_path)
 
     # this is just a file, as we can't do a delta
     # we just load it and mark all the nodes as added
-    valid, config = _load_and_validate_config_from_file(sys_config, config_path)
+    valid, config = _load_and_validate_config_from_file(config_path)
     if not valid:
         raise RuntimeError('Invalid config')
     config.compute_changes(None)
