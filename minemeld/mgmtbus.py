@@ -46,6 +46,7 @@ import ujson
 
 import minemeld.comm
 import minemeld.ft
+from minemeld.utils import get_config_value
 
 from .collectd import CollectdClient
 from .startupplanner import plan
@@ -89,7 +90,7 @@ class MgmtbusMaster(object):
         self._status = {}
 
         self.SR = redis.StrictRedis.from_url(
-            os.environ.get('REDIS_URL', 'unix:///var/run/redis/redis.sock')
+            get_config_value(comm_config, 'redis_url', 'unix:///var/run/redis/redis.sock')
         )
 
         self.comm = minemeld.comm.factory(self.comm_class, self.comm_config)

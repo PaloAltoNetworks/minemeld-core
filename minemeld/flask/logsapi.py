@@ -11,6 +11,7 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+import os
 
 from flask import send_from_directory, jsonify
 
@@ -31,7 +32,7 @@ def get_minemeld_engine_log():
     if log_directory is None:
         return jsonify(error={'message': 'LOG_DIRECTORY not set'}), 500
 
-    return send_from_directory(log_directory, 'minemeld-engine.log', as_attachment=True)
+    return send_from_directory(os.path.abspath(log_directory), 'minemeld-engine.log', as_attachment=True)
 
 
 @BLUEPRINT.route('/minemeld-web.log', methods=['GET'], read_write=True)
@@ -40,4 +41,4 @@ def get_minemeld_web_log():
     if log_directory is None:
         return jsonify(error={'message': 'LOG_DIRECTORY not set'}), 500
 
-    return send_from_directory(log_directory, 'minemeld-web.log', as_attachment=True)
+    return send_from_directory(os.path.abspath(log_directory), 'minemeld-web.log', as_attachment=True)

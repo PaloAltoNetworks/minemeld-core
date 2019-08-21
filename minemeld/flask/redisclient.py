@@ -1,20 +1,16 @@
-import os
-
 import redis
 import werkzeug.local
-
 from flask import g
 
-from . import REDIS_URL
+from minemeld.flask import config
+from minemeld.utils import get_config_value
 from .logger import LOG
-
 
 __all__ = ['init_app', 'SR']
 
-
 REDIS_CP = redis.ConnectionPool.from_url(
-    REDIS_URL,
-    max_connections=int(os.environ.get('REDIS_MAX_CONNECTIONS', 200))
+    get_config_value(config, 'MGMTBUS.config.redis_url', 'unix:///var/run/redis/redis.sock'),
+    max_connections=int(get_config_value(config, 'redis_max_connections', '5'))
 )
 
 

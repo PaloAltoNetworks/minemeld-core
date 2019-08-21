@@ -19,6 +19,7 @@ import redis
 import os
 import ujson as json
 
+from minemeld.utils import get_config_value
 from . import base
 from . import actorbase
 
@@ -38,9 +39,7 @@ class RedisSet(actorbase.ActorBaseFT):
     def configure(self):
         super(RedisSet, self).configure()
 
-        self.redis_url = self.config.get('redis_url',
-            os.environ.get('REDIS_URL', 'unix:///var/run/redis/redis.sock')
-        )
+        self.redis_url = get_config_value(self.config, 'redis_url', 'unix:///var/run/redis/redis.sock')
         self.scoring_attribute = self.config.get(
             'scoring_attribute',
             'last_seen'
@@ -202,9 +201,7 @@ class RedisSet(actorbase.ActorBaseFT):
         redis_skey = name
         redis_skey_value = '{}.value'.format(name)
         redis_skey_chkp = '{}.chkp'.format(name)
-        redis_url = config.get('redis_url',
-            os.environ.get('REDIS_URL', 'unix:///var/run/redis/redis.sock')
-        )
+        redis_url = get_config_value(config, 'redis_url', 'unix:///var/run/redis/redis.sock')
 
         cp = None
         try:
