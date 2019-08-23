@@ -17,6 +17,8 @@ from __future__ import absolute_import
 import logging
 import itertools
 import functools
+from collections import defaultdict
+
 import requests
 import netaddr
 import lxml.etree
@@ -266,4 +268,27 @@ class AzureJSON(basepoller.BasePollerFT):
                 address_prefixes
             ))
 
-        return itertools.chain(*_iterators)
+        # aggregate indicators
+        aggregated_indicators = defaultdict(lambda: dict(
+            azure_name_list=set([]),
+            azure_id_list=set(([])),
+            azure_region_list=set([]),
+            azure_platform_list=set([]),
+            azure_system_service_list=set([])
+        ))
+        for i in itertools.chain(*_iterators):
+            cv = aggregated_indicators[i['indicator']]
+            cv.update(i)
+
+            for k, v in i.iteritems():
+                cv[k] = v
+                if k.startswith('azure_'):
+                    cv['{}_list'.format(k)].add(str(v).lower())
+
+        # convert sets into lists
+        for iv in aggregated_indicators.values():
+            for k in iv.keys():
+                if isinstance(iv[k], set):
+                    iv[k] = list(iv[k])
+
+        return iter(aggregated_indicators.values())
