@@ -1,4 +1,4 @@
-# Generated from BoolExpr.g4 by ANTLR 4.5.1
+# Generated from BoolExpr.g4 by ANTLR 4.7.1
 from antlr4 import *
 
 # flake8: noqa
