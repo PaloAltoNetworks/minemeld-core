@@ -92,6 +92,9 @@
 	"minemeld.ft.recordedfuture.DomainRiskList": {
         "class": "minemeld.ft.recordedfuture:DomainRiskList"
     },
+    "minemeld.ft.recordedfuture.MasterRiskList": {
+        "class": "minemeld.ft.recordedfuture:MasterRiskList"
+    },
     "minemeld.ft.redis.RedisSet": {
         "class": "minemeld.ft.redis:RedisSet"
     },
@@ -130,8 +133,5 @@
     },
     "minemeld.ft.visa.VTI": {
         "class": "minemeld.ft.visa:VTI"
-    },
-    "minemeld.ft.taxii2.Taxii2Client": {
-        "class": "minemeld.ft.taxii2:Taxii2Client"
     }
 }
