@@ -526,20 +526,21 @@ _FEED_FORMATS = {
 @BLUEPRINT.route('/<feed>', methods=['GET'], feeds=True, read_write=False)
 def get_feed_content(feed):
     if not current_user.check_feed(feed):
-        return 'Unauthorized', 401
+        return '<html><body>Unauthorized</body></html>', 401
 
     # check if feed exists
     status = MMMaster.status()
     tr = status.get('result', None)
     if tr is None:
-        return jsonify(error={'message': status.get('error', 'error')}), 400
+        LOG.error("Error retrieving status from MMMaster: {!r}".format(status.get('error', 'error')))
+        return '<html><body>Internal error</body></html>', 500
 
     nname = 'mbus:slave:' + feed
     if nname not in tr:
-        return jsonify(error={'message': 'Unknown feed'}), 404
+        return '<html><body>Unknown feed</body></html>', 404
     nclass = tr[nname].get('class', None)
     if nclass != 'minemeld.ft.redis.RedisSet':
-        return jsonify(error={'message': 'Unknown feed'}), 404
+        return '<html><body>Unknown feed</body></html>', 404
 
     start = request.values.get('s')
     if start is None:
@@ -550,7 +551,7 @@ def get_feed_content(feed):
             raise ValueError()
     except ValueError:
         LOG.error("Invalid request, s not a non-negative integer: %s", start)
-        return jsonify(error="s should be a positive integer"), 400
+        return '<html><body>s should be a positive integer</body></html>', 400
 
     num = request.values.get('n')
     if num is not None:
@@ -560,7 +561,7 @@ def get_feed_content(feed):
                 raise ValueError()
         except ValueError:
             LOG.error("Invalid request, n not a positive integer: %s", num)
-            return jsonify(error="n should be a positive integer"), 400
+            return '<html><body>n should be a positive integer</body></html>', 400
     else:
         num = None
 
@@ -569,7 +570,7 @@ def get_feed_content(feed):
 
     value = request.values.get('v')
     if value is not None and value not in _FEED_FORMATS:
-        return jsonify(error="unknown format %s" % value), 400
+        return '<html><body>unknown format</body></html>', 400
 
     kwargs = {}
     kwargs['translate_ip_ranges'] = int(request.values.get('tr', 0))  # generate IP ranges
