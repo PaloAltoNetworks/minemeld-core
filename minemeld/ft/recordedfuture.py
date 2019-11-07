@@ -22,10 +22,9 @@ import yaml
 import netaddr
 import netaddr.core
 
-from . import csv
+from minemeld.ft import csv                      # changed from . to minemeld.ft
 
 LOG = logging.getLogger(__name__)
-
 
 class IPRiskList(csv.CSVFT):
     def configure(self):
@@ -157,6 +156,7 @@ class IPRiskList(csv.CSVFT):
             pass
 
 
+
 class DomainRiskList(csv.CSVFT):
     def configure(self):
         super(DomainRiskList, self).configure()
@@ -254,6 +254,227 @@ class DomainRiskList(csv.CSVFT):
     @staticmethod
     def gc(name, config=None):
         csv.CSVFT.gc(name, config=config)
+
+        side_config_path = None
+        if config is not None:
+            side_config_path = config.get('side_config', None)
+        if side_config_path is None:
+            side_config_path = os.path.join(
+                os.environ['MM_CONFIG_DIR'],
+                '{}_side_config.yml'.format(name)
+            )
+
+        try:
+            os.remove(side_config_path)
+        except:
+            pass
+
+
+
+class MasterRiskList(csv.CSVFT):
+    def configure(self):
+        super(MasterRiskList, self).configure()
+        self.source_name = 'recordedfuture.masterrisklist'
+        self.confidence = self.config.get('confidence', 80)
+
+        self.entity = None                                                       ## entity added
+        self.token = None
+        self.path = None                                                         ## fusion/ risklist path added
+        self.api = None                                                          ## api type added
+
+        self.side_config_path = self.config.get('side_config', None)
+        if self.side_config_path is None:
+            self.side_config_path = os.path.join(
+                os.environ['MM_CONFIG_DIR'],
+                '%s_side_config.yml' % self.name
+            )
+
+        self._load_side_config()
+
+    def _load_side_config(self):
+        try:
+            with open(self.side_config_path, 'r') as f:
+                sconfig = yaml.safe_load(f)
+
+        except Exception as e:
+            LOG.error('%s - Error loading side config: %s', self.name, str(e))
+            return
+
+        self.token = sconfig.get('token', None)
+        if self.token is not None:
+            LOG.info('%s - token set', self.name)
+
+        self.path = sconfig.get('path', None)
+        if self.path is not None:
+            LOG.info('%s - path set', self.name)
+
+        self.entity = sconfig.get('entity', None)
+        if self.entity is not None:
+            LOG.info('%s - entity set', self.name)
+
+        self.api = sconfig.get('api', None)
+        if self.api is not None:
+            LOG.info('%s - API set', self.name)
+
+    def _process_item(self, row):
+
+        row.pop(None, None)
+
+        result = {}
+
+        indicator = row.get('Name', '')
+        if indicator == '':
+            return []
+
+        if self.entity == 'ip':                                                     ## Only for IP type entity
+            try:
+                if '/' in indicator:
+                    ip = netaddr.IPNetwork(indicator)
+                else:
+                    ip = netaddr.IPAddress(indicator)
+            except netaddr.core.AddrFormatError:
+                LOG.exception("%s - failed parsing indicator", self.name)
+                return []
+
+            if ip.version == 4:
+                result['type'] = 'IPv4'
+            elif ip.version == 6:
+                result['type'] = 'IPv6'
+            else:
+                LOG.debug("%s - unknown IP version %d", self.name, ip.version)
+                return []
+
+        if self.entity == 'hash':                                                   ## Only for hash type entity
+            algo = row.get('Algorithm', '')
+            if algo != '':
+                result['recordedfuture_algorithm'] = algo
+
+        risk = row.get('Risk', '')
+        if risk != '':
+            try:
+                result['recordedfuture_risk'] = int(risk)
+                result['confidence'] = (int(risk) * self.confidence) / 100
+            except:
+                LOG.debug("%s - invalid risk string: %s",
+                          self.name, risk)
+
+        riskstring = row.get('RiskString', '')
+        if riskstring != '':
+            result['recordedfuture_riskstring'] = riskstring
+
+        edetails = row.get('EvidenceDetails', '')
+        if edetails != '':
+            try:
+                edetails = ujson.loads(edetails)
+            except:
+                LOG.debug("%s - invalid JSON string in EvidenceDetails: %s",
+                          self.name, edetails)
+            else:
+                edetails = edetails.get('EvidenceDetails', [])
+                result['recordedfuture_evidencedetails'] = \
+                    [ed['Rule'] for ed in edetails]
+
+        if self.entity == 'ip':
+            result['recordedfuture_entityurl'] = \
+                'https://app.recordedfuture.com/live/sc/entity/ip:' + indicator
+
+        if self.entity == 'url':
+            result['recordedfuture_entityurl'] = \
+                'https://app.recordedfuture.com/live/sc/entity/url:' + indicator
+
+        if self.entity == 'hash':
+            result['recordedfuture_entityurl'] = \
+                'https://app.recordedfuture.com/live/sc/entity/hash:' + indicator
+
+        if self.entity == 'domain':
+            result['recordedfuture_entityurl'] = \
+                'https://app.recordedfuture.com/live/sc/entity/idn:' + indicator
+
+        return [[indicator, result]]
+
+    def _build_iterator(self, now):
+        if self.token is None:
+            raise RuntimeError(
+                '%s - token not set, poll not performed' % self.name
+            )
+
+        if self.entity is None:
+            raise RuntimeError(
+                '%s - entity not set, poll not performed' % self.name
+            )
+
+        if self.api is None:
+            raise RuntimeError(
+                '%s - api not set, poll not performed' % self.name
+            )
+
+        if self.api == 'fusion':
+            if self.entity == 'ip':
+                if self.path != None:
+                    if self.path.find('ip') == -1:
+                        raise RuntimeError(
+                            '%s - wrong file path for the given miner' % self.name
+                        )
+
+            if self.entity == 'url':
+                if self.path != None:
+                    if self.path.find('url') == -1:
+                        raise RuntimeError(
+                            '%s - wrong file path for the given miner' % self.name
+                        )
+
+            if self.entity == 'hash':
+                if self.path != None:
+                    if self.path.find('hash') == -1:
+                        raise RuntimeError(
+                            '%s - wrong file path for the given miner' % self.name
+                        )
+
+            if self.entity == 'domain':
+                if self.path != None:
+                    if self.path.find('domain') == -1:
+                        raise RuntimeError(
+                            '%s - wrong file path for the given miner' % self.name
+                        )
+
+        return super(MasterRiskList, self)._build_iterator(now)
+
+    def _build_request(self, now):
+        if self.api == 'connectApi':
+            if self.path is None:
+                url = 'https://api.recordedfuture.com/v2/' + str(self.entity) + '/risklist'
+            else:
+                url = 'https://api.recordedfuture.com/v2/' + str(self.entity) + '/risklist?list=' + self.path
+
+            params = {'output_format': 'csv/splunk'}
+            headers = {'X-RFToken': self.token, 'X-RF-User-Agent': 'Minemeld v1.2',
+                       'content-type': 'application/json'}
+
+            r = requests.Request('GET', url, headers=headers, params=params)
+
+            return r.prepare()
+
+        if self.api == 'fusion':
+            if self.path is None:
+                url = '/public/risklists/default_' + str(self.entity) + '_risklist.csv'
+            else:
+                url = self.path
+
+            url = url.replace('/', '%2F')
+            params = {'output_format': 'csv/splunk'}
+            headers = {'X-RFToken': self.token, 'X-RF-User-Agent': 'Minemeld v1.2', 'content-type': 'application/json'}
+            re = requests.Request('GET', 'https://api.recordedfuture.com/v2/fusion/files/?path=' + url, headers=headers, params=params)
+
+            return re.prepare()
+
+    def hup(self, source=None):
+        LOG.info('%s - hup received, reload side config', self.name)
+        self._load_side_config()
+        super(MasterRiskList, self).hup(source)
+
+    @staticmethod
+    def gc(name, config=None):
+        csvhelper.CSVFT.gc(name, config=config)
 
         side_config_path = None
         if config is not None:
