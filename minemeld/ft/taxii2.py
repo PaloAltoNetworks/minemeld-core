@@ -33,14 +33,6 @@ from .utils import dt_to_millisec, interval_in_sec
 
 LOG = logging.getLogger(__name__)
 
-_STIX2_MINEMELD_HASHES = [
-    'ssdeep',
-    'md5',
-    'sha1',
-    'sha256',
-    'sha512'
-]
-
 _STIX2_TYPES_TO_MM_TYPES = {
     'ipv4-addr': 'IPv4',
     'ipv6-addr': 'IPv6',
@@ -73,10 +65,6 @@ class Taxii2Client(basepoller.BasePollerFT):
         self.max_poll_dt = self.config.get('max_poll_dt', 86400)
 
         # options for processing
-        self.ip_version_auto_detect = self.config.get('ip_version_auto_detect', True)
-        self.ignore_composition_operator = self.config.get('ignore_composition_operator', False)
-        self.create_fake_indicator = self.config.get('create_fake_indicator', False)
-        self.hash_priority = self.config.get('hash_priority', _STIX2_MINEMELD_HASHES)
         self.lower_timestamp_precision = self.config.get('lower_timestamp_precision', False)
 
         self.auth_type = self.config.get('auth_type', 'none')

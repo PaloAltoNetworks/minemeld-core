@@ -1,31 +1,32 @@
-# Generated from BoolExpr.g4 by ANTLR 4.5.1
+# Generated from BoolExpr.g4 by ANTLR 4.7.1
 # encoding: utf-8
 from __future__ import print_function
 from antlr4 import *
 from io import StringIO
+import sys
 
 
 # flake8: noqa
 
 def serializedATN():
     with StringIO() as buf:
-        buf.write(u"\3\u0430\ud6d1\u8206\uad2d\u4417\uaef1\u8d80\uaadd\3")
+        buf.write(u"\3\u608b\ua72a\u8133\ub9ed\u417c\u3be7\u7786\u5964\3")
         buf.write(u"\22\63\4\2\t\2\4\3\t\3\4\4\t\4\4\5\t\5\4\6\t\6\4\7\t")
         buf.write(u"\7\4\b\t\b\3\2\3\2\3\2\3\2\3\3\3\3\5\3\27\n\3\3\4\3\4")
         buf.write(u"\3\4\5\4\34\n\4\3\5\3\5\3\5\3\6\3\6\3\6\3\6\3\6\5\6&")
         buf.write(u"\n\6\7\6(\n\6\f\6\16\6+\13\6\3\6\3\6\3\7\3\7\3\b\3\b")
         buf.write(u"\3\b\2\2\t\2\4\6\b\n\f\16\2\4\3\2\6\13\4\2\f\16\20\21")
-        buf.write(u"/\2\20\3\2\2\2\4\26\3\2\2\2\6\30\3\2\2\2\b\35\3\2\2\2")
-        buf.write(u"\n \3\2\2\2\f.\3\2\2\2\16\60\3\2\2\2\20\21\5\4\3\2\21")
-        buf.write(u"\22\5\f\7\2\22\23\5\16\b\2\23\3\3\2\2\2\24\27\7\17\2")
-        buf.write(u"\2\25\27\5\6\4\2\26\24\3\2\2\2\26\25\3\2\2\2\27\5\3\2")
-        buf.write(u"\2\2\30\33\7\17\2\2\31\34\5\b\5\2\32\34\5\n\6\2\33\31")
-        buf.write(u"\3\2\2\2\33\32\3\2\2\2\34\7\3\2\2\2\35\36\7\3\2\2\36")
-        buf.write(u"\37\7\4\2\2\37\t\3\2\2\2 !\7\3\2\2!)\5\4\3\2\"%\7\5\2")
-        buf.write(u"\2#&\5\4\3\2$&\5\16\b\2%#\3\2\2\2%$\3\2\2\2&(\3\2\2\2")
-        buf.write(u"\'\"\3\2\2\2(+\3\2\2\2)\'\3\2\2\2)*\3\2\2\2*,\3\2\2\2")
-        buf.write(u"+)\3\2\2\2,-\7\4\2\2-\13\3\2\2\2./\t\2\2\2/\r\3\2\2\2")
-        buf.write(u"\60\61\t\3\2\2\61\17\3\2\2\2\6\26\33%)")
+        buf.write(u"\2/\2\20\3\2\2\2\4\26\3\2\2\2\6\30\3\2\2\2\b\35\3\2\2")
+        buf.write(u"\2\n \3\2\2\2\f.\3\2\2\2\16\60\3\2\2\2\20\21\5\4\3\2")
+        buf.write(u"\21\22\5\f\7\2\22\23\5\16\b\2\23\3\3\2\2\2\24\27\7\17")
+        buf.write(u"\2\2\25\27\5\6\4\2\26\24\3\2\2\2\26\25\3\2\2\2\27\5\3")
+        buf.write(u"\2\2\2\30\33\7\17\2\2\31\34\5\b\5\2\32\34\5\n\6\2\33")
+        buf.write(u"\31\3\2\2\2\33\32\3\2\2\2\34\7\3\2\2\2\35\36\7\3\2\2")
+        buf.write(u"\36\37\7\4\2\2\37\t\3\2\2\2 !\7\3\2\2!)\5\4\3\2\"%\7")
+        buf.write(u"\5\2\2#&\5\4\3\2$&\5\16\b\2%#\3\2\2\2%$\3\2\2\2&(\3\2")
+        buf.write(u"\2\2\'\"\3\2\2\2(+\3\2\2\2)\'\3\2\2\2)*\3\2\2\2*,\3\2")
+        buf.write(u"\2\2+)\3\2\2\2,-\7\4\2\2-\13\3\2\2\2./\t\2\2\2/\r\3\2")
+        buf.write(u"\2\2\60\61\t\3\2\2\61\17\3\2\2\2\6\26\33%)")
         return buf.getvalue()
 
 
@@ -78,9 +79,9 @@ class BoolExprParser ( Parser ):
     NUMBER=15
     WS=16
 
-    def __init__(self, input):
-        super(BoolExprParser, self).__init__(input)
-        self.checkVersion("4.5.1")
+    def __init__(self, input, output=sys.stdout):
+        super(BoolExprParser, self).__init__(input, output=output)
+        self.checkVersion("4.7.1")
         self._interp = ParserATNSimulator(self, self.atn, self.decisionsToDFA, self.sharedContextCache)
         self._predicates = None
 
@@ -171,6 +172,7 @@ class BoolExprParser ( Parser ):
         self.enterRule(localctx, 2, self.RULE_expression)
         try:
             self.state = 20
+            self._errHandler.sync(self)
             la_ = self._interp.adaptivePredict(self._input,0,self._ctx)
             if la_ == 1:
                 self.enterOuterAlt(localctx, 1)
@@ -233,6 +235,7 @@ class BoolExprParser ( Parser ):
             self.state = 22
             self.match(BoolExprParser.JAVASCRIPTIDENTIFIER)
             self.state = 25
+            self._errHandler.sync(self)
             la_ = self._interp.adaptivePredict(self._input,1,self._ctx)
             if la_ == 1:
                 self.state = 23
@@ -344,15 +347,16 @@ class BoolExprParser ( Parser ):
                 self.state = 32
                 self.match(BoolExprParser.T__2)
                 self.state = 35
+                self._errHandler.sync(self)
                 token = self._input.LA(1)
                 if token in [BoolExprParser.JAVASCRIPTIDENTIFIER]:
                     self.state = 33
                     self.expression()
-
+                    pass
                 elif token in [BoolExprParser.T__9, BoolExprParser.T__10, BoolExprParser.T__11, BoolExprParser.STRING, BoolExprParser.NUMBER]:
                     self.state = 34
                     self.value()
-
+                    pass
                 else:
                     raise NoViableAltException(self)
 
@@ -403,6 +407,7 @@ class BoolExprParser ( Parser ):
             if not((((_la) & ~0x3f) == 0 and ((1 << _la) & ((1 << BoolExprParser.T__3) | (1 << BoolExprParser.T__4) | (1 << BoolExprParser.T__5) | (1 << BoolExprParser.T__6) | (1 << BoolExprParser.T__7) | (1 << BoolExprParser.T__8))) != 0)):
                 self._errHandler.recoverInline(self)
             else:
+                self._errHandler.reportMatch(self)
                 self.consume()
         except RecognitionException as re:
             localctx.exception = re
@@ -450,6 +455,7 @@ class BoolExprParser ( Parser ):
             if not((((_la) & ~0x3f) == 0 and ((1 << _la) & ((1 << BoolExprParser.T__9) | (1 << BoolExprParser.T__10) | (1 << BoolExprParser.T__11) | (1 << BoolExprParser.STRING) | (1 << BoolExprParser.NUMBER))) != 0)):
                 self._errHandler.recoverInline(self)
             else:
+                self._errHandler.reportMatch(self)
                 self.consume()
         except RecognitionException as re:
             localctx.exception = re

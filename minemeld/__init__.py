@@ -5,4 +5,4 @@ minemeld
 MineMeld core engine
 """
 
-__version__ = '0.9.62'
+__version__ = '0.9.64'

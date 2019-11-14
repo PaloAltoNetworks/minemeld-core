@@ -515,8 +515,11 @@ class BasePollerFT(base.BaseFT):
         return True
 
     def _update_attributes(self, current, _new, current_run, new_run):
-        x = {k:v for k,v in current.iteritems() if k in _new or k[0]
-             in ('_', '$')}
+        x = {k:v for k,v in current.iteritems() 
+             if k in _new or
+                k in self.attributes or
+                k in ['sources', 'last_seen', 'first_seen'] or
+                k[0] in ('_', '$')}
         x.update(_new)
 
         return x
