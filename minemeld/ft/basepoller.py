@@ -506,7 +506,12 @@ class BasePollerFT(base.BaseFT):
                 self.statistics['garbage_collected'] += 1
 
     def _compare_attributes(self, oa, na):
+        default_attrs = ['sources', 'last_seen', 'first_seen']
+        default_attrs.extend(self.attributes.keys())
+
         for k in oa:
+            if k in default_attrs or k[0] in ('_', '$'):
+                continue
             if k not in na:
                 return False
         for k in na:
