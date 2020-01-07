@@ -63,6 +63,7 @@ class AggregateIPv4FT(actorbase.ActorBaseFT):
         super(AggregateIPv4FT, self).configure()
 
         self.whitelist_prefixes = self.config.get('whitelist_prefixes', [])
+        self.enable_list_merge = self.config.get('enable_list_merge', False)
 
     def _initialize_tables(self, truncate=False):
         self.table = table.Table(
@@ -104,7 +105,13 @@ class AggregateIPv4FT(actorbase.ActorBaseFT):
                 if vk in mv and vk in RESERVED_ATTRIBUTES:
                     mv[vk] = RESERVED_ATTRIBUTES[vk](mv[vk], v[vk])
                 else:
-                    mv[vk] = v[vk]
+                    if self.enable_list_merge and vk in mv and isinstance(mv[vk], list):
+                        if not isinstance(v[vk], list):
+                            mv[vk] = v[vk]
+                        else:
+                            mv[vk].extend(v[vk])
+                    else:
+                        mv[vk] = v[vk]
 
         return mv
 
