@@ -136,5 +136,8 @@
     },
     "minemeld.ft.taxii2.Taxii2Client": {
         "class": "minemeld.ft.taxii2:Taxii2Client"
+    },
+    "minemeld.ft.bambenek.Miner": {
+        "class": "minemeld.ft.bambenek:Miner"
     }
 }
