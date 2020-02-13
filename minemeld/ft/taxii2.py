@@ -326,6 +326,8 @@ class Taxii2Client(basepoller.BasePollerFT):
                             value = {
                                 "type": mm_type
                             }
+                            if 'confidence' in obj:
+                                value['confidence'] = obj['confidence']
 
                             descriptions = [r["description"].strip() for r in rels if "description" in r]
                             if len(descriptions):
