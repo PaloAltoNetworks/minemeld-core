@@ -26,6 +26,7 @@ import itertools
 import csv
 import requests
 import yaml
+import shutil
 from urllib3.response import GzipDecoder
 
 from . import basepoller
