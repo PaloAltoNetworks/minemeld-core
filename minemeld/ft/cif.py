@@ -136,7 +136,7 @@ class Feed(basepoller.BasePollerFT):
         )
         if self.last_successful_run is None:
             filters['reporttime'] = '{0}Z'.format(
-                now.replace(days=-days).format('YYYY-MM-DDTHH:mm:ss')
+                now.shift(days=-days).format('YYYY-MM-DDTHH:mm:ss')
             )
         else:
             filters['reporttime'] = '{0}Z'.format(
