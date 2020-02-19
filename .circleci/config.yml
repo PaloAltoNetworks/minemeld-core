@@ -28,7 +28,7 @@ jobs:
       - run:
           name: Build package
           command: >
-            platter build -r requirements-web.txt
+            platter build --virtualenv-version 16.7.9 -r requirements-web.txt
             --prebuild-script scripts/prebuild-script.sh
       - run:
           name: Rename files
@@ -64,7 +64,7 @@ jobs:
       - run:
           name: Build package
           command: >
-            platter build -r requirements-web.txt
+            platter build --virtualenv-version 16.7.9 -r requirements-web.txt
             --prebuild-script scripts/prebuild-script.sh
       - run:
           name: Rename files

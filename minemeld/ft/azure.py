@@ -31,7 +31,12 @@ LOG = logging.getLogger(__name__)
 AZUREXML_URL = \
     'https://www.microsoft.com/EN-US/DOWNLOAD/confirmation.aspx?id=41653'
 
-AZUREJSON_URL = 'https://www.microsoft.com/en-us/download/confirmation.aspx?id=56519'
+AZURE_CLOUD_TO_URL = {
+    'public': 'https://www.microsoft.com/en-us/download/confirmation.aspx?id=56519',
+    'usgov': 'http://www.microsoft.com/en-us/download/confirmation.aspx?id=57063',
+    'china': 'https://www.microsoft.com/en-us/download/confirmation.aspx?id=57062',
+    'germany': 'https://www.microsoft.com/en-us/download/confirmation.aspx?id=57064'
+}
 
 REGIONS_XPATH = '/AzurePublicIpAddresses/Region'
 
@@ -174,18 +179,12 @@ class AzureJSON(basepoller.BasePollerFT):
 
         self.polling_timeout = self.config.get('polling_timeout', 20)
         self.verify_cert = self.config.get('verify_cert', True)
+        self.cloud = self.config.get('cloud', 'public')
+        self.url = AZURE_CLOUD_TO_URL[self.cloud]
 
     def _process_item(self, item):
         indicator = item.pop('indicator', None)
         return [[indicator, item]]
-
-    def _build_request(self, now):
-        r = requests.Request(
-            'GET',
-            AZUREJSON_URL
-        )
-
-        return r.prepare()
 
     def _build_iterator(self, now):
         _iterators = []
@@ -197,7 +196,7 @@ class AzureJSON(basepoller.BasePollerFT):
         )
 
         r = requests.get(
-            AZUREJSON_URL,
+            self.url,
             **rkwargs
         )
 

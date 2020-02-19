@@ -1,4 +1,4 @@
-#  Copyright 2015-2016 Palo Alto Networks, Inc
+#  Copyright 2015-2020 Palo Alto Networks, Inc
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -21,9 +21,13 @@ from __future__ import absolute_import
 
 import logging
 import re
+import os.path
 import itertools
 import csv
 import requests
+import yaml
+import shutil
+from urllib3.response import GzipDecoder
 
 from . import basepoller
 
@@ -93,6 +97,36 @@ class CSVFT(basepoller.BasePollerFT):
             'skipinitialspace': self.config.get('skipinitialspace', False)
         }
 
+        self.decode_gzip = self.config.get('decode_gzip', False)
+
+        self.side_config_path = self.config.get('side_config', None)
+        if self.side_config_path is None:
+            self.side_config_path = os.path.join(
+                os.environ['MM_CONFIG_DIR'],
+                '%s_side_config.yml' % self.name
+            )
+
+        self._load_side_config()
+
+    def _load_side_config(self):
+        try:
+            with open(self.side_config_path, 'r') as f:
+                sconfig = yaml.safe_load(f)
+
+        except Exception as e:
+            LOG.error('%s - Error loading side config: %s', self.name, str(e))
+            return
+
+        username = sconfig.get('username', None)
+        if username is not None:
+            self.username = username
+            LOG.info('%s - username set', self.name)
+
+        password = sconfig.get('password', None)
+        if password is not None:
+            self.password = password
+            LOG.info('%s - password set', self.name)
+
     def _process_item(self, item):
         item.pop(None, None)  # I love this
 
@@ -113,6 +147,10 @@ class CSVFT(basepoller.BasePollerFT):
         return r.prepare()
 
     def _build_iterator(self, now):
+        def _debug(x):
+            LOG.info('{!r}'.format(x))
+            return x
+
         _session = requests.Session()
 
         prepreq = self._build_request(now)
@@ -136,10 +174,13 @@ class CSVFT(basepoller.BasePollerFT):
             raise
 
         response = r.raw
+        if self.decode_gzip:
+            response = self._gzipped_line_splitter(r)
+
         if self.ignore_regex is not None:
             response = itertools.ifilter(
                 lambda x: self.ignore_regex.match(x) is None,
-                r.raw
+                response
             )
 
         csvreader = csv.DictReader(
@@ -149,3 +190,54 @@ class CSVFT(basepoller.BasePollerFT):
         )
 
         return csvreader
+
+    def _gzipped_line_splitter(self, response):
+        # same logic used in urllib32.response.iter_lines
+        pending = None
+
+        decoder = GzipDecoder()
+        chunks = itertools.imap(
+            decoder.decompress,
+            response.iter_content(chunk_size=1024*1024)
+        )
+
+        for chunk in chunks:
+            if pending is not None:
+                chunk = pending + chunk
+
+            lines = chunk.splitlines()
+
+            if lines and lines[-1] and chunk and lines[-1][-1] == chunk[-1]:
+                pending = lines.pop()
+            else:
+                pending = None
+
+            for line in lines:
+                yield line
+
+        if pending is not None:
+            yield pending
+
+    def hup(self, source=None):
+        LOG.info('%s - hup received, reload side config', self.name)
+        self._load_side_config()
+        super(CSVFT, self).hup(source=source)
+
+    @staticmethod
+    def gc(name, config=None):
+        basepoller.BasePollerFT.gc(name, config=config)
+
+        shutil.rmtree('{}_temp'.format(name), ignore_errors=True)
+        side_config_path = None
+        if config is not None:
+            side_config_path = config.get('side_config', None)
+        if side_config_path is None:
+            side_config_path = os.path.join(
+                os.environ['MM_CONFIG_DIR'],
+                '{}_side_config.yml'.format(name)
+            )
+
+        try:
+            os.remove(side_config_path)
+        except:
+            pass
