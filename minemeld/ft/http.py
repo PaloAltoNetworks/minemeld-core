@@ -51,6 +51,9 @@ class HttpFT(basepoller.BasePollerFT):
         :encoding: encoding of the feed, if not UTF-8. See
             ``str.decode`` for options. Default: *null*, meaning do
             nothing, (Assumes UTF-8).
+        :headers: Header parameters are optional to sepcify a user-agent or an api-token
+        Example: headers = {'user-agent': 'my-app/0.0.1'} or Authorization: Bearer 
+        (curl -H "Authorization: Bearer " "https://api-url.com/api/v1/iocs?first_seen_since=2016-1-1")
 
     **Extraction dictionary**
         Extraction dictionaries contain the following keys:
@@ -108,6 +111,8 @@ class HttpFT(basepoller.BasePollerFT):
 
         self.username = self.config.get('username', None)
         self.password = self.config.get('password', None)
+
+        self.headers = self.config.get('headers', None)
 
         self.ignore_regex = self.config.get('ignore_regex', None)
         if self.ignore_regex is not None:
@@ -195,6 +200,10 @@ class HttpFT(basepoller.BasePollerFT):
 
         if self.username is not None and self.password is not None:
             rkwargs['auth'] = (self.username, self.password)
+
+        if self.headers is not None:
+            for key value in self.headers.items():
+                rkwargs[key] = value
 
         r = requests.get(
             self.url,

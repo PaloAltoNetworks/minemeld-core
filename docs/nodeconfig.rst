@@ -192,6 +192,8 @@ Parameters
     character is used as indicator. Default: *null*
 :fields: a dicionary of *extraction dictionaries* to extract
     additional attributes from each line. Default: {}
+:headers: a dictionary of additional headers to add to the HTTP
+    header. Default: {}
 
 Extraction dictionary
 +++++++++++++++++++++
@@ -230,6 +232,8 @@ extract the indicator and additional fields::
         dshield_email:
             regex: '^.*\t.*\t[0-9]+\t[0-9]+\t[^\t]+\t[A-Z]+\t(\S+)'
             transform: '\1'
+    headers:
+        api-key: sample-api-key
 
 Example config in YAML where the text in each line until the first
 whitespace is used as indicator::
@@ -302,6 +306,8 @@ Parameters
 :fields: list of JSON attributes to include in the indicator value.
     If *null* no additional attributes are extracted. Default: *null*
 :prefix: prefix to add to field names. Default: json
+:headers: a dictionary of additional headers to add to the HTTP
+    header. Default: {}
 
 Example
 +++++++
@@ -315,5 +321,7 @@ Example config in YAML::
     fields:
         - region
         - service
+    headers:
+        api-key: sample-api-key
 
 For a complete config example check **aws.AMAZON** prototype.
