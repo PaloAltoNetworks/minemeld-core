@@ -15,7 +15,7 @@
 import datetime
 
 import pytz
-import lz4
+import lz4.frame
 
 import libtaxii
 import libtaxii.constants
@@ -77,7 +77,7 @@ def _indicators_feed(feed, excbegtime, incendtime):
 
             if value.startswith('lz4'):
                 try:
-                    value = lz4.decompress(value[3:])
+                    value = lz4.frame.decompress(value[3:])
                     value = stix.core.STIXPackage.from_json(value)
                     value = value.to_xml(
                         ns_dict={'https://go.paloaltonetworks.com/minemeld': 'minemeld'}

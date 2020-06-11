@@ -22,7 +22,7 @@ import os.path
 from datetime import datetime, timedelta
 
 import pytz
-import lz4
+import lz4.frame
 import lxml.etree
 import yaml
 import redis
@@ -1601,7 +1601,10 @@ class DataFeed(actorbase.ActorBaseFT):
 
             sp.add_indicator(sindicator)
 
-        spackage = 'lz4'+lz4.compressHC(sp.to_json())
+        spackage = 'lz4'+lz4.frame.compress(
+            sp.to_json(),
+            compression_level=lz4.frame.COMPRESSIONLEVEL_MINHC
+        )
         with self.SR.pipeline() as p:
             p.multi()
 
