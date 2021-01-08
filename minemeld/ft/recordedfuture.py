@@ -319,14 +319,13 @@ class MasterRiskList(csv.CSVFT):
     def _process_item(self, row):
 
         row.pop(None, None)
-
+        url_key = 'recordedfuture_entityurl'
+        base_url = 'https://app.recordedfuture.com/live/sc/entity/'
         result = {}
-
         indicator = row.get('Name', '')
         if indicator == '':
             return []
-
-        if self.entity == 'ip':                                                     ## Only for IP type entity
+        if self.entity == 'ip':
             try:
                 if '/' in indicator:
                     ip = netaddr.IPNetwork(indicator)
@@ -343,23 +342,19 @@ class MasterRiskList(csv.CSVFT):
             else:
                 LOG.debug("%s - unknown IP version %d", self.name, ip.version)
                 return []
-            result['recordedfuture_entityurl'] = \
-                'https://app.recordedfuture.com/live/sc/entity/ip:' + indicator
+            result[url_key] = '{}ip:{}'.format(base_url, indicator)
         elif self.entity == 'domain':
             result['type'] = 'domain'
-            result['recordedfuture_entityurl'] = \
-                'https://app.recordedfuture.com/live/sc/entity/idn:' + indicator
+            result[url_key] = '{}idn:{}'.format(base_url, indicator)
         elif self.entity == 'url':
             result['type'] = 'URL'
-            result['recordedfuture_entityurl'] = \
-                'https://app.recordedfuture.com/live/sc/entity/url:' + indicator
-        elif self.entity == 'hash':                                                   ## Only for hash type entity
+            result[url_key] = '{}url:{}'.format(base_url, indicator)
+        elif self.entity == 'hash':
             algo = row.get('Algorithm', '')
             if algo != '':
                 result['recordedfuture_algorithm'] = algo
-                result['type'] =
-            result['recordedfuture_entityurl'] = \
-                'https://app.recordedfuture.com/live/sc/entity/hash:' + indicator
+                result['type'] = self._check_hash_type(indicator)
+            result[url_key] = '{}hash:{}'.format(base_url, indicator)
         risk = row.get('Risk', '')
         if risk != '':
             try:
