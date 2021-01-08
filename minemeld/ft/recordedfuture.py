@@ -343,12 +343,23 @@ class MasterRiskList(csv.CSVFT):
             else:
                 LOG.debug("%s - unknown IP version %d", self.name, ip.version)
                 return []
-
-        if self.entity == 'hash':                                                   ## Only for hash type entity
+            result['recordedfuture_entityurl'] = \
+                'https://app.recordedfuture.com/live/sc/entity/ip:' + indicator
+        elif self.entity == 'domain':
+            result['type'] = 'domain'
+            result['recordedfuture_entityurl'] = \
+                'https://app.recordedfuture.com/live/sc/entity/idn:' + indicator
+        elif self.entity == 'url':
+            result['type'] = 'URL'
+            result['recordedfuture_entityurl'] = \
+                'https://app.recordedfuture.com/live/sc/entity/url:' + indicator
+        elif self.entity == 'hash':                                                   ## Only for hash type entity
             algo = row.get('Algorithm', '')
             if algo != '':
                 result['recordedfuture_algorithm'] = algo
-
+                result['type'] =
+            result['recordedfuture_entityurl'] = \
+                'https://app.recordedfuture.com/live/sc/entity/hash:' + indicator
         risk = row.get('Risk', '')
         if risk != '':
             try:
@@ -374,23 +385,18 @@ class MasterRiskList(csv.CSVFT):
                 result['recordedfuture_evidencedetails'] = \
                     [ed['Rule'] for ed in edetails]
 
-        if self.entity == 'ip':
-            result['recordedfuture_entityurl'] = \
-                'https://app.recordedfuture.com/live/sc/entity/ip:' + indicator
-
-        if self.entity == 'url':
-            result['recordedfuture_entityurl'] = \
-                'https://app.recordedfuture.com/live/sc/entity/url:' + indicator
-
-        if self.entity == 'hash':
-            result['recordedfuture_entityurl'] = \
-                'https://app.recordedfuture.com/live/sc/entity/hash:' + indicator
-
-        if self.entity == 'domain':
-            result['recordedfuture_entityurl'] = \
-                'https://app.recordedfuture.com/live/sc/entity/idn:' + indicator
-
         return [[indicator, result]]
+
+    @staticmethod
+    def _check_hash_type(entity):
+        if len(entity) == 64:
+            return 'sha256'
+        elif len(entity) == 40:
+            return 'sha1'
+        elif len(entity) == 32:
+            return 'md5'
+        else:
+            return ''
 
     def _build_iterator(self, now):
         if self.token is None:
