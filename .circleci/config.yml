@@ -15,10 +15,7 @@ jobs:
           command: >
             sudo apt install -y gcc git python-minimal python2.7-dev
             libffi-dev libssl-dev make g++ libleveldb-dev librrd-dev
-            libxslt1-dev libc-ares-dev libsnappy-dev
-      - run:
-          name: Install PIP
-          command: wget https://bootstrap.pypa.io/get-pip.py && sudo -H python get-pip.py
+            libxslt1-dev libc-ares-dev libsnappy-dev python-pip
       - run:
           name: Install Python dev requirements
           command: sudo -H pip install -r requirements-dev.txt
@@ -51,10 +48,7 @@ jobs:
           command: >
             sudo apt install -y gcc git python-minimal python2.7-dev
             libffi-dev libssl-dev make g++ libleveldb-dev librrd-dev
-            libxslt1-dev libc-ares-dev libsnappy-dev
-      - run:
-          name: Install PIP
-          command: wget https://bootstrap.pypa.io/get-pip.py && sudo -H python get-pip.py
+            libxslt1-dev libc-ares-dev libsnappy-dev python-pip
       - run:
           name: Install Python dev requirements
           command: sudo -H pip install -r requirements-dev.txt

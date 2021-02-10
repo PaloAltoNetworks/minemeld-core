@@ -57,6 +57,16 @@ def _translate_ip_ranges(indicator, value=None):
     return [str(x) if x.size != 1 else str(x.network) for x in ip_range.cidrs()]
 
 
+def _parse_ip_ranges(indicator):
+    try:
+        ip_range = IPRange(*indicator.split('-', 1))
+
+    except (AddrFormatError, ValueError, TypeError):
+        raise 'Invalid IP Address in aggregation: {!r}'.format(indicator)
+
+    return ip_range
+
+
 @contextmanager
 def _buffer():
     result = cStringIO.StringIO()
@@ -109,6 +119,9 @@ def generate_panosurl_feed(feed, start, num, desc, value, **kwargs):
                 if _BROAD_PATTERN.match(hostname) is not None:
                     continue
 
+            if '/' not in i and 'sl' in kwargs:
+                i = i + '/' # add a slash at the end of the hostname
+
             # for PAN-OS *.domain.com does not match domain.com
             # we should provide both
             # this could generate more than num entries in the egress feed
@@ -133,21 +146,36 @@ def generate_plain_feed(feed, start, num, desc, value, **kwargs):
 
     translate_ip_ranges = kwargs.pop('translate_ip_ranges', False)
 
+    should_aggregate = 'sum' in kwargs
+    if should_aggregate:
+        translate_ip_ranges = False
+        temp_set = IPSet()
+
     cstart = start
 
     while cstart < (start + num):
         ilist = zrange(feed, cstart,
                        cstart - 1 + min(start + num - cstart, FEED_INTERVAL))
 
-        if translate_ip_ranges:
-            ilist = [xi for i in ilist for xi in _translate_ip_ranges(i)]
+        if should_aggregate:
+            for i in ilist:
+                LOG.info('Adding {!r} to summarization'.format(i))
+                temp_set.add(_parse_ip_ranges(i))
 
-        yield '\n'.join(ilist) + '\n'
+        else:
+            if translate_ip_ranges:
+                ilist = [xi for i in ilist for xi in _translate_ip_ranges(i)]
+
+            yield '\n'.join(ilist) + '\n'
 
         if len(ilist) < 100:
             break
 
         cstart += 100
+
+    if should_aggregate:
+        for cidr in temp_set.iter_cidrs():
+            yield str(cidr) + '\n'
 
 
 def generate_json_feed(feed, start, num, desc, value, **kwargs):
