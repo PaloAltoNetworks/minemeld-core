@@ -146,7 +146,7 @@ def generate_plain_feed(feed, start, num, desc, value, **kwargs):
 
     translate_ip_ranges = kwargs.pop('translate_ip_ranges', False)
 
-    should_aggregate = 'ag' in kwargs
+    should_aggregate = 'sum' in kwargs
     if should_aggregate:
         translate_ip_ranges = False
         temp_set = IPSet()
@@ -159,8 +159,8 @@ def generate_plain_feed(feed, start, num, desc, value, **kwargs):
 
         if should_aggregate:
             for i in ilist:
-                for ipr in _parse_ip_ranges(i):
-                    temp_set.add(ipr)
+                LOG.info('Adding {!r} to summarization'.format(i))
+                temp_set.add(_parse_ip_ranges(i))
 
         else:
             if translate_ip_ranges:
