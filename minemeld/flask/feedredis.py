@@ -22,7 +22,7 @@ import unicodecsv
 from flask import request, jsonify, Response, stream_with_context
 from flask.ext.login import current_user
 from gevent import sleep
-from netaddr import IPRange, IPNetwork, IPSet, AddrFormatError
+from netaddr import IPRange, IPNetwork, IPSet, iprange_to_cidrs
 
 from .aaa import MMBlueprint
 from .cbfeed import CbFeedInfo, CbReport
@@ -57,14 +57,14 @@ def _translate_ip_ranges(indicator, value=None):
     return [str(x) if x.size != 1 else str(x.network) for x in ip_range.cidrs()]
 
 
-def _parse_ip_ranges(indicator):
+def _extract_cidrs(indicator):
     try:
-        ip_range = IPRange(*indicator.split('-', 1))
+        parsed = iprange_to_cidrs(*indicator.split('-', 1)) if '-' in indicator else [IPNetwork(indicator)]
 
     except (AddrFormatError, ValueError, TypeError):
-        raise 'Invalid IP Address in aggregation: {!r}'.format(indicator)
+        raise Exception('Invalid IP Address in summarization: {!r}'.format(indicator))
 
-    return ip_range
+    return parsed
 
 
 @contextmanager
@@ -149,7 +149,7 @@ def generate_plain_feed(feed, start, num, desc, value, **kwargs):
     should_aggregate = 'sum' in kwargs
     if should_aggregate:
         translate_ip_ranges = False
-        temp_set = IPSet()
+        temp_set = set()
 
     cstart = start
 
@@ -159,8 +159,8 @@ def generate_plain_feed(feed, start, num, desc, value, **kwargs):
 
         if should_aggregate:
             for i in ilist:
-                LOG.info('Adding {!r} to summarization'.format(i))
-                temp_set.add(_parse_ip_ranges(i))
+                for n in _extract_cidrs(i):
+                    temp_set.add(n)
 
         else:
             if translate_ip_ranges:
@@ -174,7 +174,8 @@ def generate_plain_feed(feed, start, num, desc, value, **kwargs):
         cstart += 100
 
     if should_aggregate:
-        for cidr in temp_set.iter_cidrs():
+        ip_set = IPSet(temp_set)
+        for cidr in ip_set.iter_cidrs():
             yield str(cidr) + '\n'
 
 
