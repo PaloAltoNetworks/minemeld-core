@@ -119,7 +119,7 @@ def generate_panosurl_feed(feed, start, num, desc, value, **kwargs):
                 if _BROAD_PATTERN.match(hostname) is not None:
                     continue
 
-            if '/' not in i and 'sl' in kwargs:
+            if '/' not in i and not 'nsl' in kwargs:
                 i = i + '/' # add a slash at the end of the hostname
 
             # for PAN-OS *.domain.com does not match domain.com
