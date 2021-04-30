@@ -16,7 +16,7 @@ cybox==2.1.0.17
 six==1.11.0
 lxml==4.6.3
 stix-edh==1.0.0
-libtaxii==1.1.107
+libtaxii==1.1.118
 pytz==2015.4
 certifi
 ujson==1.34
