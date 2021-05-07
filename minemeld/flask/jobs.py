@@ -29,7 +29,7 @@ import gevent
 from gevent.subprocess import Popen
 from flask import g
 
-from . import REDIS_URL
+from minemeld.utils import get_config_value
 from . import config
 from .logger import LOG
 
@@ -38,8 +38,8 @@ __all__ = ['init_app', 'JOBS_MANAGER']
 
 
 REDIS_CP = redis.ConnectionPool.from_url(
-    REDIS_URL,
-    max_connections=int(os.environ.get('REDIS_MAX_CONNECTIONS', 5))
+    get_config_value(config, 'MGMTBUS.config.redis_url', 'unix:///var/run/redis/redis.sock'),
+    max_connections=int(get_config_value(config, 'redis_max_connections', '5'))
 )
 
 REDIS_JOBS_GROUP_PREFIX = 'mm-jobs-{}'
@@ -95,7 +95,7 @@ class JobsManager(object):
     def _job_monitor_glet(self, job_group, jobid, description, args, data):
         jobname = (REDIS_JOBS_GROUP_PREFIX+'-{}').format(job_group, jobid)
         joblogfile = os.path.join(
-            config.get('MINEMELD_LOG_DIRECTORY_PATH', '/tmp'),
+            os.path.abspath(config.get('MINEMELD_LOG_DIRECTORY_PATH', '/tmp')),
             '{}.log'.format(jobname)
         )
         jobtempdir = tempfile.mkdtemp(prefix=jobname)

@@ -63,3 +63,6 @@ target/
 
 _ares.c
 _ares.h
+
+# pyenv
+.python-version

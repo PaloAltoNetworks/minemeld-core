@@ -22,6 +22,7 @@ import minemeld.run.config
 
 from flask import request, jsonify
 
+from minemeld.flask import config
 from .redisclient import SR
 from .aaa import MMBlueprint
 from .logger import LOG
@@ -248,11 +249,11 @@ def _commit_config(version):
 
     fabric = _get_stanza('fabric')
     if fabric is not None:
-        newconfig['fabric'] = json.loads(fabric)['properties']
+        newconfig['fabric'] = fabric['properties']
 
     mgmtbus = _get_stanza('mgmtbus')
     if mgmtbus is not None:
-        newconfig['mgmtbus'] = json.loads(mgmtbus)['properties']
+        newconfig['mgmtbus'] = mgmtbus['properties']
 
     newconfig['nodes'] = {}
     for n in range(config_info['next_node_id']):
@@ -274,7 +275,7 @@ def _commit_config(version):
     # original config is not used because it could be modified
     # during validation
     temp_config = minemeld.run.config.MineMeldConfig.from_dict(copy.deepcopy(newconfig))
-    valid = minemeld.run.config.resolve_prototypes(temp_config)
+    valid = minemeld.run.config.resolve_prototypes(config, temp_config)
     if not valid:
         raise ValueError('Error resolving prototypes')
     messages = minemeld.run.config.validate_config(temp_config)

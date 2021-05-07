@@ -29,6 +29,8 @@ import gevent.lock
 import gevent.event
 import redis
 
+from minemeld.utils import get_config_value
+
 LOG = logging.getLogger(__name__)
 
 QUERY_QUEUE = 'mmtraced:query'
@@ -50,9 +52,7 @@ class Query(gevent.Greenlet):
         self.starting_counter = counter
         self.num_lines = num_lines
 
-        self.redis_url = redis_config.get('redis_url',
-            os.environ.get('REDIS_URL', 'unix:///var/run/redis/redis.sock')
-        )
+        self.redis_url = get_config_value(redis_config, 'redis_url', 'unix:///var/run/redis/redis.sock')
 
         super(Query, self).__init__()
 

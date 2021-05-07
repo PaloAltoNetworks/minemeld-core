@@ -374,7 +374,7 @@ class _CDataPrivateKey(_CDataUploadOnly):
 # API for working with side configs and dynamic data files
 @BLUEPRINT.route('/<datafilename>', methods=['GET'], read_write=False)
 def get_config_data(datafilename):
-    cpath = os.path.dirname(os.environ.get('MM_CONFIG'))
+    cpath = os.environ.get('MM_CONFIG_DIR')
 
     datafiletype = request.values.get('t', 'yaml')
 
@@ -392,7 +392,7 @@ def get_config_data(datafilename):
 
 @BLUEPRINT.route('/<datafilename>', methods=['PUT'], read_write=True)
 def save_config_data(datafilename):
-    cpath = os.path.dirname(os.environ.get('MM_CONFIG'))
+    cpath = os.environ.get('MM_CONFIG_DIR')
 
     datafiletype = request.values.get('t', 'yaml')
 
@@ -419,7 +419,7 @@ def save_config_data(datafilename):
 
 @BLUEPRINT.route('/<datafilename>/append', methods=['POST'], read_write=True)
 def append_config_data(datafilename):
-    cpath = os.path.dirname(os.environ.get('MM_CONFIG'))
+    cpath = os.environ.get('MM_CONFIG_DIR')
 
     datafiletype = request.values.get('t', 'yaml')
 
