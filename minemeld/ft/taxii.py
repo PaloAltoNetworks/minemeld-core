@@ -357,7 +357,7 @@ class TaxiiClient(basepoller.BasePollerFT):
             LOG.info('{} - message binding: {}'.format(
                 self.name, pi.poll_message_bindings
             ))
-            if pi.poll_message_bindings[0] == libtaxii.constants.VID_TAXII_XML_11:
+            if libtaxii.constants.VID_TAXII_XML_11 in pi.poll_message_bindings:
                 self.poll_service = pi.poll_address
                 LOG.info('{} - poll service found'.format(self.name))
                 break
