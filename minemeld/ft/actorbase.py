@@ -21,7 +21,7 @@ class ActorBaseFT(BaseFT):
 
     @_counting('rebuild.queued')
     def command_rebuild(self):
-        pass
+        self.rebuild()
 
     @_counting('checkpoint.queued')
     def checkpoint(self, **kwargs):
@@ -46,7 +46,7 @@ class ActorBaseFT(BaseFT):
             elif acommand.command == 'withdraw':
                 method = super(ActorBaseFT, self).withdraw
             elif acommand.command == 'rebuild':
-                method = self._rebuild
+                method = self.command_rebuild
             else:
                 LOG.error('{} - unknown command {}'.format(self.name, acommand.command))
 
