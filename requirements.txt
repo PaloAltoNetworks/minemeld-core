@@ -14,7 +14,7 @@ pan-python==0.10.0
 stix==1.1.1.8
 cybox==2.1.0.17
 six==1.11.0
-lxml==4.6.3
+lxml==4.6.5
 stix-edh==1.0.0
 libtaxii==1.1.107
 pytz==2015.4
