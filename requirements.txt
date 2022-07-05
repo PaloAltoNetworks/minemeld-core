@@ -19,7 +19,7 @@ stix-edh==1.0.0
 libtaxii==1.1.107
 pytz==2015.4
 certifi
-ujson==1.34
+ujson==5.4.0
 filelock==2.0.4
 sleekxmpp==1.3.1
 beautifulsoup4==4.4.1
