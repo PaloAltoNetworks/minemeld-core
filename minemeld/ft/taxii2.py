@@ -51,6 +51,7 @@ class Taxii2Client(basepoller.BasePollerFT):
         self.poll_service = None
         self.last_taxii2_run = None
         self.last_stix2_package_ts = None
+        self.taxii_date_added_last = None
 
         super(Taxii2Client, self).__init__(name, chassis, config)
 
@@ -361,14 +362,16 @@ class Taxii2Client(basepoller.BasePollerFT):
     def _poll_taxii21_server(self):
         """
         TAXII 2.1 uses a limit url query parameter and a 'more' true/false key in the returned data
+        as well as a next key for pagination, and the X-TAXII-Date-Added-Last to show the added
+        datetime of the newest object in the response.
         https://docs.oasis-open.org/cti/taxii/v2.1/csprd01/taxii-v2.1-csprd01.html#_Toc532988055
         :return: list of objects
         """
 
         data = []
         params = {'limit': '100'}
-        if self.last_stix2_package_ts:
-            params['added_after'] = self.last_stix2_package_ts
+        if self.taxii_date_added_last:
+            params['added_after'] = self.taxii_date_added_last
         fetch_more = True
 
         while fetch_more:
@@ -390,9 +393,21 @@ class Taxii2Client(basepoller.BasePollerFT):
                     # Sort the objs in data by timestamp to find the most recent timestamp
                     data.sort(key=lambda x: datetime.strptime(x['modified'], '%Y-%m-%dT%H:%M:%S.%fZ'))
                     if len(data):
-                        ts = data[-1]['modified']
+                        if 'next' in r_json:
+                            next_uuid = r_json['next']
+                            params['next'] = next_uuid
+                            ts = self.taxii_date_added_last
+                            LOG.info('{} - Paginating via next uuid - {}'.format(self.name, next_uuid))
+                        elif 'X-TAXII-Date-Added-Last' in r.headers:
+                            params.pop('next', None)
+                            ts = r.headers['X-TAXII-Date-Added-Last']
+                            LOG.info('{} - Paginating via X-TAXII-Date-Added-Last header - {}'.format(self.name, ts))
+                        else:
+                            raise RuntimeError('Server does not appear to use X-TAXII-Date-Added-Last header \
+                                    or "next" key in response, cannot paginate.  Is this really a TAXII 2.1 server?')
+
                         params['added_after'] = ts
-                        self.last_stix2_package_ts = ts
+                        self.taxii_date_added_last = ts
 
                     if 'more' in r_json and r_json['more'] is True:
                         pass
