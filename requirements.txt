@@ -27,6 +27,6 @@ cifsdk==2.0.14
 lz4==2.2.1
 networkx==1.11
 unicodecsv==0.14.1
-Werkzeug==0.12.2
+Werkzeug==0.15.5
 pyzmq==16.0.3
 stix2-patterns==1.1.0
